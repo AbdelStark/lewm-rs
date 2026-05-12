@@ -61,6 +61,10 @@ pub enum DataError {
         detail: String,
     },
 
+    /// A prefetch worker reached a fatal channel or repeated read failure.
+    #[error("prefetch worker channel closed unexpectedly")]
+    ChannelClosed,
+
     /// Dataset discovery succeeded but no usable shards/windows were present.
     #[error("empty dataset: {0}")]
     EmptyDataset(String),

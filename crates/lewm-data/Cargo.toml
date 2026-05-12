@@ -17,13 +17,18 @@ slow-tests = []
 
 [dependencies]
 blake3 = { workspace = true }
+crossbeam = { workspace = true }
 hdf5-metno = { workspace = true }
 image = { workspace = true }
 lewm-core = { workspace = true }
 ndarray = { workspace = true }
 parking_lot = { workspace = true }
+rand = { workspace = true }
+rand_chacha = { workspace = true }
 safetensors = { workspace = true }
 thiserror = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
 
 [dev-dependencies]
 insta = { workspace = true }
