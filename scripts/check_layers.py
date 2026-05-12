@@ -36,6 +36,7 @@ ALLOWED_DEPS = {
 }
 
 INFER_BANNED_DEPS = {"burn-cuda", "burn-autodiff"}
+PYTHON_BINDING_DEPS = {"pyo3", "pyo3-build-config", "pyo3-ffi", "pyo3-macros"}
 
 
 def load_toml(path: Path) -> dict[str, Any]:
@@ -72,6 +73,10 @@ def collect_deps(manifest: dict[str, Any]) -> set[str]:
     return deps
 
 
+def python_binding_deps(deps: set[str]) -> list[str]:
+    return sorted(dep for dep in deps if dep in PYTHON_BINDING_DEPS or dep.startswith("pyo3-"))
+
+
 def main() -> int:
     repo_root = Path(__file__).resolve().parents[1]
     failures: list[str] = []
@@ -106,6 +111,13 @@ def main() -> int:
             banned = sorted(deps & INFER_BANNED_DEPS)
             if banned:
                 failures.append(f"{crate}: forbidden inference dependencies present: {banned}")
+
+        python_deps = python_binding_deps(deps)
+        if python_deps:
+            failures.append(
+                f"{crate}: forbidden Python binding dependencies present: {python_deps}; "
+                "INV-004 requires an accepted ADR before adding PyO3"
+            )
 
     if failures:
         print("Layer check failed:", file=sys.stderr)
