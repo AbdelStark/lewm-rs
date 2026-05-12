@@ -22,13 +22,21 @@ cpu-only = []
 slow-tests = []
 
 [dependencies]
+arrow-array = { workspace = true }
+arrow-schema = { workspace = true }
+clap = { workspace = true }
 lewm-core = { workspace = true }
 lewm-data = { workspace = true }
 lewm-telemetry = { workspace = true }
+parquet = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
 
 [dev-dependencies]
 insta = { workspace = true }
 proptest = { workspace = true }
+tempfile = "3"
 
 [lints]
 workspace = true
