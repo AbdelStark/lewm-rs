@@ -577,6 +577,7 @@ dependencies = [
 name = "lewm-train"
 version = "0.1.0"
 dependencies = [
+ "blake3",
  "insta",
  "lewm-core",
  "lewm-data",
@@ -584,6 +585,9 @@ dependencies = [
  "lewm-plan",
  "lewm-telemetry",
  "proptest",
+ "safetensors",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

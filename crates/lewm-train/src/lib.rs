@@ -6,5 +6,7 @@
 //!
 //! ## Module index
 //!
-//! Training modules are added by the phase-specific implementation issues after
-//! the workspace scaffold lands.
+//! - [`checkpoint`] — epoch checkpoint files, sidecars, atomic writes, and
+//!   pruning.
+
+pub mod checkpoint;
