@@ -1,0 +1,27 @@
+[package]
+name = "lewm-hub"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+authors = { workspace = true }
+repository = { workspace = true }
+rust-version = { workspace = true }
+description = "Hugging Face Hub upload, model-card, artifact, and cost-ledger helpers."
+
+[lib]
+path = "src/lib.rs"
+
+[features]
+default = []
+python-bridge = []
+slow-tests = []
+
+[dependencies]
+lewm-core = { workspace = true }
+
+[dev-dependencies]
+insta = { workspace = true }
+proptest = { workspace = true }
+
+[lints]
+workspace = true

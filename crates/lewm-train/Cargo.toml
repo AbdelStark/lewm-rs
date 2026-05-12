@@ -1,0 +1,37 @@
+[package]
+name = "lewm-train"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+authors = { workspace = true }
+repository = { workspace = true }
+rust-version = { workspace = true }
+description = "Training loops, checkpointing, resume handling, and train CLI."
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "lewm-train"
+path = "src/bin/lewm-train.rs"
+
+[features]
+default = ["cuda"]
+cuda = []
+cpu-only = []
+metal = []
+slow-tests = []
+
+[dependencies]
+lewm-core = { workspace = true }
+lewm-data = { workspace = true }
+lewm-hub = { workspace = true }
+lewm-plan = { workspace = true }
+lewm-telemetry = { workspace = true }
+
+[dev-dependencies]
+insta = { workspace = true }
+proptest = { workspace = true }
+
+[lints]
+workspace = true

@@ -1,0 +1,148 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/lewm-core",
+    "crates/lewm-data",
+    "crates/lewm-train",
+    "crates/lewm-plan",
+    "crates/lewm-infer",
+    "crates/lewm-telemetry",
+    "crates/lewm-hub",
+]
+default-members = ["crates/lewm-core", "crates/lewm-data"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+authors = ["Abdel <abdel@starkware.co>"]
+repository = "https://github.com/AbdelStark/lewm-rs"
+rust-version = "1.85"
+
+[workspace.dependencies]
+# Internal crates
+lewm-core = { path = "crates/lewm-core", version = "0.1.0" }
+lewm-data = { path = "crates/lewm-data", version = "0.1.0" }
+lewm-train = { path = "crates/lewm-train", version = "0.1.0" }
+lewm-plan = { path = "crates/lewm-plan", version = "0.1.0" }
+lewm-infer = { path = "crates/lewm-infer", version = "0.1.0" }
+lewm-telemetry = { path = "crates/lewm-telemetry", version = "0.1.0" }
+lewm-hub = { path = "crates/lewm-hub", version = "0.1.0" }
+
+# Burn ecosystem
+burn = { version = "=0.20.1", default-features = false }
+burn-cuda = { version = "=0.20.1" }
+burn-ndarray = { version = "=0.20.1" }
+burn-autodiff = { version = "=0.20.1" }
+burn-import = { version = "=0.20.1" }
+burn-train = { version = "=0.20.1", default-features = false }
+
+# Inference
+tract = "=0.22.1"
+tract-onnx = "=0.22.1"
+tract-nnef = "=0.22.1"
+
+# Data
+hdf5-metno = "0.10"
+parquet = "56"
+arrow-array = "56"
+arrow-schema = "56"
+image = "0.25"
+safetensors = "0.5"
+ndarray = "0.16"
+
+# Concurrency
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "fs", "sync", "signal"] }
+crossbeam = "0.8"
+parking_lot = "0.12"
+rayon = "1.10"
+
+# Telemetry
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "fmt"] }
+tracing-opentelemetry = "0.27"
+opentelemetry = { version = "0.27", features = ["trace", "metrics"] }
+opentelemetry-otlp = { version = "0.27", features = ["grpc-tonic", "trace", "metrics"] }
+opentelemetry_sdk = "0.27"
+
+# Serialization, config, CLI
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+clap = { version = "4.5", features = ["derive", "env", "wrap_help"] }
+config = "0.14"
+validator = { version = "0.18", features = ["derive"] }
+
+# Error handling
+anyhow = "1"
+thiserror = "2"
+miette = { version = "7", features = ["fancy"] }
+
+# RNG
+rand = { version = "0.8", default-features = false, features = ["std", "std_rng"] }
+rand_chacha = "0.3"
+rand_distr = "0.4"
+blake3 = "1"
+
+# HF Hub
+hf-hub = { version = "0.4", default-features = false, features = ["tokio", "ureq"] }
+
+# Utilities
+chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
+indicatif = "0.17"
+humantime = "2"
+bytes = "1"
+glob = "0.3"
+walkdir = "2"
+once_cell = "1"
+itertools = "0.13"
+regex = "1"
+
+# Testing
+proptest = "1"
+insta = "1"
+criterion = "0.5"
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+unreachable_pub = "warn"
+missing_docs = "warn"
+missing_debug_implementations = "warn"
+rust_2024_compatibility = { level = "warn", priority = -1 }
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+unwrap_used = "deny"
+expect_used = "warn"
+panic = "warn"
+todo = "warn"
+unimplemented = "deny"
+dbg_macro = "deny"
+print_stdout = "warn"
+multiple_crate_versions = "allow"
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
+
+[profile.dev]
+opt-level = 1
+debug = true
+overflow-checks = true
+lto = false
+codegen-units = 256
+incremental = true
+
+[profile.release]
+opt-level = 3
+debug = "line-tables-only"
+overflow-checks = false
+lto = "thin"
+codegen-units = 1
+strip = false
+panic = "abort"
+
+[profile.release-lto]
+inherits = "release"
+lto = "fat"
+codegen-units = 1
+incremental = false

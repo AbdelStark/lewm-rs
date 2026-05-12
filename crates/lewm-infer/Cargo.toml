@@ -1,0 +1,33 @@
+[package]
+name = "lewm-infer"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+authors = { workspace = true }
+repository = { workspace = true }
+rust-version = { workspace = true }
+description = "Tract CPU inference runners and planning demo CLI."
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "lewm-infer"
+path = "src/bin/lewm-infer.rs"
+
+[features]
+default = ["tract-onnx", "tract-nnef"]
+tract-onnx = []
+tract-nnef = []
+slow-tests = []
+
+[dependencies]
+lewm-core = { workspace = true }
+lewm-telemetry = { workspace = true }
+
+[dev-dependencies]
+insta = { workspace = true }
+proptest = { workspace = true }
+
+[lints]
+workspace = true
