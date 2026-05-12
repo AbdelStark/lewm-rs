@@ -902,6 +902,25 @@ Pure numerical code. No security surface beyond the supply-chain considerations 
 
 ## 11. Acceptance criteria
 
+### 11.1 Test inventory
+
+| ID | Name | Type | What it covers |
+|----|------|------|----------------|
+| TST-0002-ENC-001 | `vit_small_forward_shape` | unit | ViT-Small encoder tensor shape contract |
+| TST-0002-ENC-002 | `cls_extraction_matches_hf_semantics` | unit | CLS token extraction before projection |
+| TST-0002-EMB-001 | `action_embedder_shape_and_k1_conv` | unit | Conv1d-k1 action embedder graph and output shape |
+| TST-0002-PRED-001 | `conditional_block_adaln_zero_identity` | unit | AdaLN-zero identity invariant at initialization |
+| TST-0002-PRED-002 | `predictor_causal_mask_blocks_future` | unit | Predictor causal masking |
+| TST-0002-PRED-003 | `predictor_forward_shape` | unit | Autoregressive predictor input/output dimensions |
+| TST-0002-MLP-001 | `projector_and_pred_proj_shapes` | unit | Projector and pred_proj MLP contracts |
+| TST-0002-JEPA-001 | `jepa_encode_contract` | unit | Top-level encode API |
+| TST-0002-JEPA-002 | `jepa_predict_contract` | unit | Top-level predict API |
+| TST-0002-JEPA-003 | `jepa_criterion_and_cost_contracts` | unit | Criterion and embedding-MSE cost APIs |
+| TST-0002-RO-001 | `rollout_history_window_advances` | unit | Sliding-window rollout state update |
+| TST-0002-RO-002 | `rollout_rejects_short_history` | unit | Rollout shape/history validation |
+| TST-0002-RO-003 | `rollout_final_embedding_shape` | unit | Rollout output dimensions |
+| TST-0002-COST-001 | `cost_final_embedding_mse` | unit | Goal-cost MSE over final predicted embedding |
+
 - [ ] All types in §6 exist and compile with `cargo doc --no-deps` warning-free.
 - [ ] Init manifest §5 matches the dump produced by `python/convert_reference.py --emit-init-fingerprint`.
 - [ ] Forward parity tests in [RFC 0008 §6](0008-reference-parity-testing.md) pass (TST-0008-ENC-001, TST-0008-PRED-001 etc.).

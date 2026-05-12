@@ -335,7 +335,7 @@ weights = load_file("step_0014400.safetensors")
 
 ## Training details
 
-See [training report]({{report_url}}).
+See training report: `{{report_url}}`.
 
 ## Citation
 

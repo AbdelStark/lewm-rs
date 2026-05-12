@@ -46,7 +46,7 @@ Read [`glossary.md`](glossary.md) before this document.
 
 ### 1.1 Purpose
 
-`lewm-rs` is a pure-Rust reproduction and extension of LeWorldModel ([Maes et al., 2026](https://arxiv.org/abs/placeholder)). It delivers, in priority order:
+`lewm-rs` is a pure-Rust reproduction and extension of LeWorldModel (Maes et al., 2026; arXiv URL pending). It delivers, in priority order:
 
 1. A reference Rust implementation of the LeWM architecture (encoder, predictor, action encoder, projector, SIGReg loss).
 2. A training system that achieves ≥ 87 % planning success rate on PushT (paper reports 96 %).

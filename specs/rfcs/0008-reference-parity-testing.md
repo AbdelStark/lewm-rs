@@ -270,6 +270,10 @@ fn encoder_cls_within_1e_4() {
 
 | Test | What is compared | Tolerance | Constant |
 |------|------------------|-----------|----------|
+| `TST-0008-IMP-001 reference_checkpoint_downloads` | reference checkpoint artifact availability | exact | n/a |
+| `TST-0008-IMP-002 param_name_map_complete` | PyTorch-to-Rust parameter-name map coverage | exact | n/a |
+| `TST-0008-IMP-003 burn_record_roundtrip` | converted Burn record loads into `Jepa` | exact | n/a |
+| `TST-0008-IMP-004 safetensors_mirror_matches_record` | Safetensors mirror vs Burn record tensors | `1e-7` L∞ | n/a |
 | `TST-0008-ENC-001 parity_encoder` | `Jepa::encode` output | `1e-4` L∞ | TOL-001 |
 | `TST-0008-ENC-002 parity_encoder_per_block` | per-block hidden state | `1e-4` L∞ | TOL-001 |
 | `TST-0008-PRED-001 parity_predictor` | `Jepa::predict` output | `1e-4` L∞ | TOL-002 |

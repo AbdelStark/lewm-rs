@@ -1,0 +1,50 @@
+name: specs
+
+on:
+  pull_request:
+    paths:
+      - "PRD.md"
+      - "specs/**"
+      - "scripts/check_specs.py"
+      - ".github/workflows/specs.yml"
+  push:
+    branches: ["main"]
+    paths:
+      - "PRD.md"
+      - "specs/**"
+      - "scripts/check_specs.py"
+      - ".github/workflows/specs.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  specs:
+    name: validate spec set
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check frontmatter
+        run: python scripts/check_specs.py --check-frontmatter
+
+      - name: Check local links
+        run: python scripts/check_specs.py --check-links
+
+      - name: Check external links
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: --no-progress "PRD.md" "specs/**/*.md"
+
+      - name: Check traceability
+        run: python scripts/check_specs.py --check-traceability
+
+      - name: Check glossary
+        run: python scripts/check_specs.py --check-glossary
+
+      - name: Check RFC numbering
+        run: python scripts/check_specs.py --check-rfc-numbering
+
+      - name: Check status lifecycle
+        run: python scripts/check_specs.py --check-status-lifecycle
