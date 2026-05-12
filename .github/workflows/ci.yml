@@ -106,6 +106,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          lfs: true
 
       - name: Install Rust
         run: rustup toolchain install "$RUST_TOOLCHAIN" --profile default
@@ -121,6 +123,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          lfs: true
 
       - name: Install Rust
         run: rustup toolchain install "$RUST_TOOLCHAIN" --profile default
@@ -237,6 +241,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          lfs: true
 
       - name: Install Rust
         run: rustup toolchain install "$RUST_TOOLCHAIN" --profile default
@@ -251,6 +257,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          lfs: true
 
       - name: Install Rust
         run: rustup toolchain install "$RUST_TOOLCHAIN" --profile default

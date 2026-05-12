@@ -1,0 +1,36 @@
+{
+  "actions": {
+    "dtype": "float32",
+    "scale": 0.5,
+    "shape": [
+      4,
+      4,
+      2
+    ]
+  },
+  "fixture_hash": "814acdb57fd6e48be5de5b075fbeb920181b99ac5bdcde551be15d75997afb22",
+  "fixture_hash_algorithm": "blake3",
+  "fixture_path": "tests/fixtures/parity_fixture.npz",
+  "fixture_seed": 0,
+  "generator": {
+    "cuda_version": null,
+    "framework": "torch",
+    "numpy_version": "2.4.4",
+    "python_version": "3.12.12",
+    "torch_version": "2.11.0"
+  },
+  "git_short_sha": "0feeee7",
+  "pixels": {
+    "dtype": "float32",
+    "normalization": "(x - 0.5) / 0.5",
+    "shape": [
+      4,
+      4,
+      3,
+      224,
+      224
+    ]
+  },
+  "regeneration_policy": "RFC0008-006 requires a minor RFC bump before regeneration.",
+  "schema_version": "1.0"
+}

@@ -29,6 +29,7 @@ validator = { workspace = true }
 [dev-dependencies]
 insta = { workspace = true }
 proptest = { workspace = true }
+serde_json = { workspace = true }
 toml = { workspace = true }
 
 [lints]
