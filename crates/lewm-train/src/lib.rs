@@ -6,5 +6,6 @@
 //!
 //! ## Module index
 //!
-//! Training modules are added by the phase-specific implementation issues after
-//! the workspace scaffold lands.
+//! - [`mixed_precision`] — precision policy and `F32` islands.
+
+pub mod mixed_precision;
