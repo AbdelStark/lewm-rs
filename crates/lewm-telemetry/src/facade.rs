@@ -243,7 +243,7 @@ impl Telemetry {
             name,
             step: None,
             epoch: None,
-            started_at: Instant::now(),
+            started_at: Instant::now(), // determinism-lint: allow Instant::now telemetry wall time
         }
     }
 
@@ -255,7 +255,7 @@ impl Telemetry {
             name,
             step: Some(step),
             epoch: Some(epoch),
-            started_at: Instant::now(),
+            started_at: Instant::now(), // determinism-lint: allow Instant::now telemetry wall time
         }
     }
 

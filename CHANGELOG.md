@@ -9,6 +9,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Added
 
+- RFC 0013 RNG sub-stream state serialization and a nondeterminism lint for
+  Rust sources.
 - Initial Rust workspace, spec validation, quality gate configuration, and OSS
   scaffolding.
 
