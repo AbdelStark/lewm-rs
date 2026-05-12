@@ -13,8 +13,14 @@ pub mod errors;
 pub mod facade;
 pub mod metrics;
 pub mod spans;
+pub mod tensorboard;
+pub mod tracker;
 
 pub use crate::errors::TelemetryError;
-pub use crate::facade::{MetricSink, SpanGuard, Telemetry, TelemetryConfig, TelemetryContext};
+pub use crate::facade::{
+    MetricFanout, MetricSink, SpanGuard, Telemetry, TelemetryConfig, TelemetryContext,
+};
 pub use crate::metrics::{MetricKind, MetricName};
 pub use crate::spans::SpanName;
+pub use crate::tensorboard::TensorboardWriter;
+pub use crate::tracker::TrackioWriter;
