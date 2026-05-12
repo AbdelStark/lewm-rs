@@ -43,7 +43,7 @@ tract-onnx = "=0.22.1"
 tract-nnef = "=0.22.1"
 
 # Data
-hdf5-metno = "0.10"
+hdf5-metno = { version = "0.10", features = ["static"] }
 parquet = "56"
 arrow-array = "56"
 arrow-schema = "56"

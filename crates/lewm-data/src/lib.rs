@@ -8,3 +8,9 @@
 //!
 //! Dataset modules are added by the phase-specific implementation issues after
 //! the workspace scaffold lands.
+
+pub mod errors;
+pub mod pusht;
+
+pub use crate::errors::DataError;
+pub use crate::pusht::{PushtConfig, PushtDataset, Sample, SampleMeta, Split};

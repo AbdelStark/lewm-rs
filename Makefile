@@ -25,7 +25,8 @@ check: fmt lint
 	$(PYTHON) scripts/check_layers.py
 	$(PYTHON) scripts/check_specs.py
 	cargo deny check
-	cargo audit --deny warnings
+	# hdf5-metno depends on paste; cargo-deny still blocks direct workspace unmaintained deps.
+	cargo audit --deny warnings --ignore RUSTSEC-2024-0436
 
 accept: check test docs
 	@if [ -d python ] && [ -f python/Makefile ]; then \

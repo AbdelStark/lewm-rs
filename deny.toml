@@ -24,6 +24,8 @@ allow = [
     "CC0-1.0",
     "MPL-2.0",
     "Unicode-3.0",
+    # Bundled by hdf5-metno when the static feature is enabled; BSD-style terms.
+    "HDF5",
 ]
 
 [bans]
