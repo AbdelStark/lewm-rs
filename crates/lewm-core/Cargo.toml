@@ -17,10 +17,13 @@ parity-fixtures = []
 slow-tests = []
 
 [dependencies]
+serde = { workspace = true }
+validator = { workspace = true }
 
 [dev-dependencies]
 insta = { workspace = true }
 proptest = { workspace = true }
+toml = { workspace = true }
 
 [lints]
 workspace = true

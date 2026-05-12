@@ -11,3 +11,10 @@
 //!
 //! The public module surface is added by the phase-specific implementation
 //! issues after the workspace scaffold lands.
+
+pub mod config;
+
+pub use crate::config::{
+    EmbedderConfig, GeluVariant, JepaConfig, MlpConfig, NormVariant, PredictorConfig, VitConfig,
+    VitSize,
+};
