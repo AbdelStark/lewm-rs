@@ -25,6 +25,16 @@ pub enum DataError {
         source: hdf5_metno::Error,
     },
 
+    /// Safetensors operation failed while reading or writing data stats.
+    #[error("safetensors error at {path}: {source}")]
+    Safetensors {
+        /// Stats file involved in the failing operation.
+        path: PathBuf,
+        /// Original safetensors error.
+        #[source]
+        source: safetensors::SafeTensorError,
+    },
+
     /// A dataset shard does not match the `PushT` schema contract.
     #[error("schema mismatch at {path}: expected {expected}, found {found}")]
     SchemaMismatch {
@@ -39,6 +49,10 @@ pub enum DataError {
     /// Loader configuration is invalid before any shard can be opened.
     #[error("invalid data configuration: {0}")]
     InvalidConfig(String),
+
+    /// Transform input or persisted transform statistics are invalid.
+    #[error("invalid transform input: {0}")]
+    InvalidTransform(String),
 
     /// Dataset discovery succeeded but no usable shards/windows were present.
     #[error("empty dataset: {0}")]
@@ -56,6 +70,16 @@ impl DataError {
     pub(crate) fn hdf5(context: impl Into<String>, source: hdf5_metno::Error) -> Self {
         Self::Hdf5 {
             context: context.into(),
+            source,
+        }
+    }
+
+    pub(crate) fn safetensors(
+        path: impl Into<PathBuf>,
+        source: safetensors::SafeTensorError,
+    ) -> Self {
+        Self::Safetensors {
+            path: path.into(),
             source,
         }
     }
