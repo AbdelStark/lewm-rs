@@ -330,6 +330,7 @@ version = "0.1.0"
 dependencies = [
  "blake3",
  "insta",
+ "libm",
  "proptest",
  "rand 0.8.6",
  "rand_chacha 0.3.1",

@@ -15,6 +15,7 @@
 pub mod config;
 pub mod errors;
 pub mod init;
+pub mod tensor_ops;
 
 pub use crate::config::{
     EmbedderConfig, GeluVariant, JepaConfig, MlpConfig, NormVariant, PredictorConfig, VitConfig,
@@ -24,4 +25,8 @@ pub use crate::errors::LewmCoreError;
 pub use crate::init::{
     InitTensor, MODEL_INIT_STREAM, ModelInitRng, model_init_rng, ones, substream_rng,
     substream_seed, trunc_normal, zeros,
+};
+pub use crate::tensor_ops::{
+    BICUBIC_ALIGN_CORNERS, CausalMask, DeviceKey, PositionEmbedding, build_causal_mask, gelu_erf,
+    gelu_tanh_approx, interpolate_pos_embed,
 };

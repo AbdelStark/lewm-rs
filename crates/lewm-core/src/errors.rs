@@ -46,6 +46,13 @@ pub enum LewmCoreError {
         name: String,
     },
 
+    /// A tensor helper received invalid dimensions or options.
+    #[error("invalid tensor operation: {reason}; pass shape-compatible finite F32 tensors")]
+    InvalidTensorOp {
+        /// Concrete tensor operation failure.
+        reason: String,
+    },
+
     /// Catch-all for unexpected internal failures.
     #[error("internal error: {0}; file a bug with the minimal reproducer")]
     Other(String),
