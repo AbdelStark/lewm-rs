@@ -11,6 +11,7 @@
 
 pub mod batch;
 pub mod errors;
+pub mod prefetch;
 pub mod pusht;
 pub mod transform;
 
@@ -18,5 +19,9 @@ pub use crate::batch::{
     Batch, BatchBackend, BatchDtype, BatchTensor, HostBackend, HostDevice, collate,
 };
 pub use crate::errors::DataError;
+pub use crate::prefetch::{
+    DATA_QUEUE_DEPTH_METRIC, Dataset, HostPrefetchDevice, HostPrefetcher, Prefetcher,
+    PrefetcherConfig,
+};
 pub use crate::pusht::{PushtConfig, PushtDataset, Sample, SampleMeta, Split};
 pub use crate::transform::{ActionNormalizer, ImagePreprocessor, InterpKind, TransformStats};
