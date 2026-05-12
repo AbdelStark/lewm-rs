@@ -8,3 +8,10 @@
 //!
 //! Training modules are added by the phase-specific implementation issues after
 //! the workspace scaffold lands.
+
+pub mod warmstart;
+
+pub use crate::warmstart::{
+    SO100_ACTION_DIM, TRANSFER_MODULE_PREFIXES, TensorRecord, TrainError, TrainStateRecord,
+    WarmstartLoad, WarmstartProvenance, load_warmstart,
+};

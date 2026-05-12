@@ -28,10 +28,13 @@ lewm-data = { workspace = true }
 lewm-hub = { workspace = true }
 lewm-plan = { workspace = true }
 lewm-telemetry = { workspace = true }
+sha2 = { workspace = true }
+thiserror = { workspace = true }
 
 [dev-dependencies]
 insta = { workspace = true }
 proptest = { workspace = true }
+tempfile = "3"
 
 [lints]
 workspace = true
