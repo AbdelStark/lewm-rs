@@ -14,4 +14,8 @@ pub enum TelemetryError {
     /// A metric sink failed while accepting or flushing records.
     #[error("metric sink error: {0}")]
     Sink(String),
+
+    /// A system telemetry sampler failed during setup or refresh.
+    #[error("system telemetry sampler error: {0}")]
+    Sampler(String),
 }

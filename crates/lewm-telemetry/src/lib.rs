@@ -13,8 +13,13 @@ pub mod errors;
 pub mod facade;
 pub mod metrics;
 pub mod spans;
+pub mod system;
 
 pub use crate::errors::TelemetryError;
 pub use crate::facade::{MetricSink, SpanGuard, Telemetry, TelemetryConfig, TelemetryContext};
 pub use crate::metrics::{MetricKind, MetricName};
 pub use crate::spans::SpanName;
+pub use crate::system::{
+    GpuMetrics, SYSTEM_DISK_CADENCE, SYSTEM_FAST_CADENCE, SystemEmitReport, SystemMetricCadence,
+    SystemMetrics, SystemSampleDue, SystemSampler,
+};

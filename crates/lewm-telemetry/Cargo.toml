@@ -13,10 +13,13 @@ path = "src/lib.rs"
 
 [features]
 default = []
+nvml = ["dep:nvml-wrapper"]
 slow-tests = []
 
 [dependencies]
 lewm-core = { workspace = true }
+nvml-wrapper = { workspace = true, optional = true }
+sysinfo = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
