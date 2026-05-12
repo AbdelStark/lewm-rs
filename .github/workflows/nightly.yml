@@ -1,0 +1,91 @@
+name: nightly
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  RUST_TOOLCHAIN: "1.85.0"
+
+jobs:
+  slow-tests:
+    name: slow-tests
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        run: rustup toolchain install "$RUST_TOOLCHAIN" --profile default
+
+      - name: Run slow tests
+        run: cargo test --workspace --features slow-tests -- --include-ignored
+
+  feature-powerset:
+    name: feature-powerset
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        run: rustup toolchain install "$RUST_TOOLCHAIN" --profile default
+
+      - name: Install cargo-hack
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-hack
+
+      - name: Check feature powerset
+        run: cargo hack check --feature-powerset --workspace
+
+  bench-baselines:
+    name: bench-baselines
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        run: rustup toolchain install "$RUST_TOOLCHAIN" --profile default
+
+      - name: Run benchmarks
+        run: cargo bench --workspace
+
+  dep-update-preview:
+    name: dep-update-preview
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        run: rustup toolchain install "$RUST_TOOLCHAIN" --profile default
+
+      - name: Preview dependency updates
+        run: cargo update --workspace --dry-run
+
+  parity-against-latest-hub:
+    name: parity-against-latest-hub
+    runs-on: ubuntu-22.04
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        run: rustup toolchain install "$RUST_TOOLCHAIN" --profile default
+
+      - name: Run latest-Hub parity when credentials exist
+        run: |
+          if [ -n "${HF_TOKEN:-}" ]; then
+            cargo test --workspace --features parity-fixtures parity_ -- --skip "_slow_"
+          else
+            printf '%s\n' 'latest-Hub parity skipped: HF_TOKEN not configured'
+          fi

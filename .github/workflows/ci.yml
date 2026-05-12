@@ -2,31 +2,173 @@ name: ci
 
 on:
   pull_request:
-    paths:
-      - "Cargo.toml"
-      - "Cargo.lock"
-      - "Makefile"
-      - "crates/**"
-      - "scripts/check_layers.py"
-      - ".github/workflows/ci.yml"
   push:
     branches: ["main"]
-    paths:
-      - "Cargo.toml"
-      - "Cargo.lock"
-      - "Makefile"
-      - "crates/**"
-      - "scripts/check_layers.py"
-      - ".github/workflows/ci.yml"
 
 permissions:
   contents: read
 
-jobs:
-  layers:
-    name: validate crate layers
-    runs-on: ubuntu-latest
+env:
+  CARGO_TERM_COLOR: always
+  RUST_TOOLCHAIN: "1.85.0"
 
+jobs:
+  fmt:
+    name: fmt
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        run: rustup toolchain install "$RUST_TOOLCHAIN" --profile default --component rustfmt
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+  clippy:
+    name: clippy (${{ matrix.feature_set }} / ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            feature_set: default
+            feature_args: ""
+          - os: ubuntu-22.04
+            feature_set: cpu-only
+            feature_args: "--no-default-features --features cpu-only"
+          - os: ubuntu-22.04
+            feature_set: parity-fixtures
+            feature_args: "--features parity-fixtures"
+          - os: macos-14
+            feature_set: cpu-only
+            feature_args: "--no-default-features --features cpu-only"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        run: rustup toolchain install "$RUST_TOOLCHAIN" --profile default --component clippy
+
+      - name: Run clippy
+        run: cargo clippy --workspace --all-targets ${{ matrix.feature_args }} -- -D warnings
+
+  build:
+    name: build (${{ matrix.feature_set }} / ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            feature_set: default
+            feature_args: ""
+          - os: ubuntu-22.04
+            feature_set: cpu-only
+            feature_args: "--no-default-features --features cpu-only"
+          - os: ubuntu-22.04
+            feature_set: parity-fixtures
+            feature_args: "--features parity-fixtures"
+          - os: macos-14
+            feature_set: cpu-only
+            feature_args: "--no-default-features --features cpu-only"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        run: rustup toolchain install "$RUST_TOOLCHAIN" --profile default
+
+      - name: Build workspace
+        run: cargo build --workspace --locked ${{ matrix.feature_args }}
+
+  test:
+    name: test (${{ matrix.feature_set }} / ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            feature_set: default
+            feature_args: ""
+          - os: ubuntu-22.04
+            feature_set: cpu-only
+            feature_args: "--no-default-features --features cpu-only"
+          - os: ubuntu-22.04
+            feature_set: parity-fixtures
+            feature_args: "--features parity-fixtures"
+          - os: macos-14
+            feature_set: cpu-only
+            feature_args: "--no-default-features --features cpu-only"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        run: rustup toolchain install "$RUST_TOOLCHAIN" --profile default
+
+      - name: Run tests
+        run: cargo test --workspace --locked ${{ matrix.feature_args }} -- --skip "_slow_"
+
+  parity:
+    name: parity
+    runs-on: ubuntu-22.04
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        run: rustup toolchain install "$RUST_TOOLCHAIN" --profile default
+
+      - name: Note fixture availability
+        run: |
+          if [ -n "${HF_TOKEN:-}" ]; then
+            printf '%s\n' 'HF_TOKEN available; parity fixture fetch is owned by the parity milestone.'
+          else
+            printf '%s\n' 'HF_TOKEN unavailable; running local parity test filter only.'
+          fi
+
+      - name: Run parity test filter
+        run: cargo test --workspace --locked --features parity-fixtures parity_ -- --skip "_slow_"
+
+  deny:
+    name: deny
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install cargo-deny
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny
+
+      - name: Run cargo-deny
+        run: cargo deny check
+
+  audit:
+    name: audit
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install cargo-audit
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
+
+      - name: Run cargo-audit
+        run: cargo audit --deny warnings
+
+  layers:
+    name: layers
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -38,3 +180,85 @@ jobs:
 
       - name: Run layer check
         run: python3 scripts/check_layers.py
+
+  specs:
+    name: specs
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Run spec checks
+        run: python3 scripts/check_specs.py
+
+  docs-build:
+    name: docs-build
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        run: rustup toolchain install "$RUST_TOOLCHAIN" --profile default
+
+      - name: Build rustdoc
+        run: RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked
+
+  python-edge:
+    name: python-edge
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Run Python edge tests when present
+        run: |
+          if [ -f python/pyproject.toml ]; then
+            python3 -m pip install uv
+            cd python
+            uv run pytest
+          else
+            printf '%s\n' 'python edge tests skipped: python/pyproject.toml not present'
+          fi
+
+  quickstart:
+    name: quickstart
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        run: rustup toolchain install "$RUST_TOOLCHAIN" --profile default
+
+      - name: Run quickstart smoke
+        run: timeout 300 make test
+
+  coverage:
+    name: coverage
+    runs-on: ubuntu-22.04
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        run: rustup toolchain install "$RUST_TOOLCHAIN" --profile default
+
+      - name: Install cargo-tarpaulin
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-tarpaulin
+
+      - name: Generate coverage
+        run: cargo tarpaulin --workspace --out Xml
