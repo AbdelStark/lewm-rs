@@ -1,0 +1,152 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+
+env:
+  RUST_TOOLCHAIN: "1.85.0"
+
+jobs:
+  tag-format:
+    name: tag-format
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Validate release tag
+        run: |
+          if [[ ! "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            printf 'invalid release tag: %s\n' "$GITHUB_REF_NAME" >&2
+            exit 1
+          fi
+
+  build-linux-static:
+    name: build-linux-static
+    runs-on: ubuntu-22.04
+    needs: [tag-format]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        run: rustup toolchain install "$RUST_TOOLCHAIN" --profile default --target x86_64-unknown-linux-musl
+
+      - name: Build release binaries
+        run: cargo build --workspace --profile release-lto --target x86_64-unknown-linux-musl --locked
+
+      - name: Upload Linux binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-static-binaries
+          path: target/x86_64-unknown-linux-musl/release-lto/lewm-*
+
+  build-macos-arm:
+    name: build-macos-arm
+    runs-on: macos-14
+    needs: [tag-format]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        run: rustup toolchain install "$RUST_TOOLCHAIN" --profile default --target aarch64-apple-darwin
+
+      - name: Build release binaries
+        run: cargo build --workspace --profile release-lto --target aarch64-apple-darwin --locked
+
+      - name: Upload macOS binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-arm-binaries
+          path: target/aarch64-apple-darwin/release-lto/lewm-*
+
+  container:
+    name: container
+    runs-on: ubuntu-22.04
+    needs: [tag-format]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build container when Dockerfile exists
+        run: |
+          if [ -f Dockerfile ]; then
+            docker build -t ghcr.io/abdelstark/lewm-rs:${GITHUB_REF_NAME} .
+          else
+            printf '%s\n' 'container build skipped: Dockerfile not present'
+          fi
+
+  release-notes:
+    name: release-notes
+    runs-on: ubuntu-22.04
+    needs: [tag-format]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare release notes
+        run: |
+          mkdir -p dist
+          awk '/^## \\[/ { seen++ } seen <= 2 { print }' CHANGELOG.md > dist/release-notes.md
+
+      - name: Upload release notes
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-notes
+          path: dist/release-notes.md
+
+  verify-reproducible:
+    name: verify-reproducible
+    runs-on: ubuntu-22.04
+    needs: [build-linux-static]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Record reproducibility placeholder
+        run: |
+          printf '%s\n' 'reproducible binary diff is enforced once release artifact publishing lands'
+
+  github-release:
+    name: github-release
+    runs-on: ubuntu-22.04
+    needs: [build-linux-static, build-macos-arm, container, release-notes, verify-reproducible]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Create draft release
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            dist/linux-static-binaries/* \
+            dist/macos-arm-binaries/* \
+            --draft \
+            --notes-file dist/release-notes/release-notes.md \
+            --title "$GITHUB_REF_NAME"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  hub-models:
+    name: hub-models
+    runs-on: ubuntu-22.04
+    needs: [github-release]
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+    steps:
+      - name: Retag Hub artifacts when credentials exist
+        run: |
+          if [ -n "${HF_TOKEN:-}" ]; then
+            printf '%s\n' 'Hub retagging is owned by the Hub publication milestone.'
+          else
+            printf '%s\n' 'Hub retagging skipped: HF_TOKEN not configured'
+          fi

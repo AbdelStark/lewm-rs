@@ -1,0 +1,63 @@
+name: docs
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "crates/**"
+      - "paper/**"
+      - "specs/**"
+      - ".github/workflows/docs.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  RUST_TOOLCHAIN: "1.85.0"
+
+jobs:
+  rustdoc-build:
+    name: rustdoc-build
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        run: rustup toolchain install "$RUST_TOOLCHAIN" --profile default
+
+      - name: Build rustdoc
+        run: RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked
+
+  paper-build:
+    name: paper-build
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Render paper when present
+        run: |
+          if [ -f paper/lewm-rs.md ]; then
+            pandoc paper/lewm-rs.md -o paper/lewm-rs.pdf
+          else
+            printf '%s\n' 'paper build skipped: paper/lewm-rs.md not present'
+          fi
+
+  spec-build:
+    name: spec-build
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Validate specs before publishing
+        run: python3 scripts/check_specs.py
