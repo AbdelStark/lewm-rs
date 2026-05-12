@@ -570,6 +570,7 @@ dependencies = [
  "insta",
  "lewm-core",
  "proptest",
+ "thiserror",
 ]
 
 [[package]]
