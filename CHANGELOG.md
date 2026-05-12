@@ -11,6 +11,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 - Initial Rust workspace, spec validation, quality gate configuration, and OSS
   scaffolding.
+- PushT JSON-RPC sidecar with a deterministic mock backend and pinned
+  `gym-pusht` simulator extra for real eval runs.
 
 ### Changed
 
