@@ -6,5 +6,7 @@
 //!
 //! ## Module index
 //!
-//! Training modules are added by the phase-specific implementation issues after
-//! the workspace scaffold lands.
+//! - [`resume`] — run-directory resume detection, RNG restoration, and
+//!   shutdown handling.
+
+pub mod resume;
