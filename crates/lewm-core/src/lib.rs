@@ -13,8 +13,15 @@
 //! issues after the workspace scaffold lands.
 
 pub mod config;
+pub mod errors;
+pub mod init;
 
 pub use crate::config::{
     EmbedderConfig, GeluVariant, JepaConfig, MlpConfig, NormVariant, PredictorConfig, VitConfig,
     VitSize,
+};
+pub use crate::errors::LewmCoreError;
+pub use crate::init::{
+    InitTensor, MODEL_INIT_STREAM, ModelInitRng, model_init_rng, ones, substream_rng,
+    substream_seed, trunc_normal, zeros,
 };
