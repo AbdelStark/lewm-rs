@@ -6,5 +6,17 @@
 //!
 //! ## Module index
 //!
-//! Planning modules are added by the phase-specific implementation issues after
-//! the workspace scaffold lands.
+//! - [`pusht_eval`] — `PushT` eval loop and simulator RPC boundary.
+//! - [`reports`] — eval artifact rendering and persistence.
+
+pub mod errors;
+pub mod pusht_eval;
+pub mod reports;
+
+pub use crate::errors::EvalError;
+pub use crate::pusht_eval::{
+    EpisodeOutcome, MockPushtRpc, PushtCemConfig, PushtConfigFile, PushtEvalConfig,
+    PushtEvalReport, PushtEvaluator, PushtObservation, PushtPlan, PushtPlanRequest, PushtPlanner,
+    PushtRpc, StaticPushtPlanner, SubprocessPushtRpc, TrajectoryStep, TrajectorySummary,
+};
+pub use crate::reports::{render_pusht_report, write_pusht_artifacts};

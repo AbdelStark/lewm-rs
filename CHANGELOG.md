@@ -11,6 +11,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 - Initial Rust workspace, spec validation, quality gate configuration, and OSS
   scaffolding.
+- PushT evaluation driver plumbing, pinned eval config, `lewm-eval pusht`
+  CLI, and JSON/Markdown/Parquet eval artifacts.
 
 ### Changed
 
