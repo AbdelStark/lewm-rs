@@ -14,4 +14,8 @@ pub enum TelemetryError {
     /// A metric sink failed while accepting or flushing records.
     #[error("metric sink error: {0}")]
     Sink(String),
+
+    /// Structured logging initialization or emission failed.
+    #[error("logger error: {0}")]
+    Logger(String),
 }

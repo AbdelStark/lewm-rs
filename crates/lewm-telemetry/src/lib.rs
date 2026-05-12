@@ -11,10 +11,12 @@
 
 pub mod errors;
 pub mod facade;
+pub mod logs;
 pub mod metrics;
 pub mod spans;
 
 pub use crate::errors::TelemetryError;
 pub use crate::facade::{MetricSink, SpanGuard, Telemetry, TelemetryConfig, TelemetryContext};
+pub use crate::logs::{init_logging, init_logging_with_config, init_logging_with_tracer};
 pub use crate::metrics::{MetricKind, MetricName};
 pub use crate::spans::SpanName;

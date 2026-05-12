@@ -244,6 +244,7 @@ impl Telemetry {
             step: None,
             epoch: None,
             started_at: Instant::now(),
+            _entered_span: tracing_span_for(&self.context, name, None, None).entered(),
         }
     }
 
@@ -256,6 +257,7 @@ impl Telemetry {
             step: Some(step),
             epoch: Some(epoch),
             started_at: Instant::now(),
+            _entered_span: tracing_span_for(&self.context, name, Some(step), Some(epoch)).entered(),
         }
     }
 
@@ -277,6 +279,7 @@ pub struct SpanGuard<'a> {
     step: Option<u64>,
     epoch: Option<u64>,
     started_at: Instant,
+    _entered_span: tracing::span::EnteredSpan,
 }
 
 impl SpanGuard<'_> {
@@ -308,6 +311,105 @@ impl SpanGuard<'_> {
     #[must_use]
     pub fn elapsed(&self) -> Duration {
         self.started_at.elapsed()
+    }
+}
+
+fn tracing_span_for(
+    context: &TelemetryContext,
+    name: SpanName,
+    step: Option<u64>,
+    epoch: Option<u64>,
+) -> tracing::Span {
+    if step.is_some() || epoch.is_some() {
+        return tracing_step_span_for(
+            context,
+            name,
+            step.unwrap_or_default(),
+            epoch.unwrap_or_default(),
+        );
+    }
+
+    tracing_run_span_for(context, name)
+}
+
+fn tracing_run_span_for(context: &TelemetryContext, name: SpanName) -> tracing::Span {
+    macro_rules! run_span {
+        ($span_name:literal) => {
+            tracing::info_span!(
+                $span_name,
+                run_id = %context.run_id,
+                phase = %context.phase,
+                git_short_sha = %context.git_short_sha
+            )
+        };
+    }
+
+    match name {
+        n if n == SpanName::TRAINING_RUN => run_span!("training.run"),
+        n if n == SpanName::TRAINING_EPOCH => run_span!("training.epoch"),
+        n if n == SpanName::TRAINING_STEP => run_span!("training.step"),
+        n if n == SpanName::TRAINING_FORWARD => run_span!("training.forward"),
+        n if n == SpanName::TRAINING_BACKWARD => run_span!("training.backward"),
+        n if n == SpanName::TRAINING_OPTIM_STEP => run_span!("training.optim_step"),
+        n if n == SpanName::TRAINING_CHECKPOINT_SAVE => run_span!("training.checkpoint_save"),
+        n if n == SpanName::TRAINING_PARITY_PROBE => run_span!("training.parity_probe"),
+        n if n == SpanName::TRAINING_COLLAPSE_PROBE => run_span!("training.collapse_probe"),
+        n if n == SpanName::TRAINING_EVAL => run_span!("training.eval"),
+        n if n == SpanName::EVAL_EPISODE => run_span!("eval.episode"),
+        n if n == SpanName::EVAL_CEM_ITER => run_span!("eval.cem_iter"),
+        n if n == SpanName::EVAL_CEM_COST_EVAL => run_span!("eval.cem_cost_eval"),
+        n if n == SpanName::EVAL_RPC_STEP => run_span!("eval.rpc_step"),
+        n if n == SpanName::DATA_DATASET_OPEN => run_span!("data.dataset_open"),
+        n if n == SpanName::DATA_GET_WINDOW => run_span!("data.get_window"),
+        n if n == SpanName::DATA_COLLATE => run_span!("data.collate"),
+        n if n == SpanName::DATA_PREFETCH_WORKER_LIFETIME => {
+            run_span!("data.prefetch_worker.lifetime")
+        },
+        _ => run_span!("lewm.unknown"),
+    }
+}
+
+fn tracing_step_span_for(
+    context: &TelemetryContext,
+    name: SpanName,
+    step: u64,
+    epoch: u64,
+) -> tracing::Span {
+    macro_rules! step_span {
+        ($span_name:literal) => {
+            tracing::info_span!(
+                $span_name,
+                run_id = %context.run_id,
+                phase = %context.phase,
+                git_short_sha = %context.git_short_sha,
+                step = step,
+                epoch = epoch
+            )
+        };
+    }
+
+    match name {
+        n if n == SpanName::TRAINING_RUN => step_span!("training.run"),
+        n if n == SpanName::TRAINING_EPOCH => step_span!("training.epoch"),
+        n if n == SpanName::TRAINING_STEP => step_span!("training.step"),
+        n if n == SpanName::TRAINING_FORWARD => step_span!("training.forward"),
+        n if n == SpanName::TRAINING_BACKWARD => step_span!("training.backward"),
+        n if n == SpanName::TRAINING_OPTIM_STEP => step_span!("training.optim_step"),
+        n if n == SpanName::TRAINING_CHECKPOINT_SAVE => step_span!("training.checkpoint_save"),
+        n if n == SpanName::TRAINING_PARITY_PROBE => step_span!("training.parity_probe"),
+        n if n == SpanName::TRAINING_COLLAPSE_PROBE => step_span!("training.collapse_probe"),
+        n if n == SpanName::TRAINING_EVAL => step_span!("training.eval"),
+        n if n == SpanName::EVAL_EPISODE => step_span!("eval.episode"),
+        n if n == SpanName::EVAL_CEM_ITER => step_span!("eval.cem_iter"),
+        n if n == SpanName::EVAL_CEM_COST_EVAL => step_span!("eval.cem_cost_eval"),
+        n if n == SpanName::EVAL_RPC_STEP => step_span!("eval.rpc_step"),
+        n if n == SpanName::DATA_DATASET_OPEN => step_span!("data.dataset_open"),
+        n if n == SpanName::DATA_GET_WINDOW => step_span!("data.get_window"),
+        n if n == SpanName::DATA_COLLATE => step_span!("data.collate"),
+        n if n == SpanName::DATA_PREFETCH_WORKER_LIFETIME => {
+            step_span!("data.prefetch_worker.lifetime")
+        },
+        _ => step_span!("lewm.unknown"),
     }
 }
 
