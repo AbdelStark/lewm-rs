@@ -23,11 +23,15 @@ metal = []
 slow-tests = []
 
 [dependencies]
+blake3 = { workspace = true }
 lewm-core = { workspace = true }
 lewm-data = { workspace = true }
 lewm-hub = { workspace = true }
 lewm-plan = { workspace = true }
 lewm-telemetry = { workspace = true }
+serde = { workspace = true }
+toml = { workspace = true }
+validator = { workspace = true }
 
 [dev-dependencies]
 insta = { workspace = true }

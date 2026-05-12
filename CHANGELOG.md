@@ -11,6 +11,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 - Initial Rust workspace, spec validation, quality gate configuration, and OSS
   scaffolding.
+- Root TOML config loader with layered environment/CLI overrides, validation,
+  canonical BLAKE3 hashing, and the `configs/pusht.toml` fixture.
 
 ### Changed
 

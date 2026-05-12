@@ -6,5 +6,7 @@
 //!
 //! ## Module index
 //!
-//! Training modules are added by the phase-specific implementation issues after
-//! the workspace scaffold lands.
+//! - [`config`] owns the root training TOML schema, layered overrides, and
+//!   reproducibility hash.
+
+pub mod config;
