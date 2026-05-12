@@ -11,6 +11,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 - Initial Rust workspace, spec validation, quality gate configuration, and OSS
   scaffolding.
+- Resume-aware PushT full-training HF Jobs spec and the ml-intern approval
+  leash entry for human-gated full training launches.
 
 ### Changed
 
