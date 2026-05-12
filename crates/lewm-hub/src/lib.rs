@@ -7,5 +7,10 @@
 //!
 //! ## Module index
 //!
-//! Hub modules are added by the phase-specific implementation issues after the
-//! workspace scaffold lands.
+//! - [`model_card`] — model repository README rendering.
+
+pub mod model_card;
+
+pub use crate::model_card::{
+    LEWM_CITATION_BIBTEX, LEWM_RS_CITATION_BIBTEX, ModelCardError, ModelCardMetadata, render,
+};

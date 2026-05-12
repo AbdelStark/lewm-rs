@@ -18,10 +18,12 @@ slow-tests = []
 
 [dependencies]
 lewm-core = { workspace = true }
+thiserror = { workspace = true }
 
 [dev-dependencies]
 insta = { workspace = true }
 proptest = { workspace = true }
+serde_yaml_ng = { workspace = true }
 
 [lints]
 workspace = true
