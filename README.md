@@ -28,6 +28,20 @@ cargo check --workspace --locked
 python3 scripts/check_specs.py && python3 scripts/check_layers.py
 ```
 
+Make targets mirror the local gates:
+
+| Target | Command |
+|--------|---------|
+| `make fmt` | Format the Rust workspace. |
+| `make lint` | Run clippy with warnings denied. |
+| `make test` | Run workspace tests with all features. |
+| `make test-fast` | Run lib/bin tests excluding `_slow_` tests. |
+| `make bench` | Run workspace benchmarks. |
+| `make docs` | Build rustdoc with warnings denied. |
+| `make check` | Run format, lint, cargo check, spec/layer checks, deny, and audit. |
+| `make accept` | Run the current release gate: check, test, docs, and available future hooks. |
+| `make clean` | Remove Cargo build outputs. |
+
 ## Results
 
 | Result | Current state | Target |
