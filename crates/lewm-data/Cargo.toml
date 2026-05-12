@@ -16,11 +16,17 @@ default = []
 slow-tests = []
 
 [dependencies]
+blake3 = { workspace = true }
+hdf5-metno = { workspace = true }
 lewm-core = { workspace = true }
+ndarray = { workspace = true }
+parking_lot = { workspace = true }
+thiserror = { workspace = true }
 
 [dev-dependencies]
 insta = { workspace = true }
 proptest = { workspace = true }
+tempfile = "3"
 
 [lints]
 workspace = true
