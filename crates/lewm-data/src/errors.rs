@@ -54,6 +54,13 @@ pub enum DataError {
     #[error("invalid transform input: {0}")]
     InvalidTransform(String),
 
+    /// Samples cannot be collated because their shapes disagree.
+    #[error("inconsistent shapes in collate: {detail}")]
+    InconsistentShapes {
+        /// Human-readable mismatch detail.
+        detail: String,
+    },
+
     /// Dataset discovery succeeded but no usable shards/windows were present.
     #[error("empty dataset: {0}")]
     EmptyDataset(String),
