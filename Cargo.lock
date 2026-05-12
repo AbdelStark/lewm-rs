@@ -584,6 +584,8 @@ dependencies = [
  "lewm-plan",
  "lewm-telemetry",
  "proptest",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

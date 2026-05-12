@@ -6,5 +6,6 @@
 //!
 //! ## Module index
 //!
-//! Training modules are added by the phase-specific implementation issues after
-//! the workspace scaffold lands.
+//! - [`trainer`] — outer-loop state machine and trainer artifacts.
+
+pub mod trainer;

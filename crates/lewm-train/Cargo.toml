@@ -28,6 +28,8 @@ lewm-data = { workspace = true }
 lewm-hub = { workspace = true }
 lewm-plan = { workspace = true }
 lewm-telemetry = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
 
 [dev-dependencies]
 insta = { workspace = true }
