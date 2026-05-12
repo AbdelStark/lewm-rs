@@ -11,6 +11,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 - Initial Rust workspace, spec validation, quality gate configuration, and OSS
   scaffolding.
+- RFC 0006 CEM planner with deterministic `rng:cem` sampling, chunked cost
+  evaluation fallback, and toy-quadratic convergence tests.
 
 ### Changed
 
