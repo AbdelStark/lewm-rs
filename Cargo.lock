@@ -584,6 +584,10 @@ dependencies = [
  "lewm-plan",
  "lewm-telemetry",
  "proptest",
+ "serde",
+ "thiserror",
+ "toml",
+ "validator",
 ]
 
 [[package]]
