@@ -7,5 +7,11 @@
 //!
 //! ## Module index
 //!
-//! Hub modules are added by the phase-specific implementation issues after the
-//! workspace scaffold lands.
+//! - [`cost_ledger`] — RFC 0010 cost ledger parsing, append, and cap checks.
+
+pub mod cost_ledger;
+
+pub use crate::cost_ledger::{
+    CostEntry, CostLedgerError, CostLedgerRow, HARD_CAP_USD_CENTS, UsdAmount, append_entry,
+    cost_for_wall_time, read_ledger, rounded_billable_minutes, verify_ledger,
+};
