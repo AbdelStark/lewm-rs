@@ -12,9 +12,13 @@
 pub mod errors;
 pub mod facade;
 pub mod metrics;
+pub mod otlp;
 pub mod spans;
 
 pub use crate::errors::TelemetryError;
 pub use crate::facade::{MetricSink, SpanGuard, Telemetry, TelemetryConfig, TelemetryContext};
 pub use crate::metrics::{MetricKind, MetricName};
+pub use crate::otlp::{
+    OtlpSpanGuard, OtlpTracer, init_tracer, init_tracer_from_env, init_tracer_with_context,
+};
 pub use crate::spans::SpanName;
