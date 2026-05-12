@@ -6,5 +6,6 @@
 //!
 //! ## Module index
 //!
-//! Training modules are added by the phase-specific implementation issues after
-//! the workspace scaffold lands.
+//! - [`schedule`] — cosine decay with linear warmup.
+
+pub mod schedule;
