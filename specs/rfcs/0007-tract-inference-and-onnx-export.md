@@ -198,7 +198,7 @@ If both ONNX and NNEF fail, we implement a Rust loader that reads the Burn `.mpk
 - A `ManualGraph` builder that uses `tract-core` primitives to assemble the equivalent computation graph.
 - An equivalence test vs. Burn NdArray forward.
 
-The full design is sketched in [`adr/0007-burn-direct-fallback.md`](../adr/0007-burn-direct-fallback.md) (to be created if the fallback is ever needed).
+The full design will be captured in an ADR if the fallback is ever needed.
 
 ---
 

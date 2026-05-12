@@ -170,7 +170,8 @@ Individual RFCs carry their own version in their frontmatter and bump independen
 5. Once reviewed, status moves to `Proposed`. The author advertises the proposal in the project channel for 72 hours minimum.
 6. On approval (LGTM + 24h cooling period for non-trivial changes), status moves to `Accepted` and the spec set version is bumped per §2.6.
 
-A worked example of this process appears in [`adr/0001-example-process.md`](adr/0001-example-process.md) (created on first real ADR).
+Use [`adr/0000-template.md`](adr/0000-template.md) for the first real ADR; worked examples
+will live beside accepted ADRs once they exist.
 
 ---
 
