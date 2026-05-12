@@ -9,11 +9,16 @@
 //! - [`Telemetry`] is the public facade for metrics and spans.
 //! - [`MetricName`] and [`SpanName`] are the closed RFC 0009 registries.
 
+pub mod collapse;
 pub mod errors;
 pub mod facade;
 pub mod metrics;
 pub mod spans;
 
+pub use crate::collapse::{
+    COLLAPSE_PROBE_BATCH_FRAMES, COLLAPSE_PROBE_FIXTURE_PATH, COLLAPSE_TRIPS_REQUIRED,
+    CollapseDetector, CollapseDetectorConfig, CollapseDetectorDecision,
+};
 pub use crate::errors::TelemetryError;
 pub use crate::facade::{MetricSink, SpanGuard, Telemetry, TelemetryConfig, TelemetryContext};
 pub use crate::metrics::{MetricKind, MetricName};

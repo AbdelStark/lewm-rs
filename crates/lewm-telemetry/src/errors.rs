@@ -14,4 +14,8 @@ pub enum TelemetryError {
     /// A metric sink failed while accepting or flushing records.
     #[error("metric sink error: {0}")]
     Sink(String),
+
+    /// Collapse detector evaluation or artifact emission failed.
+    #[error("collapse detector error: {0}")]
+    Collapse(String),
 }
