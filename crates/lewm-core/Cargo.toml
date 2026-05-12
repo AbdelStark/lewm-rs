@@ -1,0 +1,26 @@
+[package]
+name = "lewm-core"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+authors = { workspace = true }
+repository = { workspace = true }
+rust-version = { workspace = true }
+description = "Core LeWM model architecture, losses, and tensor contracts."
+
+[lib]
+path = "src/lib.rs"
+
+[features]
+default = []
+parity-fixtures = []
+slow-tests = []
+
+[dependencies]
+
+[dev-dependencies]
+insta = { workspace = true }
+proptest = { workspace = true }
+
+[lints]
+workspace = true

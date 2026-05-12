@@ -1,0 +1,34 @@
+[package]
+name = "lewm-plan"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+authors = { workspace = true }
+repository = { workspace = true }
+rust-version = { workspace = true }
+description = "CEM planning, PushT evaluation, and SO-100 latent evaluation."
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "lewm-eval"
+path = "src/bin/lewm-eval.rs"
+
+[features]
+default = ["cuda"]
+cuda = []
+cpu-only = []
+slow-tests = []
+
+[dependencies]
+lewm-core = { workspace = true }
+lewm-data = { workspace = true }
+lewm-telemetry = { workspace = true }
+
+[dev-dependencies]
+insta = { workspace = true }
+proptest = { workspace = true }
+
+[lints]
+workspace = true
