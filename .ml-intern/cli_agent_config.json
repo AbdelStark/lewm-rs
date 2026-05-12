@@ -1,0 +1,58 @@
+{
+  "schema_version": "1.0.0",
+  "project": "lewm-rs",
+  "namespace": "AbdelStark",
+  "billing": {
+    "hard_cap_usd": 200,
+    "soft_cap_usd": 100,
+    "per_job_default_timeout": "30m",
+    "session_cap_usd": 20
+  },
+  "hardware_allowed": [
+    "cpu-basic",
+    "cpu-xl",
+    "l4",
+    "a10g-large"
+  ],
+  "hardware_denied": [
+    "a100-large",
+    "a100-xl",
+    "h100",
+    "h100-xl"
+  ],
+  "jobs_allowed": [
+    "smoke_pusht.yaml",
+    "short_pusht.yaml",
+    "smoke_so100.yaml",
+    "short_so100.yaml",
+    "eval.yaml"
+  ],
+  "jobs_human_approval_required": [
+    "train_pusht.yaml",
+    "train_so100.yaml"
+  ],
+  "files_readonly_glob": [
+    "crates/lewm-core/src/losses/**",
+    "specs/**",
+    "PRD.md",
+    "configs/pusht.toml",
+    "configs/so100.toml",
+    "rust-toolchain.toml",
+    "Cargo.lock"
+  ],
+  "files_writable_glob": [
+    "reports/**",
+    "python/**",
+    "jobs/**",
+    "configs/overrides/**",
+    ".ml-intern/sessions/**"
+  ],
+  "command_denied_regex": [
+    "hf jobs run .*--hardware a100.*",
+    "hf jobs run .*--hardware h100.*",
+    "hf jobs run .*(?!.*--timeout)"
+  ],
+  "command_requires_human_approval_regex": [
+    "hf jobs run"
+  ]
+}
