@@ -11,6 +11,8 @@
 
 pub mod errors;
 pub mod pusht;
+pub mod transform;
 
 pub use crate::errors::DataError;
 pub use crate::pusht::{PushtConfig, PushtDataset, Sample, SampleMeta, Split};
+pub use crate::transform::{ActionNormalizer, ImagePreprocessor, InterpKind, TransformStats};
