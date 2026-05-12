@@ -11,6 +11,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 - Initial Rust workspace, spec validation, quality gate configuration, and OSS
   scaffolding.
+- Hugging Face Hub client upload pipeline with SHA-256 idempotency and retry
+  policy.
 
 ### Changed
 
