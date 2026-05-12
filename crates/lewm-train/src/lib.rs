@@ -6,5 +6,6 @@
 //!
 //! ## Module index
 //!
-//! Training modules are added by the phase-specific implementation issues after
-//! the workspace scaffold lands.
+//! - [`optim`] — `AdamW` configuration and RFC 0005 decay/no-decay partitioning.
+
+pub mod optim;

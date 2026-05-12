@@ -11,6 +11,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 - Initial Rust workspace, spec validation, quality gate configuration, and OSS
   scaffolding.
+- Added `lewm-train` AdamW RFC defaults and decay/no-decay parameter
+  partitioning.
 
 ### Changed
 
