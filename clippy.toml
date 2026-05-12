@@ -1,0 +1,6 @@
+avoid-breaking-exported-api = false
+cognitive-complexity-threshold = 30
+type-complexity-threshold = 250
+max-fn-params-bools = 1
+allow-expect-in-tests = true
+allow-unwrap-in-tests = true

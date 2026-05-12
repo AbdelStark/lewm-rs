@@ -1,0 +1,33 @@
+[graph]
+all-features = true
+
+[advisories]
+db-path = "~/.cargo/advisory-db"
+db-urls = ["https://github.com/rustsec/advisory-db"]
+# cargo-deny 0.18 uses a scope selector for unmaintained advisories, not a
+# lint level. This preserves the RFC intent that transitive unmaintained notices
+# do not block ordinary PRs while direct workspace dependencies still do.
+unmaintained = "workspace"
+yanked = "deny"
+
+[licenses]
+confidence-threshold = 0.93
+unused-allowed-license = "allow"
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "Unlicense",
+    "CC0-1.0",
+    "MPL-2.0",
+]
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+deny = [
+    { crate = "openssl-sys" },
+]
