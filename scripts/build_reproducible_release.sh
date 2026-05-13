@@ -8,7 +8,7 @@ Build release binaries with the reproducible-build environment.
 Environment:
   REPRO_TARGET       Rust target triple. Defaults to x86_64-unknown-linux-musl.
   REPRO_PROFILE      Cargo profile. Defaults to release-lto.
-  REPRO_TARGET_DIR   Cargo target directory. Defaults to target.
+  REPRO_TARGET_DIR   Cargo target directory. Defaults to target/reproducible.
   REPRO_OUTPUT_DIR   Optional directory to copy lewm-* binaries into.
   SOURCE_DATE_EPOCH  Release timestamp. Defaults to the current git commit time.
   RUSTFLAGS          Extra rustc flags appended after the reproducibility flags.
@@ -25,7 +25,7 @@ cd "$repo_root"
 
 target="${REPRO_TARGET:-x86_64-unknown-linux-musl}"
 profile="${REPRO_PROFILE:-release-lto}"
-target_dir="${REPRO_TARGET_DIR:-target}"
+target_dir="${REPRO_TARGET_DIR:-target/reproducible}"
 output_dir="${REPRO_OUTPUT_DIR:-}"
 
 if [[ -z "${SOURCE_DATE_EPOCH:-}" ]]; then

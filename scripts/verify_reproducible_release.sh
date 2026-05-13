@@ -9,7 +9,11 @@ Usage:
   scripts/verify_reproducible_release.sh <published-dir> [rebuilt-dir]
 
 If rebuilt-dir is omitted, the script rebuilds the workspace with
-scripts/build_reproducible_release.sh into a temporary directory.
+scripts/build_reproducible_release.sh into a temporary output directory.
+
+The auto-rebuild path uses REPRO_TARGET_DIR when set, otherwise it cleans and
+reuses target/reproducible. Keeping the absolute target path stable matters for
+static C dependencies that embed their CMake installation prefix.
 USAGE
 }
 
@@ -39,7 +43,11 @@ trap 'rm -rf "$tmp_dir"' EXIT
 
 if [[ -z "$rebuilt_dir" ]]; then
   rebuilt_dir="${tmp_dir}/rebuilt"
-  REPRO_TARGET_DIR="${REPRO_TARGET_DIR:-${tmp_dir}/target}" \
+  rebuild_target_dir="${REPRO_TARGET_DIR:-target/reproducible}"
+  if [[ -z "${REPRO_TARGET_DIR:-}" ]]; then
+    rm -rf "$rebuild_target_dir"
+  fi
+  REPRO_TARGET_DIR="$rebuild_target_dir" \
     REPRO_OUTPUT_DIR="$rebuilt_dir" \
     scripts/build_reproducible_release.sh
 fi
