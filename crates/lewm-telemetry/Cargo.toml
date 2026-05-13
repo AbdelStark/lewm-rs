@@ -13,12 +13,14 @@ path = "src/lib.rs"
 
 [features]
 default = []
+nvtx = ["dep:nvtx"]
 nvml = ["dep:nvml-wrapper"]
 slow-tests = []
 
 [dependencies]
 chrono = { workspace = true }
 lewm-core = { workspace = true }
+nvtx = { workspace = true, optional = true }
 nvml-wrapper = { workspace = true, optional = true }
 opentelemetry = { workspace = true }
 opentelemetry-otlp = { workspace = true }

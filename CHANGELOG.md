@@ -15,6 +15,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   and optional NVML GPU utilization/memory telemetry.
 - Initial Rust workspace, spec validation, quality gate configuration, and OSS
   scaffolding.
+- Optional `lewm-telemetry/nvtx` profiling layer and local profiling artifact
+  workflow for RFC 0014.
 - Cost-ledger append, integrity-check, pricing, backfill, and CI cap gates.
 - Hugging Face model-card renderer with YAML frontmatter, provenance, and
   attribution blocks.

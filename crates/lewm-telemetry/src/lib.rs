@@ -14,6 +14,8 @@ pub mod errors;
 pub mod facade;
 pub mod logs;
 pub mod metrics;
+#[cfg(feature = "nvtx")]
+pub mod nvtx_layer;
 pub mod otlp;
 pub mod spans;
 pub mod system;
@@ -30,6 +32,8 @@ pub use crate::facade::{
 };
 pub use crate::logs::{init_logging, init_logging_with_config, init_logging_with_tracer};
 pub use crate::metrics::{MetricKind, MetricName};
+#[cfg(feature = "nvtx")]
+pub use crate::nvtx_layer::{NvtxLayer, nvtx_layer};
 pub use crate::otlp::{
     OtlpSpanGuard, OtlpTracer, init_tracer, init_tracer_from_env, init_tracer_with_context,
 };
