@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 import re
 import sys
@@ -37,6 +38,18 @@ JOB_SPECS = {
             "--config configs/pusht.toml",
             "--data-dir /tmp/data",
             "--max-steps 7500",
+            "python python/upload_checkpoints.py",
+        ],
+    },
+    "train_pusht.yaml": {
+        "hardware": "a10g-large",
+        "timeout": "12h",
+        "command_tokens": [
+            "lewm-train train",
+            "--config configs/pusht.toml",
+            "--data-dir /tmp/data",
+            "--output-dir /tmp/out",
+            "--resume-if-present",
             "python python/upload_checkpoints.py",
         ],
     },
@@ -83,6 +96,8 @@ def main() -> int:
         train_pos = max(command.rfind("lewm-train smoke"), command.rfind("lewm-train train"))
         if upload_pos <= train_pos:
             failures.append(f"{path}: upload_checkpoints.py must run after lewm-train")
+
+    validate_intern_config(failures)
 
     if failures:
         for failure in failures:
@@ -142,6 +157,27 @@ def parse_env_keys(text: str) -> set[str]:
 
 def normalize_command(command: str) -> str:
     return " ".join(command.split())
+
+
+def validate_intern_config(failures: list[str]) -> None:
+    path = ROOT / ".ml-intern" / "cli_agent_config.json"
+    if not path.exists():
+        failures.append(f"{path}: missing ml-intern leash config")
+        return
+
+    try:
+        config = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as error:
+        failures.append(f"{path}: invalid JSON: {error}")
+        return
+
+    approval_required = set(config.get("jobs_human_approval_required", []))
+    jobs_allowed = set(config.get("jobs_allowed", []))
+
+    if "train_pusht.yaml" not in approval_required:
+        failures.append(f"{path}: train_pusht.yaml must require human approval")
+    if "train_pusht.yaml" in jobs_allowed:
+        failures.append(f"{path}: train_pusht.yaml must not be pre-approved")
 
 
 if __name__ == "__main__":
