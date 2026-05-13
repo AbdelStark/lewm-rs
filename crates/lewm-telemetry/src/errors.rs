@@ -15,6 +15,10 @@ pub enum TelemetryError {
     #[error("metric sink error: {0}")]
     Sink(String),
 
+    /// Collapse detector evaluation or artifact emission failed.
+    #[error("collapse detector error: {0}")]
+    Collapse(String),
+
     /// Structured logging initialization or emission failed.
     #[error("logger error: {0}")]
     Logger(String),
