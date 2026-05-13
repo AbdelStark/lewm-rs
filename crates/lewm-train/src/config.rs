@@ -14,6 +14,18 @@ use validator::Validate;
 /// Compiled-in root config schema version accepted by this crate.
 pub const SUPPORTED_SCHEMA_VERSION: &str = "1.0.0";
 
+/// SO-100 action dimension from RFC 0012.
+pub const SO100_ACTION_DIM: usize = crate::warmstart::SO100_ACTION_DIM;
+
+/// SO-100 warmup length from RFC 0012 section 10.
+pub const SO100_WARMUP_STEPS: u32 = 500;
+
+/// Pinned SO-100 held-out episode IDs.
+pub const SO100_HELDOUT_EPISODES: [u32; 5] = [5, 14, 23, 31, 42];
+
+/// Default `PushT` checkpoint used by the SO-100 warm-start arm.
+pub const DEFAULT_SO100_WARMSTART_FROM: &str = "/checkpoints/lewm-rs-pusht/step_0014400.mpk";
+
 /// Fully loaded root config plus its canonical reproducibility hash.
 #[derive(Debug, Clone, PartialEq)]
 pub struct LoadedRootConfig {
@@ -228,6 +240,51 @@ impl RootConfig {
             );
         }
 
+        if let DatasetConfig::So100(dataset) = &self.dataset {
+            errors.extend(self.so100_contract_errors(dataset));
+        }
+
+        errors
+    }
+
+    fn so100_contract_errors(&self, dataset: &So100DatasetConfig) -> Vec<String> {
+        let mut errors = Vec::new();
+
+        if dataset.action_dim != SO100_ACTION_DIM {
+            errors.push(format!(
+                "SO-100 requires dataset.action_dim {SO100_ACTION_DIM}, found {}",
+                dataset.action_dim
+            ));
+        }
+
+        if self.model.action_encoder.input_dim != SO100_ACTION_DIM {
+            errors.push(format!(
+                "SO-100 requires model.action_encoder.input_dim {SO100_ACTION_DIM}, found {}",
+                self.model.action_encoder.input_dim
+            ));
+        }
+
+        if self.training.warmup_steps != SO100_WARMUP_STEPS {
+            errors.push(format!(
+                "SO-100 requires training.warmup_steps {SO100_WARMUP_STEPS}, found {}",
+                self.training.warmup_steps
+            ));
+        }
+
+        match &self.eval {
+            EvalConfig::So100Latent(eval) => {
+                if eval.episode_ids != SO100_HELDOUT_EPISODES {
+                    errors.push(format!(
+                        "SO-100 eval.episode_ids must be {:?}, found {:?}",
+                        SO100_HELDOUT_EPISODES, eval.episode_ids
+                    ));
+                }
+            },
+            EvalConfig::PushtSimulated(_) => {
+                errors.push("SO-100 dataset requires so100_latent_rollout eval".to_string());
+            },
+        }
+
         errors
     }
 }
@@ -318,6 +375,12 @@ impl Default for PushtDatasetConfig {
 pub struct So100DatasetConfig {
     /// Path to the `SO-100` dataset root.
     pub root_path: PathBuf,
+    /// Path to the decoded RFC 0012 HDF5 mirror.
+    pub hdf5_path: PathBuf,
+    /// Camera view selected for v1 training.
+    pub camera_view: CameraView,
+    /// Path to persisted SO-100 action statistics.
+    pub stats_path: PathBuf,
     /// Dataset split.
     pub split: DatasetSplit,
     /// Sample horizon.
@@ -337,13 +400,27 @@ impl Default for So100DatasetConfig {
     fn default() -> Self {
         Self {
             root_path: PathBuf::from("/data/lewm-so100"),
+            hdf5_path: PathBuf::from("/data/so100/svla_so100_pickplace.h5"),
+            camera_view: CameraView::Top,
+            stats_path: PathBuf::from("/data/so100/stats.safetensors"),
             split: DatasetSplit::Train,
             horizon: 8,
             history_size: 3,
-            action_dim: 6,
+            action_dim: SO100_ACTION_DIM,
             seed: 0,
         }
     }
+}
+
+/// SO-100 camera view selection.
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum CameraView {
+    /// Top camera.
+    #[default]
+    Top,
+    /// Wrist camera.
+    Wrist,
 }
 
 /// Training loss configuration.
@@ -486,6 +563,7 @@ pub enum EvalConfig {
     /// Simulated `PushT` planning evaluation.
     PushtSimulated(PushtEvalConfig),
     /// Latent `SO-100` trajectory evaluation.
+    #[serde(alias = "so100_latent_rollout")]
     So100Latent(So100EvalConfig),
 }
 
@@ -564,6 +642,9 @@ impl Default for PushtEvalConfig {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Validate)]
 #[serde(default, deny_unknown_fields)]
 pub struct So100EvalConfig {
+    /// Held-out episode IDs.
+    #[validate(length(min = 1, max = 1000))]
+    pub episode_ids: Vec<u32>,
     /// Number of episodes to evaluate.
     #[validate(range(min = 1, max = 1000))]
     pub episodes: usize,
@@ -575,6 +656,7 @@ pub struct So100EvalConfig {
 impl Default for So100EvalConfig {
     fn default() -> Self {
         Self {
+            episode_ids: SO100_HELDOUT_EPISODES.to_vec(),
             episodes: 5,
             horizon_plan: 5,
         }
@@ -846,6 +928,15 @@ fn ensure_schema_version_present(value: &toml::Value) -> Result<(), ConfigError>
 fn merge_values(base: &mut toml::Value, overlay: toml::Value) {
     match (base, overlay) {
         (toml::Value::Table(base_table), toml::Value::Table(overlay_table)) => {
+            let changes_tagged_variant = base_table
+                .get("kind")
+                .zip(overlay_table.get("kind"))
+                .is_some_and(|(base_kind, overlay_kind)| base_kind != overlay_kind);
+            if changes_tagged_variant {
+                *base_table = overlay_table;
+                return;
+            }
+
             for (key, overlay_value) in overlay_table {
                 match base_table.get_mut(&key) {
                     Some(base_value) => merge_values(base_value, overlay_value),
@@ -1022,6 +1113,8 @@ mod tests {
     type TestResult = Result<(), Box<dyn Error>>;
 
     const PUSHT_FIXTURE: &str = include_str!("../../../configs/pusht.toml");
+    const SO100_FIXTURE: &str = include_str!("../../../configs/so100.toml");
+    const SO100_WARMSTART_FIXTURE: &str = include_str!("../../../configs/so100_warmstart.toml");
 
     fn load_fixture(
         text: &str,
@@ -1251,6 +1344,42 @@ schema_version = "9.9.9"
         };
         assert_eq!(dataset.horizon, 8);
         assert_eq!(dataset.history_size, 3);
+
+        Ok(())
+    }
+
+    #[test]
+    fn so100_toml_loads_and_validates() -> TestResult {
+        let loaded = load_fixture(SO100_FIXTURE, &EnvOverrides::default(), &[])?;
+
+        let DatasetConfig::So100(dataset) = loaded.root.dataset else {
+            return Err("expected SO-100 dataset config".into());
+        };
+        assert_eq!(dataset.camera_view, CameraView::Top);
+        assert_eq!(dataset.action_dim, SO100_ACTION_DIM);
+        assert_eq!(loaded.root.model.action_encoder.input_dim, SO100_ACTION_DIM);
+        assert_eq!(loaded.root.training.warmup_steps, SO100_WARMUP_STEPS);
+        assert_eq!(loaded.root.training.warmstart_from, None);
+
+        let EvalConfig::So100Latent(eval) = loaded.root.eval else {
+            return Err("expected SO-100 latent eval config".into());
+        };
+        assert_eq!(eval.episode_ids, SO100_HELDOUT_EPISODES);
+
+        Ok(())
+    }
+
+    #[test]
+    fn so100_warmstart_matches_base_except_checkpoint() -> TestResult {
+        let base = load_fixture(SO100_FIXTURE, &EnvOverrides::default(), &[])?;
+        let mut warm = load_fixture(SO100_WARMSTART_FIXTURE, &EnvOverrides::default(), &[])?;
+
+        assert_eq!(
+            warm.root.training.warmstart_from.as_deref(),
+            Some(Path::new(DEFAULT_SO100_WARMSTART_FROM))
+        );
+        warm.root.training.warmstart_from = None;
+        assert_eq!(warm.root, base.root);
 
         Ok(())
     }

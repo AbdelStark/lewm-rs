@@ -10,6 +10,7 @@ use std::{
 };
 
 use clap::{Parser, Subcommand};
+use lewm_train::config::{EnvOverrides, canonical_toml, load_root};
 use serde::Deserialize;
 
 #[cfg(feature = "cuda")]
@@ -20,10 +21,10 @@ const DEFAULT_DEVICE: &str = "metal:0";
 const DEFAULT_DEVICE: &str = "cpu";
 
 const DEFAULT_LOG_LEVEL: &str = "info";
+const DEFAULT_CONFIG_PATH: &str = "configs/so100.toml";
 const DEFAULT_OUTPUT_DIR: &str = "./out/<run_id>";
 const DEFAULT_SEED: u64 = 0;
 const UNKNOWN_BUILD_VALUE: &str = "unknown";
-const UNKNOWN_CONFIG_HASH: &str = "000000000000";
 
 #[derive(Clone, Debug, Deserialize, Eq, Parser, PartialEq)]
 #[command(
@@ -72,14 +73,30 @@ struct Cli {
     #[arg(long, global = true)]
     dry_run: bool,
 
+    #[arg(long, global = true)]
+    print_config: bool,
+
     #[arg(long, global = true, value_name = "INT")]
     max_steps: Option<u64>,
 
     #[command(subcommand)]
-    command: Command,
+    command: Option<Command>,
 }
 
 impl Cli {
+    fn config_path(&self) -> PathBuf {
+        self.config
+            .clone()
+            .unwrap_or_else(|| PathBuf::from(DEFAULT_CONFIG_PATH))
+    }
+
+    fn config_override_pairs(&self) -> Vec<(String, String)> {
+        self.overrides
+            .iter()
+            .map(|item| (item.key.clone(), item.value.clone()))
+            .collect()
+    }
+
     fn provenance_preamble(
         &self,
         git_short_sha: &str,
@@ -179,15 +196,43 @@ impl Error for OverrideParseError {}
 
 fn main() -> Result<(), CliError> {
     let cli = Cli::parse();
-    write_preamble(io::stdout(), &cli)?;
+    run(&cli, io::stdout())?;
     Ok(())
 }
 
-fn write_preamble(mut writer: impl Write, cli: &Cli) -> Result<(), CliError> {
+fn run(cli: &Cli, mut writer: impl Write) -> Result<(), CliError> {
+    let env_overrides = EnvOverrides::from_process_env()?;
+    let loaded = load_root(
+        &cli.config_path(),
+        &env_overrides,
+        &cli.config_override_pairs(),
+    )?;
+
+    write_preamble(&mut writer, cli, &loaded.config_hash)?;
+
+    if cli.print_config {
+        writer.write_all(canonical_toml(&loaded.root)?.as_bytes())?;
+    }
+
+    if cli.dry_run {
+        return Ok(());
+    }
+
+    if matches!(cli.command.as_ref(), None | Some(Command::Train(_))) {
+        return Err(CliError(
+            "lewm-train currently supports --dry-run only; the training loop is not implemented"
+                .to_string(),
+        ));
+    }
+
+    Ok(())
+}
+
+fn write_preamble(mut writer: impl Write, cli: &Cli, config_hash: &str) -> Result<(), CliError> {
     let line = cli.provenance_preamble(
         option_env!("LEWM_GIT_SHA").unwrap_or(UNKNOWN_BUILD_VALUE),
         option_env!("LEWM_BUILD_DATE").unwrap_or(UNKNOWN_BUILD_VALUE),
-        UNKNOWN_CONFIG_HASH,
+        config_hash,
     );
     writeln!(writer, "{line}")?;
     Ok(())
@@ -287,6 +332,12 @@ impl From<io::Error> for CliError {
     }
 }
 
+impl From<lewm_train::config::ConfigError> for CliError {
+    fn from(source: lewm_train::config::ConfigError) -> Self {
+        Self(source.to_string())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -307,11 +358,22 @@ mod tests {
         assert!(!cli.dry_run);
         assert_eq!(
             cli.command,
-            Command::Train(TrainArgs {
+            Some(Command::Train(TrainArgs {
                 data_dir: None,
                 hf_token: None
-            })
+            }))
         );
+
+        Ok(())
+    }
+
+    #[test]
+    fn cli_accepts_default_train_dry_run() -> TestResult {
+        let cli = Cli::try_parse_from(["lewm-train", "--dry-run"])?;
+
+        assert_eq!(cli.command, None);
+        assert!(cli.dry_run);
+        assert_eq!(cli.config_path(), PathBuf::from(DEFAULT_CONFIG_PATH));
 
         Ok(())
     }
@@ -340,7 +402,7 @@ mod tests {
             "16",
         ])?;
 
-        let Command::Smoke(args) = cli.command else {
+        let Some(Command::Smoke(args)) = cli.command else {
             return Err("expected smoke subcommand".into());
         };
 
