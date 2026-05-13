@@ -6,7 +6,9 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::{MetricName, SpanName, TelemetryError};
+use crate::{
+    MetricName, OtlpSpanGuard, OtlpTracer, SpanName, TelemetryError, init_tracer_from_env,
+};
 
 /// Telemetry initialization settings.
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -128,10 +130,75 @@ impl MetricSink for NoopMetricSink {
     }
 }
 
+/// Metric sink that mirrors every record to multiple child sinks.
+pub struct MetricFanout {
+    sinks: Vec<Arc<dyn MetricSink>>,
+}
+
+impl fmt::Debug for MetricFanout {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("MetricFanout")
+            .field("sinks", &self.sinks.len())
+            .finish()
+    }
+}
+
+impl MetricFanout {
+    /// Build a fanout sink.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if no child sinks are provided.
+    pub fn new(sinks: Vec<Arc<dyn MetricSink>>) -> Result<Self, TelemetryError> {
+        if sinks.is_empty() {
+            return Err(TelemetryError::InvalidConfig(
+                "metric fanout requires at least one sink".to_string(),
+            ));
+        }
+        Ok(Self { sinks })
+    }
+}
+
+impl MetricSink for MetricFanout {
+    fn emit_scalar(
+        &self,
+        context: &TelemetryContext,
+        name: MetricName,
+        step: u64,
+        value: f32,
+    ) -> Result<(), TelemetryError> {
+        for sink in &self.sinks {
+            sink.emit_scalar(context, name, step, value)?;
+        }
+        Ok(())
+    }
+
+    fn emit_histogram(
+        &self,
+        context: &TelemetryContext,
+        name: MetricName,
+        step: u64,
+        values: &[f32],
+    ) -> Result<(), TelemetryError> {
+        for sink in &self.sinks {
+            sink.emit_histogram(context, name, step, values)?;
+        }
+        Ok(())
+    }
+
+    fn flush(&self) -> Result<(), TelemetryError> {
+        for sink in &self.sinks {
+            sink.flush()?;
+        }
+        Ok(())
+    }
+}
+
 /// Single public entry point for metrics, spans, and logs.
 pub struct Telemetry {
     context: TelemetryContext,
     metric_sink: Arc<dyn MetricSink>,
+    tracer: Option<Arc<OtlpTracer>>,
 }
 
 impl fmt::Debug for Telemetry {
@@ -162,9 +229,30 @@ impl Telemetry {
         metric_sink: Arc<dyn MetricSink>,
     ) -> Result<Self, TelemetryError> {
         config.validate()?;
+        let context = TelemetryContext::from(config);
+        let tracer = init_tracer_from_env(&context)?.map(Arc::new);
+        Ok(Self {
+            context,
+            metric_sink,
+            tracer,
+        })
+    }
+
+    /// Initialize telemetry with explicit metric and trace exporters.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when required run attributes are empty.
+    pub fn with_exporters(
+        config: TelemetryConfig,
+        metric_sink: Arc<dyn MetricSink>,
+        tracer: Option<Arc<OtlpTracer>>,
+    ) -> Result<Self, TelemetryError> {
+        config.validate()?;
         Ok(Self {
             context: config.into(),
             metric_sink,
+            tracer,
         })
     }
 
@@ -238,6 +326,10 @@ impl Telemetry {
     /// Start a named span with run-level attributes.
     #[must_use]
     pub fn start_span(&self, name: SpanName) -> SpanGuard<'_> {
+        let otlp_span = self
+            .tracer
+            .as_ref()
+            .map(|tracer| tracer.start_span(&self.context, name, None, None));
         SpanGuard {
             context: &self.context,
             name,
@@ -245,12 +337,17 @@ impl Telemetry {
             epoch: None,
             started_at: Instant::now(),
             _entered_span: tracing_span_for(&self.context, name, None, None).entered(),
+            _otlp_span: otlp_span,
         }
     }
 
     /// Start a named step-level span with required step and epoch attributes.
     #[must_use]
     pub fn start_step_span(&self, name: SpanName, step: u64, epoch: u64) -> SpanGuard<'_> {
+        let otlp_span = self
+            .tracer
+            .as_ref()
+            .map(|tracer| tracer.start_span(&self.context, name, Some(step), Some(epoch)));
         SpanGuard {
             context: &self.context,
             name,
@@ -258,6 +355,7 @@ impl Telemetry {
             epoch: Some(epoch),
             started_at: Instant::now(),
             _entered_span: tracing_span_for(&self.context, name, Some(step), Some(epoch)).entered(),
+            _otlp_span: otlp_span,
         }
     }
 
@@ -267,7 +365,11 @@ impl Telemetry {
     ///
     /// Returns an error when any exporter fails to flush.
     pub fn shutdown(self) -> Result<(), TelemetryError> {
-        self.metric_sink.flush()
+        self.metric_sink.flush()?;
+        if let Some(tracer) = self.tracer {
+            tracer.shutdown()?;
+        }
+        Ok(())
     }
 }
 
@@ -280,6 +382,7 @@ pub struct SpanGuard<'a> {
     epoch: Option<u64>,
     started_at: Instant,
     _entered_span: tracing::span::EnteredSpan,
+    _otlp_span: Option<OtlpSpanGuard>,
 }
 
 impl SpanGuard<'_> {

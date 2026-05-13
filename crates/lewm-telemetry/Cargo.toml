@@ -19,6 +19,8 @@ slow-tests = []
 chrono = { workspace = true }
 lewm-core = { workspace = true }
 opentelemetry = { workspace = true }
+opentelemetry-otlp = { workspace = true }
+opentelemetry_sdk = { workspace = true, features = ["rt-tokio"] }
 regex = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
@@ -29,6 +31,7 @@ tracing-subscriber = { workspace = true }
 [dev-dependencies]
 insta = { workspace = true }
 proptest = { workspace = true }
+tokio = { workspace = true }
 
 [lints]
 workspace = true
