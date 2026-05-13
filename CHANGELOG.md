@@ -59,6 +59,9 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Security
 
+- Added a gitleaks-backed secret scan wrapper and CI gate for
+  `TST-0016-SECRETS-001`.
+
 ## [0.1.0] - TBD
 
 Initial public release target.

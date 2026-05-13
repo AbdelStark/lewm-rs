@@ -172,6 +172,46 @@ jobs:
         # Tract 0.22.1 pulls Liquid/time; the patched time release requires Rust 1.88 while this repo is pinned to 1.85.
         run: cargo audit --deny warnings --ignore RUSTSEC-2024-0436 --ignore RUSTSEC-2026-0009
 
+  secrets:
+    name: secrets
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Run wrapper self-test
+        run: python3 scripts/check_secrets.py --self-test
+
+      - name: Install gitleaks
+        env:
+          GITLEAKS_VERSION: "8.30.1"
+        run: |
+          set -euo pipefail
+          case "$(uname -m)" in
+            x86_64) asset_arch="x64" ;;
+            aarch64|arm64) asset_arch="arm64" ;;
+            *) printf 'unsupported runner architecture: %s\n' "$(uname -m)" >&2; exit 1 ;;
+          esac
+          asset="gitleaks_${GITLEAKS_VERSION}_linux_${asset_arch}.tar.gz"
+          base_url="https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}"
+          curl -sSfL "${base_url}/gitleaks_${GITLEAKS_VERSION}_checksums.txt" -o /tmp/gitleaks_checksums.txt
+          curl -sSfL "${base_url}/${asset}" -o "/tmp/${asset}"
+          (cd /tmp && grep "  ${asset}$" gitleaks_checksums.txt | sha256sum -c -)
+          tar -xzf "/tmp/${asset}" -C /tmp gitleaks
+          mkdir -p "${HOME}/.local/bin"
+          install -m 0755 /tmp/gitleaks "${HOME}/.local/bin/gitleaks"
+          echo "${HOME}/.local/bin" >> "${GITHUB_PATH}"
+
+      - name: Run secret scan
+        run: python3 scripts/check_secrets.py
+
   layers:
     name: layers
     runs-on: ubuntu-22.04
