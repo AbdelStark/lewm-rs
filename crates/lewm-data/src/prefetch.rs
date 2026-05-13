@@ -16,7 +16,7 @@ use tokio::task::JoinHandle;
 
 use crate::{
     ActionNormalizer, Batch, BatchBackend, BatchDtype, DataError, HostBackend, HostDevice,
-    ImagePreprocessor, PushtDataset, Sample, collate,
+    ImagePreprocessor, PushtDataset, Sample, So100Dataset, collate,
 };
 
 /// Queue-depth metric emitted by [`Prefetcher::try_next`].
@@ -48,6 +48,20 @@ pub trait Dataset: Send + Sync {
 }
 
 impl Dataset for PushtDataset {
+    fn len(&self) -> usize {
+        Self::len(self)
+    }
+
+    fn is_empty(&self) -> bool {
+        Self::is_empty(self)
+    }
+
+    fn get(&self, idx: usize) -> Result<Sample, DataError> {
+        Self::get(self, idx)
+    }
+}
+
+impl Dataset for So100Dataset {
     fn len(&self) -> usize {
         Self::len(self)
     }
