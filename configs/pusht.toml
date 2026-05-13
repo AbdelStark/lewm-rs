@@ -1,0 +1,117 @@
+schema_version = "1.0.0"
+
+[dataset]
+kind = "pusht"
+root_path = "/data/lewm-pusht"
+split = "train"
+horizon = 8
+history_size = 3
+seed = 0
+
+[model]
+history_size = 3
+horizon = 8
+
+[model.encoder]
+size = "small"
+image_size = 224
+patch_size = 16
+num_channels = 3
+hidden_size = 384
+num_hidden_layers = 12
+num_attention_heads = 6
+intermediate_size = 1536
+hidden_act = "gelu_tanh"
+attention_probs_dropout_prob = 0.0
+hidden_dropout_prob = 0.0
+layer_norm_eps = 1.0e-12
+use_cls_token = true
+interpolate_pos_encoding = false
+use_mask_token = false
+pretrained = false
+
+[model.action_encoder]
+input_dim = 2
+smoothed_dim = 16
+emb_dim = 64
+mlp_scale = 4
+
+[model.predictor]
+num_frames = 16
+depth = 6
+heads = 6
+mlp_dim = 1536
+dim_head = 64
+input_dim = 384
+hidden_dim = 384
+output_dim = 384
+action_emb_dim = 64
+dropout = 0.0
+emb_dropout = 0.0
+
+[model.projector]
+input_dim = 384
+hidden_dim = 1536
+output_dim = 384
+norm = "batch_norm_1d"
+
+[model.pred_proj]
+input_dim = 384
+hidden_dim = 1536
+output_dim = 384
+norm = "batch_norm_1d"
+
+[loss]
+lambda_sigreg = 1.0
+sigreg_knots = 17
+sigreg_num_proj = 1024
+sigreg_t_max = 3.0
+
+[training]
+history_size = 3
+horizon = 8
+batch_size = 64
+grad_accum_steps = 2
+optimizer = "adamw"
+lr_peak = 3.0e-4
+lr_min = 1.0e-5
+warmup_steps = 1000
+weight_decay = 0.05
+betas = [0.9, 0.95]
+epochs = 10
+precision = "bf16_mixed"
+seed = 0
+grad_clip_norm = 1.0
+eval_every_n_epochs = 5
+probe_every_n_steps = 100
+
+[eval]
+kind = "pusht_simulated"
+episode_ids = [
+  0, 7, 13, 21, 28, 34, 41, 48, 55, 62, 69, 76, 83, 90, 97, 104, 111, 118,
+  125, 132, 139, 146, 153, 160, 167, 174, 181, 188, 195, 202, 209, 216, 223,
+  230, 237, 244, 251, 258, 265, 272, 279, 286, 293, 300, 307, 314, 321, 328,
+  335, 342,
+]
+max_steps_per_episode = 100
+n_iter = 5
+n_cand = 1000
+n_elite = 100
+horizon_plan = 5
+sigma_init = 1.0
+sigma_min = 0.05
+
+[observability]
+trackio_run_name_prefix = "lewm-rs-pusht"
+otel_endpoint_env = "OTEL_EXPORTER_OTLP_ENDPOINT"
+tensorboard_dir = "tb"
+
+[hub]
+model_repo = "AbdelStark/lewm-rs-pusht"
+upload_at_end = true
+upload_every_n_epochs = 0
+
+[infer]
+enabled = false
+
+[experimental]
