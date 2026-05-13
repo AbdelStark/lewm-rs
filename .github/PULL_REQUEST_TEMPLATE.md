@@ -6,6 +6,11 @@
 
 <!-- What changed? Keep this concrete. -->
 
+## Traceability
+
+- [ ] Linked issue, RFC, ADR, or spec section is named in this PR.
+- [ ] `specs/traceability-matrix.md` is updated, or this PR does not change traceable behavior.
+
 ## Validation
 
 <!-- List local commands and relevant hosted checks. -->
