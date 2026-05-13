@@ -7,5 +7,9 @@
 //! ## Module index
 //!
 //! - [`mixed_precision`] — precision policy and `F32` islands.
+//! - [`optim`] — `AdamW` configuration and RFC 0005 decay/no-decay partitioning.
+//! - [`schedule`] — cosine decay with linear warmup.
 
 pub mod mixed_precision;
+pub mod optim;
+pub mod schedule;
