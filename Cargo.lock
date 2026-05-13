@@ -1559,6 +1559,8 @@ dependencies = [
  "lewm-telemetry",
  "proptest",
  "prost 0.11.9",
+ "rand_chacha 0.3.1",
+ "rand_distr",
  "serde",
  "serde_json",
  "tar",
