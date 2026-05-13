@@ -6,6 +6,8 @@
 //!
 //! ## Module index
 //!
+//! - [`plan`] contains CPU-side CEM action search for inference.
 //! - [`runner`] contains the CPU inference runner trait and Tract-backed loaders.
 
+pub mod plan;
 pub mod runner;

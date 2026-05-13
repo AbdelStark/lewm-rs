@@ -889,6 +889,8 @@ dependencies = [
  "lewm-telemetry",
  "proptest",
  "prost",
+ "rand_chacha 0.3.1",
+ "rand_distr",
  "tar",
  "tract-linalg",
  "tract-nnef",

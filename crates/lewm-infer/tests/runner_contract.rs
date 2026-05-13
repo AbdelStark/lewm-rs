@@ -6,6 +6,7 @@ mod onnx_contract {
     use std::path::{Path, PathBuf};
     use std::time::{SystemTime, UNIX_EPOCH};
 
+    use lewm_infer::plan::{CpuCem, cem_rng};
     use lewm_infer::runner::{
         IMAGE_ELEMENT_COUNT, InferenceRunner, RunnerFormat, detect_checkpoint_format, load,
     };
@@ -61,6 +62,32 @@ mod onnx_contract {
                 .zip(history.iter())
                 .all(|(actual, expected)| (*actual - *expected).abs() <= f32::EPSILON)
         );
+
+        fs::remove_dir_all(root)?;
+        Ok(())
+    }
+
+    #[test]
+    fn tract_onnx_runner_cpu_cem_plan() -> Result<(), Box<dyn std::error::Error>> {
+        let root = onnx_fixture_dir("lewm-onnx-cpu-cem")?;
+        let mut runner = load(&root)?;
+        let planner = CpuCem {
+            n_iter: 1,
+            n_cand: 2,
+            n_elite: 1,
+            horizon_plan: 1,
+            sigma_init: 1.0,
+            sigma_min: 0.05,
+        };
+        let history = [1.0_f32, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0];
+        let goal = [5.0_f32, 6.0, 7.0, 8.0];
+        let mut rng = cem_rng(0)?;
+
+        let result = planner.plan(&mut *runner, &history, &goal, &mut rng, A)?;
+
+        assert_eq!(result.best_actions.len(), A);
+        assert!((result.best_cost - 0.0).abs() <= f32::EPSILON);
+        assert_eq!(result.trace.len(), 1);
 
         fs::remove_dir_all(root)?;
         Ok(())
@@ -194,6 +221,7 @@ mod nnef_contract {
     use std::path::PathBuf;
     use std::time::{SystemTime, UNIX_EPOCH};
 
+    use lewm_infer::plan::{CpuCem, cem_rng};
     use lewm_infer::runner::{IMAGE_ELEMENT_COUNT, RunnerFormat, detect_checkpoint_format, load};
 
     const H: usize = 2;
@@ -257,6 +285,32 @@ graph predictor( history, actions ) -> ( output )
                 .zip(history.iter())
                 .all(|(actual, expected)| (*actual - *expected).abs() <= f32::EPSILON)
         );
+
+        fs::remove_dir_all(root)?;
+        Ok(())
+    }
+
+    #[test]
+    fn tract_nnef_runner_cpu_cem_plan() -> Result<(), Box<dyn std::error::Error>> {
+        let root = nnef_fixture_dir("lewm-nnef-cpu-cem")?;
+        let mut runner = load(&root)?;
+        let planner = CpuCem {
+            n_iter: 1,
+            n_cand: 2,
+            n_elite: 1,
+            horizon_plan: 1,
+            sigma_init: 1.0,
+            sigma_min: 0.05,
+        };
+        let history = [1.0_f32, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0];
+        let goal = [5.0_f32, 6.0, 7.0, 8.0];
+        let mut rng = cem_rng(0)?;
+
+        let result = planner.plan(&mut *runner, &history, &goal, &mut rng, A)?;
+
+        assert_eq!(result.best_actions.len(), A);
+        assert!((result.best_cost - 0.0).abs() <= f32::EPSILON);
+        assert_eq!(result.trace.len(), 1);
 
         fs::remove_dir_all(root)?;
         Ok(())
