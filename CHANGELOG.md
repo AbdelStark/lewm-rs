@@ -15,6 +15,7 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   and optional NVML GPU utilization/memory telemetry.
 - Initial Rust workspace, spec validation, quality gate configuration, and OSS
   scaffolding.
+- Added `lewm-train` cosine warmup learning-rate schedule.
 - Added `lewm-train` AdamW RFC defaults and decay/no-decay parameter
   partitioning.
 
