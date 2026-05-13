@@ -15,6 +15,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   and optional NVML GPU utilization/memory telemetry.
 - Initial Rust workspace, spec validation, quality gate configuration, and OSS
   scaffolding.
+- PushT JSON-RPC sidecar with a deterministic mock backend and pinned
+  `gym-pusht` simulator extra for real eval runs.
 - RFC 0006 CEM planner with deterministic `rng:cem` sampling, chunked cost
   evaluation fallback, and toy-quadratic convergence tests.
 - Resume-aware PushT full-training HF Jobs spec and the ml-intern approval
