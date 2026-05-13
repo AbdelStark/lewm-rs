@@ -15,6 +15,10 @@ pub enum TelemetryError {
     #[error("metric sink error: {0}")]
     Sink(String),
 
+    /// Structured logging initialization or emission failed.
+    #[error("logger error: {0}")]
+    Logger(String),
+
     /// A trace exporter failed while initializing or flushing spans.
     #[error("trace exporter error: {0}")]
     TraceExporter(String),
