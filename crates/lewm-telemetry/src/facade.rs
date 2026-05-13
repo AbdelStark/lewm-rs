@@ -6,7 +6,9 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::{MetricName, SpanName, TelemetryError};
+use crate::{
+    MetricName, OtlpSpanGuard, OtlpTracer, SpanName, TelemetryError, init_tracer_from_env,
+};
 
 /// Telemetry initialization settings.
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -196,6 +198,7 @@ impl MetricSink for MetricFanout {
 pub struct Telemetry {
     context: TelemetryContext,
     metric_sink: Arc<dyn MetricSink>,
+    tracer: Option<Arc<OtlpTracer>>,
 }
 
 impl fmt::Debug for Telemetry {
@@ -226,9 +229,30 @@ impl Telemetry {
         metric_sink: Arc<dyn MetricSink>,
     ) -> Result<Self, TelemetryError> {
         config.validate()?;
+        let context = TelemetryContext::from(config);
+        let tracer = init_tracer_from_env(&context)?.map(Arc::new);
+        Ok(Self {
+            context,
+            metric_sink,
+            tracer,
+        })
+    }
+
+    /// Initialize telemetry with explicit metric and trace exporters.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when required run attributes are empty.
+    pub fn with_exporters(
+        config: TelemetryConfig,
+        metric_sink: Arc<dyn MetricSink>,
+        tracer: Option<Arc<OtlpTracer>>,
+    ) -> Result<Self, TelemetryError> {
+        config.validate()?;
         Ok(Self {
             context: config.into(),
             metric_sink,
+            tracer,
         })
     }
 
@@ -302,24 +326,34 @@ impl Telemetry {
     /// Start a named span with run-level attributes.
     #[must_use]
     pub fn start_span(&self, name: SpanName) -> SpanGuard<'_> {
+        let otlp_span = self
+            .tracer
+            .as_ref()
+            .map(|tracer| tracer.start_span(&self.context, name, None, None));
         SpanGuard {
             context: &self.context,
             name,
             step: None,
             epoch: None,
             started_at: Instant::now(),
+            _otlp_span: otlp_span,
         }
     }
 
     /// Start a named step-level span with required step and epoch attributes.
     #[must_use]
     pub fn start_step_span(&self, name: SpanName, step: u64, epoch: u64) -> SpanGuard<'_> {
+        let otlp_span = self
+            .tracer
+            .as_ref()
+            .map(|tracer| tracer.start_span(&self.context, name, Some(step), Some(epoch)));
         SpanGuard {
             context: &self.context,
             name,
             step: Some(step),
             epoch: Some(epoch),
             started_at: Instant::now(),
+            _otlp_span: otlp_span,
         }
     }
 
@@ -329,7 +363,11 @@ impl Telemetry {
     ///
     /// Returns an error when any exporter fails to flush.
     pub fn shutdown(self) -> Result<(), TelemetryError> {
-        self.metric_sink.flush()
+        self.metric_sink.flush()?;
+        if let Some(tracer) = self.tracer {
+            tracer.shutdown()?;
+        }
+        Ok(())
     }
 }
 
@@ -341,6 +379,7 @@ pub struct SpanGuard<'a> {
     step: Option<u64>,
     epoch: Option<u64>,
     started_at: Instant,
+    _otlp_span: Option<OtlpSpanGuard>,
 }
 
 impl SpanGuard<'_> {

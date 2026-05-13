@@ -14,6 +14,10 @@ pub enum TelemetryError {
     /// A metric sink failed while accepting or flushing records.
     #[error("metric sink error: {0}")]
     Sink(String),
+
+    /// A trace exporter failed while initializing or flushing spans.
+    #[error("trace exporter error: {0}")]
+    TraceExporter(String),
 }
 
 impl TelemetryError {
