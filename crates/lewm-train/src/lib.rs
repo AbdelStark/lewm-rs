@@ -17,6 +17,7 @@
 //! - [`schedule`] — cosine decay with linear warmup.
 //! - [`step`] — gradient accumulation, clipping, and step guards.
 //! - [`trainer`] — outer-loop state machine and trainer artifacts.
+//! - [`warmstart`] — SO-100 warm-start transfer policy and provenance.
 //!
 pub mod checkpoint;
 pub mod config;
@@ -26,3 +27,9 @@ pub mod resume;
 pub mod schedule;
 pub mod step;
 pub mod trainer;
+pub mod warmstart;
+
+pub use crate::warmstart::{
+    SO100_ACTION_DIM, TRANSFER_MODULE_PREFIXES, TensorRecord, TrainError, TrainStateRecord,
+    WarmstartLoad, WarmstartProvenance, load_warmstart,
+};
