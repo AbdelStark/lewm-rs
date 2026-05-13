@@ -23,15 +23,27 @@ metal = []
 slow-tests = []
 
 [dependencies]
+blake3 = { workspace = true }
+clap = { workspace = true }
 lewm-core = { workspace = true }
 lewm-data = { workspace = true }
 lewm-hub = { workspace = true }
 lewm-plan = { workspace = true }
 lewm-telemetry = { workspace = true }
+rand = { workspace = true }
+rand_chacha = { workspace = true }
+safetensors = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+thiserror = { workspace = true }
+toml = { workspace = true }
+validator = { workspace = true }
 
 [dev-dependencies]
 insta = { workspace = true }
 proptest = { workspace = true }
+tempfile = "3"
 
 [lints]
 workspace = true

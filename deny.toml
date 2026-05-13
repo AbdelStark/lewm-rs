@@ -9,6 +9,11 @@ db-urls = ["https://github.com/rustsec/advisory-db"]
 # do not block ordinary PRs while direct workspace dependencies still do.
 unmaintained = "workspace"
 yanked = "deny"
+ignore = [
+    # Tract 0.22.1 pulls Liquid, whose time 0.3.47 fix requires Rust 1.88;
+    # this workspace is pinned to Rust 1.85 until the support contract changes.
+    "RUSTSEC-2026-0009",
+]
 
 [licenses]
 confidence-threshold = 0.93
@@ -24,6 +29,8 @@ allow = [
     "CC0-1.0",
     "MPL-2.0",
     "Unicode-3.0",
+    # Mozilla root certificate data bundled by webpki-roots via rustls.
+    "CDLA-Permissive-2.0",
     # Bundled by hdf5-metno when the static feature is enabled; BSD-style terms.
     "HDF5",
 ]

@@ -1,22 +1,9 @@
 //! Deterministic model initialization helpers.
 
-use rand::SeedableRng;
 use rand_chacha::ChaCha20Rng;
 use rand_distr::{Distribution, Normal};
 
-use crate::LewmCoreError;
-
-/// RFC 0013 model-initialization RNG sub-stream name.
-pub const MODEL_INIT_STREAM: &str = "rng:model_init";
-
-const RFC_0013_STREAMS: &[&str] = &[
-    "rng:data_shuffle",
-    MODEL_INIT_STREAM,
-    "rng:sigreg_sketch",
-    "rng:dropout",
-    "rng:cem",
-    "rng:misc",
-];
+use crate::{LewmCoreError, rng::MODEL_INIT_STREAM, substream_rng};
 
 /// Opaque RNG state for deterministic model initialization.
 #[derive(Debug, Clone)]
@@ -84,31 +71,6 @@ impl InitTensor {
     pub fn is_empty(&self) -> bool {
         self.values.is_empty()
     }
-}
-
-/// Derive a deterministic 32-byte seed for an RFC 0013 RNG sub-stream.
-pub fn substream_seed(global: u64, name: &str) -> [u8; 32] {
-    let mut hasher = blake3::Hasher::new();
-    hasher.update(&global.to_le_bytes());
-    hasher.update(b"::");
-    hasher.update(name.as_bytes());
-    *hasher.finalize().as_bytes()
-}
-
-/// Create a `ChaCha20Rng` for a named RFC 0013 sub-stream.
-///
-/// # Errors
-///
-/// Returns [`LewmCoreError::RngSubstream`] when `name` is not one of the
-/// registered RFC 0013 stream names.
-pub fn substream_rng(global: u64, name: &str) -> Result<ChaCha20Rng, LewmCoreError> {
-    if !RFC_0013_STREAMS.contains(&name) {
-        return Err(LewmCoreError::RngSubstream {
-            name: name.to_owned(),
-        });
-    }
-
-    Ok(ChaCha20Rng::from_seed(substream_seed(global, name)))
 }
 
 /// Create the model-initialization RNG for a global seed.
@@ -216,35 +178,7 @@ fn validate_normal_params(std: f32, clip: f32) -> Result<(), LewmCoreError> {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeSet;
-
     use super::*;
-
-    #[test]
-    fn substream_seed_distinct() {
-        let streams = [
-            "rng:data_shuffle",
-            MODEL_INIT_STREAM,
-            "rng:sigreg_sketch",
-            "rng:dropout",
-            "rng:cem",
-            "rng:misc",
-        ];
-        let seeds = streams
-            .iter()
-            .map(|stream| substream_seed(0, stream))
-            .collect::<BTreeSet<_>>();
-
-        assert_eq!(seeds.len(), streams.len());
-        assert_eq!(
-            substream_seed(0, MODEL_INIT_STREAM),
-            substream_seed(0, MODEL_INIT_STREAM)
-        );
-        assert_ne!(
-            substream_seed(0, MODEL_INIT_STREAM),
-            substream_seed(1, MODEL_INIT_STREAM)
-        );
-    }
 
     #[test]
     fn model_init_rng_is_reproducible() {
@@ -261,8 +195,8 @@ mod tests {
     #[test]
     fn model_init_rng_is_distinct_from_other_streams() {
         assert_ne!(
-            substream_seed(0, MODEL_INIT_STREAM),
-            substream_seed(0, "rng:dropout")
+            crate::substream_seed(0, MODEL_INIT_STREAM),
+            crate::substream_seed(0, crate::rng::DROPOUT_STREAM)
         );
     }
 
