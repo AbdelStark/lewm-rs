@@ -16,7 +16,7 @@ test-fast:
 	cargo test --workspace --lib --bins -- --skip "_slow_"
 
 bench:
-	cargo bench --workspace
+	cargo bench --workspace --benches
 
 docs:
 	RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
