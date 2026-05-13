@@ -24,6 +24,7 @@ check: fmt lint
 	cargo check --workspace --all-targets
 	$(PYTHON) scripts/check_layers.py
 	$(PYTHON) scripts/check_specs.py
+	$(PYTHON) scripts/check_jobs.py
 	$(PYTHON) scripts/check_nondet.py
 	cargo deny check
 	# hdf5-metno depends on paste; cargo-deny still blocks direct workspace unmaintained deps.
