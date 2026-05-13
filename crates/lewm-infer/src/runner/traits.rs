@@ -141,7 +141,7 @@ impl std::error::Error for RunnerError {}
 /// Return available CPU parallelism for runner metadata and Tract plan options.
 #[cfg(any(feature = "tract-onnx", feature = "tract-nnef"))]
 pub(super) fn available_intra_op_threads() -> usize {
-    std::thread::available_parallelism().map_or(1, usize::from)
+    rayon::current_num_threads()
 }
 
 /// Validate predictor input lengths and return the inferred latent dimension.
