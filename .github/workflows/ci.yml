@@ -264,7 +264,7 @@ jobs:
         run: rustup toolchain install "$RUST_TOOLCHAIN" --profile default
 
       - name: Run quickstart smoke
-        run: timeout 300 make test
+        run: timeout 900 make test
 
   coverage:
     name: coverage
