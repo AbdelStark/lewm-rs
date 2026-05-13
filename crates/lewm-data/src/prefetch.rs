@@ -9,6 +9,7 @@ use std::{
 };
 
 use crossbeam::channel::{Receiver, Sender, bounded};
+use lewm_core::{DATA_SHUFFLE_STREAM, substream_seed};
 use rand::{SeedableRng, seq::SliceRandom};
 use rand_chacha::ChaCha20Rng;
 use tokio::task::JoinHandle;
@@ -369,7 +370,7 @@ fn send_fatal<B: BatchBackend>(tx: &Sender<PrefetchMessage<B>>, err: DataError) 
 
 fn shuffled_indices(len: usize, epoch_seed: u64) -> Vec<usize> {
     let mut indices = (0..len).collect::<Vec<_>>();
-    let mut rng = ChaCha20Rng::seed_from_u64(epoch_seed);
+    let mut rng = ChaCha20Rng::from_seed(substream_seed(epoch_seed, DATA_SHUFFLE_STREAM));
     indices.shuffle(&mut rng);
     indices
 }
@@ -383,6 +384,7 @@ pub type HostPrefetchDevice = HostDevice;
 #[cfg(test)]
 mod tests {
     use std::{
+        collections::BTreeSet,
         sync::atomic::{AtomicUsize, Ordering},
         time::Instant,
     };
@@ -441,6 +443,17 @@ mod tests {
         }
     }
 
+    #[test]
+    fn data_shuffle_deterministic() {
+        let left = shuffled_indices(32, 7);
+        let right = shuffled_indices(32, 7);
+        let different_seed = shuffled_indices(32, 8);
+
+        assert_eq!(left, right);
+        assert_ne!(left, different_seed);
+        assert_eq!(left.iter().copied().collect::<BTreeSet<_>>().len(), 32);
+    }
+
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn prefetcher_clean_shutdown() -> Result<(), Box<dyn std::error::Error>> {
         let dataset = Arc::new(SyntheticDataset::new(10_000).with_delay(Duration::from_millis(2)));
@@ -455,7 +468,7 @@ mod tests {
         let first = prefetcher.try_next()?;
         assert!(first.is_some());
         let started_calls = dataset.calls();
-        let start = Instant::now();
+        let start = Instant::now(); // determinism-lint: allow Instant::now test timing
         drop(prefetcher);
 
         assert!(start.elapsed() < Duration::from_secs(1));
@@ -477,7 +490,7 @@ mod tests {
         };
         let mut prefetcher = host_prefetcher(dataset, config)?;
 
-        let start = Instant::now();
+        let start = Instant::now(); // determinism-lint: allow Instant::now test timing
         let mut batches = 0usize;
         while prefetcher.try_next()?.is_some() {
             batches += 1;
