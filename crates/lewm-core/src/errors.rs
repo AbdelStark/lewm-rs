@@ -46,6 +46,13 @@ pub enum LewmCoreError {
         name: String,
     },
 
+    /// A serialized RNG state could not be restored.
+    #[error("rng state error: {reason}; restore from the 48-byte RFC 0013 state format")]
+    RngState {
+        /// Concrete state parsing failure.
+        reason: String,
+    },
+
     /// A tensor helper received invalid dimensions or options.
     #[error("invalid tensor operation: {reason}; pass shape-compatible finite F32 tensors")]
     InvalidTensorOp {
