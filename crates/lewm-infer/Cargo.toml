@@ -17,17 +17,31 @@ path = "src/bin/lewm-infer.rs"
 
 [features]
 default = ["tract-onnx", "tract-nnef"]
-tract-onnx = []
-tract-nnef = []
+tract-onnx = ["dep:tract-onnx", "dep:tract-linalg"]
+tract-nnef = ["dep:tract-nnef", "dep:tract-linalg"]
+burn-direct = []
 slow-tests = []
 
 [dependencies]
+clap = { workspace = true }
+image = { workspace = true, features = ["jpeg", "png"] }
 lewm-core = { workspace = true }
 lewm-telemetry = { workspace = true }
+rand_chacha = { workspace = true }
+rand_distr = { workspace = true }
+rayon = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tract-onnx = { workspace = true, optional = true }
+tract-nnef = { workspace = true, optional = true }
+tract-linalg = { workspace = true, optional = true }
 
 [dev-dependencies]
 insta = { workspace = true }
+prost = "0.11"
 proptest = { workspace = true }
+tar = "0.4"
 
 [lints]
 workspace = true
