@@ -13,6 +13,7 @@ pub mod batch;
 pub mod errors;
 pub mod prefetch;
 pub mod pusht;
+pub mod so100;
 pub mod stats;
 pub mod transform;
 
@@ -25,5 +26,6 @@ pub use crate::prefetch::{
     PrefetcherConfig,
 };
 pub use crate::pusht::{PushtConfig, PushtDataset, Sample, SampleMeta, Split};
+pub use crate::so100::{CameraView, SO100_HELD_OUT_EPISODES, So100Config, So100Dataset};
 pub use crate::stats::{ComputeStatsConfig, DatasetStats, StatsDataset, compute_stats};
 pub use crate::transform::{ActionNormalizer, ImagePreprocessor, InterpKind, TransformStats};
