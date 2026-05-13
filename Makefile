@@ -26,7 +26,8 @@ check: fmt lint
 	$(PYTHON) scripts/check_specs.py
 	cargo deny check
 	# hdf5-metno depends on paste; cargo-deny still blocks direct workspace unmaintained deps.
-	cargo audit --deny warnings --ignore RUSTSEC-2024-0436
+	# Tract 0.22.1 pulls Liquid/time; the patched time release requires Rust 1.88 while this repo is pinned to 1.85.
+	cargo audit --deny warnings --ignore RUSTSEC-2024-0436 --ignore RUSTSEC-2026-0009
 
 accept: check test docs
 	@if [ -d python ] && [ -f python/Makefile ]; then \

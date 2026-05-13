@@ -6,5 +6,6 @@
 //!
 //! ## Module index
 //!
-//! Inference modules are added by the phase-specific implementation issues
-//! after the workspace scaffold lands.
+//! - [`runner`] contains the CPU inference runner trait and Tract-backed loaders.
+
+pub mod runner;
