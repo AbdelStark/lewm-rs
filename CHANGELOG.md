@@ -11,6 +11,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 - Initial Rust workspace, spec validation, quality gate configuration, and OSS
   scaffolding.
+- Optional `lewm-telemetry/nvtx` profiling layer and local profiling artifact
+  workflow for RFC 0014.
 
 ### Changed
 

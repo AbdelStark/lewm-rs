@@ -12,9 +12,13 @@
 pub mod errors;
 pub mod facade;
 pub mod metrics;
+#[cfg(feature = "nvtx")]
+pub mod nvtx_layer;
 pub mod spans;
 
 pub use crate::errors::TelemetryError;
 pub use crate::facade::{MetricSink, SpanGuard, Telemetry, TelemetryConfig, TelemetryContext};
 pub use crate::metrics::{MetricKind, MetricName};
+#[cfg(feature = "nvtx")]
+pub use crate::nvtx_layer::{NvtxLayer, nvtx_layer};
 pub use crate::spans::SpanName;

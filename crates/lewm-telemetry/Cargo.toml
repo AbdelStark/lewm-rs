@@ -13,11 +13,15 @@ path = "src/lib.rs"
 
 [features]
 default = []
+nvtx = ["dep:nvtx", "dep:tracing", "dep:tracing-subscriber"]
 slow-tests = []
 
 [dependencies]
 lewm-core = { workspace = true }
+nvtx = { workspace = true, optional = true }
 thiserror = { workspace = true }
+tracing = { workspace = true, optional = true }
+tracing-subscriber = { workspace = true, optional = true }
 
 [dev-dependencies]
 insta = { workspace = true }

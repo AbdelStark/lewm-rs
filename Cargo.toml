@@ -61,6 +61,7 @@ rayon = "1.10"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "fmt"] }
 tracing-opentelemetry = "0.27"
+nvtx = "1.3"
 opentelemetry = { version = "0.27", features = ["trace", "metrics"] }
 opentelemetry-otlp = { version = "0.27", features = ["grpc-tonic", "trace", "metrics"] }
 opentelemetry_sdk = "0.27"
