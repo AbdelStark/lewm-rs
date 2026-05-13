@@ -1,4 +1,5 @@
 PYTHON ?= python3
+CARGO_AUDIT_DB ?= target/advisory-db/cargo-audit
 
 .PHONY: fmt lint test test-fast bench docs check accept clean
 
@@ -26,7 +27,7 @@ check: fmt lint
 	$(PYTHON) scripts/check_specs.py
 	cargo deny check
 	# hdf5-metno depends on paste; cargo-deny still blocks direct workspace unmaintained deps.
-	cargo audit --deny warnings --ignore RUSTSEC-2024-0436
+	cargo audit --db "$(CARGO_AUDIT_DB)" --deny warnings --ignore RUSTSEC-2024-0436
 
 accept: check test docs
 	@if [ -d python ] && [ -f python/Makefile ]; then \
@@ -34,6 +35,7 @@ accept: check test docs
 	else \
 		printf '%s\n' 'python check skipped: python/Makefile not present'; \
 	fi
+	$(PYTHON) scripts/check_hub_artifacts.py
 	@if [ -x scripts/check_release_inventory.sh ]; then \
 		scripts/check_release_inventory.sh; \
 	else \
