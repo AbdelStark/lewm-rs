@@ -6,14 +6,30 @@
 //!
 //! ## Module index
 //!
-//! Training modules are added by the phase-specific implementation issues after
-//! the workspace scaffold lands.
-
+//! - [`checkpoint`] — epoch checkpoint files, sidecars, atomic writes, and
+//!   pruning.
+//! - [`config`] owns the root training TOML schema, layered overrides, and
+//!   reproducibility hash.
+//! - [`mixed_precision`] — precision policy and `F32` islands.
+//! - [`optim`] — `AdamW` configuration and RFC 0005 decay/no-decay partitioning.
+//! - [`resume`] — run-directory resume detection, RNG restoration, and
+//!   shutdown handling.
+//! - [`schedule`] — cosine decay with linear warmup.
+//! - [`step`] — gradient accumulation, clipping, and step guards.
+//! - [`trainer`] — outer-loop state machine and trainer artifacts.
+//! - [`warmstart`] — SO-100 warm-start transfer policy and provenance.
+//!
+pub mod checkpoint;
 pub mod config;
+pub mod mixed_precision;
+pub mod optim;
+pub mod resume;
+pub mod schedule;
+pub mod step;
+pub mod trainer;
+pub mod warmstart;
 
-pub use crate::config::{
-    CONFIG_SCHEMA_VERSION, CameraView, ConfigError, DatasetConfig, EvalConfig, LossConfig,
-    OptimizerKind, PrecisionKind, RootConfig, SO100_ACTION_DIM, SO100_HELDOUT_EPISODES,
-    SO100_WARMUP_STEPS, So100DatasetConfig, So100EvalConfig, TrainingConfig, load_root_config,
-    to_pretty_toml,
+pub use crate::warmstart::{
+    SO100_ACTION_DIM, TRANSFER_MODULE_PREFIXES, TensorRecord, TrainError, TrainStateRecord,
+    WarmstartLoad, WarmstartProvenance, load_warmstart,
 };
