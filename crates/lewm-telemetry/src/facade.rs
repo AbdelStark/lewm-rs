@@ -6,7 +6,9 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::{MetricName, SpanName, TelemetryError};
+use crate::{
+    MetricName, OtlpSpanGuard, OtlpTracer, SpanName, TelemetryError, init_tracer_from_env,
+};
 
 /// Telemetry initialization settings.
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -128,10 +130,75 @@ impl MetricSink for NoopMetricSink {
     }
 }
 
+/// Metric sink that mirrors every record to multiple child sinks.
+pub struct MetricFanout {
+    sinks: Vec<Arc<dyn MetricSink>>,
+}
+
+impl fmt::Debug for MetricFanout {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("MetricFanout")
+            .field("sinks", &self.sinks.len())
+            .finish()
+    }
+}
+
+impl MetricFanout {
+    /// Build a fanout sink.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if no child sinks are provided.
+    pub fn new(sinks: Vec<Arc<dyn MetricSink>>) -> Result<Self, TelemetryError> {
+        if sinks.is_empty() {
+            return Err(TelemetryError::InvalidConfig(
+                "metric fanout requires at least one sink".to_string(),
+            ));
+        }
+        Ok(Self { sinks })
+    }
+}
+
+impl MetricSink for MetricFanout {
+    fn emit_scalar(
+        &self,
+        context: &TelemetryContext,
+        name: MetricName,
+        step: u64,
+        value: f32,
+    ) -> Result<(), TelemetryError> {
+        for sink in &self.sinks {
+            sink.emit_scalar(context, name, step, value)?;
+        }
+        Ok(())
+    }
+
+    fn emit_histogram(
+        &self,
+        context: &TelemetryContext,
+        name: MetricName,
+        step: u64,
+        values: &[f32],
+    ) -> Result<(), TelemetryError> {
+        for sink in &self.sinks {
+            sink.emit_histogram(context, name, step, values)?;
+        }
+        Ok(())
+    }
+
+    fn flush(&self) -> Result<(), TelemetryError> {
+        for sink in &self.sinks {
+            sink.flush()?;
+        }
+        Ok(())
+    }
+}
+
 /// Single public entry point for metrics, spans, and logs.
 pub struct Telemetry {
     context: TelemetryContext,
     metric_sink: Arc<dyn MetricSink>,
+    tracer: Option<Arc<OtlpTracer>>,
 }
 
 impl fmt::Debug for Telemetry {
@@ -162,9 +229,30 @@ impl Telemetry {
         metric_sink: Arc<dyn MetricSink>,
     ) -> Result<Self, TelemetryError> {
         config.validate()?;
+        let context = TelemetryContext::from(config);
+        let tracer = init_tracer_from_env(&context)?.map(Arc::new);
+        Ok(Self {
+            context,
+            metric_sink,
+            tracer,
+        })
+    }
+
+    /// Initialize telemetry with explicit metric and trace exporters.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when required run attributes are empty.
+    pub fn with_exporters(
+        config: TelemetryConfig,
+        metric_sink: Arc<dyn MetricSink>,
+        tracer: Option<Arc<OtlpTracer>>,
+    ) -> Result<Self, TelemetryError> {
+        config.validate()?;
         Ok(Self {
             context: config.into(),
             metric_sink,
+            tracer,
         })
     }
 
@@ -238,24 +326,36 @@ impl Telemetry {
     /// Start a named span with run-level attributes.
     #[must_use]
     pub fn start_span(&self, name: SpanName) -> SpanGuard<'_> {
+        let otlp_span = self
+            .tracer
+            .as_ref()
+            .map(|tracer| tracer.start_span(&self.context, name, None, None));
         SpanGuard {
             context: &self.context,
             name,
             step: None,
             epoch: None,
             started_at: Instant::now(),
+            _entered_span: tracing_span_for(&self.context, name, None, None).entered(),
+            _otlp_span: otlp_span,
         }
     }
 
     /// Start a named step-level span with required step and epoch attributes.
     #[must_use]
     pub fn start_step_span(&self, name: SpanName, step: u64, epoch: u64) -> SpanGuard<'_> {
+        let otlp_span = self
+            .tracer
+            .as_ref()
+            .map(|tracer| tracer.start_span(&self.context, name, Some(step), Some(epoch)));
         SpanGuard {
             context: &self.context,
             name,
             step: Some(step),
             epoch: Some(epoch),
             started_at: Instant::now(),
+            _entered_span: tracing_span_for(&self.context, name, Some(step), Some(epoch)).entered(),
+            _otlp_span: otlp_span,
         }
     }
 
@@ -265,7 +365,11 @@ impl Telemetry {
     ///
     /// Returns an error when any exporter fails to flush.
     pub fn shutdown(self) -> Result<(), TelemetryError> {
-        self.metric_sink.flush()
+        self.metric_sink.flush()?;
+        if let Some(tracer) = self.tracer {
+            tracer.shutdown()?;
+        }
+        Ok(())
     }
 }
 
@@ -277,6 +381,8 @@ pub struct SpanGuard<'a> {
     step: Option<u64>,
     epoch: Option<u64>,
     started_at: Instant,
+    _entered_span: tracing::span::EnteredSpan,
+    _otlp_span: Option<OtlpSpanGuard>,
 }
 
 impl SpanGuard<'_> {
@@ -308,6 +414,105 @@ impl SpanGuard<'_> {
     #[must_use]
     pub fn elapsed(&self) -> Duration {
         self.started_at.elapsed()
+    }
+}
+
+fn tracing_span_for(
+    context: &TelemetryContext,
+    name: SpanName,
+    step: Option<u64>,
+    epoch: Option<u64>,
+) -> tracing::Span {
+    if step.is_some() || epoch.is_some() {
+        return tracing_step_span_for(
+            context,
+            name,
+            step.unwrap_or_default(),
+            epoch.unwrap_or_default(),
+        );
+    }
+
+    tracing_run_span_for(context, name)
+}
+
+fn tracing_run_span_for(context: &TelemetryContext, name: SpanName) -> tracing::Span {
+    macro_rules! run_span {
+        ($span_name:literal) => {
+            tracing::info_span!(
+                $span_name,
+                run_id = %context.run_id,
+                phase = %context.phase,
+                git_short_sha = %context.git_short_sha
+            )
+        };
+    }
+
+    match name {
+        n if n == SpanName::TRAINING_RUN => run_span!("training.run"),
+        n if n == SpanName::TRAINING_EPOCH => run_span!("training.epoch"),
+        n if n == SpanName::TRAINING_STEP => run_span!("training.step"),
+        n if n == SpanName::TRAINING_FORWARD => run_span!("training.forward"),
+        n if n == SpanName::TRAINING_BACKWARD => run_span!("training.backward"),
+        n if n == SpanName::TRAINING_OPTIM_STEP => run_span!("training.optim_step"),
+        n if n == SpanName::TRAINING_CHECKPOINT_SAVE => run_span!("training.checkpoint_save"),
+        n if n == SpanName::TRAINING_PARITY_PROBE => run_span!("training.parity_probe"),
+        n if n == SpanName::TRAINING_COLLAPSE_PROBE => run_span!("training.collapse_probe"),
+        n if n == SpanName::TRAINING_EVAL => run_span!("training.eval"),
+        n if n == SpanName::EVAL_EPISODE => run_span!("eval.episode"),
+        n if n == SpanName::EVAL_CEM_ITER => run_span!("eval.cem_iter"),
+        n if n == SpanName::EVAL_CEM_COST_EVAL => run_span!("eval.cem_cost_eval"),
+        n if n == SpanName::EVAL_RPC_STEP => run_span!("eval.rpc_step"),
+        n if n == SpanName::DATA_DATASET_OPEN => run_span!("data.dataset_open"),
+        n if n == SpanName::DATA_GET_WINDOW => run_span!("data.get_window"),
+        n if n == SpanName::DATA_COLLATE => run_span!("data.collate"),
+        n if n == SpanName::DATA_PREFETCH_WORKER_LIFETIME => {
+            run_span!("data.prefetch_worker.lifetime")
+        },
+        _ => run_span!("lewm.unknown"),
+    }
+}
+
+fn tracing_step_span_for(
+    context: &TelemetryContext,
+    name: SpanName,
+    step: u64,
+    epoch: u64,
+) -> tracing::Span {
+    macro_rules! step_span {
+        ($span_name:literal) => {
+            tracing::info_span!(
+                $span_name,
+                run_id = %context.run_id,
+                phase = %context.phase,
+                git_short_sha = %context.git_short_sha,
+                step = step,
+                epoch = epoch
+            )
+        };
+    }
+
+    match name {
+        n if n == SpanName::TRAINING_RUN => step_span!("training.run"),
+        n if n == SpanName::TRAINING_EPOCH => step_span!("training.epoch"),
+        n if n == SpanName::TRAINING_STEP => step_span!("training.step"),
+        n if n == SpanName::TRAINING_FORWARD => step_span!("training.forward"),
+        n if n == SpanName::TRAINING_BACKWARD => step_span!("training.backward"),
+        n if n == SpanName::TRAINING_OPTIM_STEP => step_span!("training.optim_step"),
+        n if n == SpanName::TRAINING_CHECKPOINT_SAVE => step_span!("training.checkpoint_save"),
+        n if n == SpanName::TRAINING_PARITY_PROBE => step_span!("training.parity_probe"),
+        n if n == SpanName::TRAINING_COLLAPSE_PROBE => step_span!("training.collapse_probe"),
+        n if n == SpanName::TRAINING_EVAL => step_span!("training.eval"),
+        n if n == SpanName::EVAL_EPISODE => step_span!("eval.episode"),
+        n if n == SpanName::EVAL_CEM_ITER => step_span!("eval.cem_iter"),
+        n if n == SpanName::EVAL_CEM_COST_EVAL => step_span!("eval.cem_cost_eval"),
+        n if n == SpanName::EVAL_RPC_STEP => step_span!("eval.rpc_step"),
+        n if n == SpanName::DATA_DATASET_OPEN => step_span!("data.dataset_open"),
+        n if n == SpanName::DATA_GET_WINDOW => step_span!("data.get_window"),
+        n if n == SpanName::DATA_COLLATE => step_span!("data.collate"),
+        n if n == SpanName::DATA_PREFETCH_WORKER_LIFETIME => {
+            step_span!("data.prefetch_worker.lifetime")
+        },
+        _ => step_span!("lewm.unknown"),
     }
 }
 
