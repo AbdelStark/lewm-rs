@@ -23,10 +23,15 @@ burn-direct = []
 slow-tests = []
 
 [dependencies]
+clap = { workspace = true }
+image = { workspace = true, features = ["jpeg", "png"] }
 lewm-core = { workspace = true }
 lewm-telemetry = { workspace = true }
 rand_chacha = { workspace = true }
 rand_distr = { workspace = true }
+rayon = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
 tract-onnx = { workspace = true, optional = true }
 tract-nnef = { workspace = true, optional = true }
 tract-linalg = { workspace = true, optional = true }

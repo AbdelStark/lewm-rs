@@ -7,7 +7,10 @@
 //! ## Module index
 //!
 //! - [`plan`] contains CPU-side CEM action search for inference.
+//! - [`preprocess`] contains RFC 0004-compatible image preprocessing for
+//!   inference inputs.
 //! - [`runner`] contains the CPU inference runner trait and Tract-backed loaders.
 
 pub mod plan;
+pub mod preprocess;
 pub mod runner;
