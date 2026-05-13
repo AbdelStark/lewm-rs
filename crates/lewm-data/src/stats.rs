@@ -6,7 +6,9 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::{DataError, PushtConfig, PushtDataset, Split, TransformStats};
+use crate::{
+    DataError, PushtConfig, PushtDataset, So100Config, So100Dataset, Split, TransformStats,
+};
 
 const DEFAULT_STATS_HORIZON: usize = 1;
 const HASH_BUFFER_BYTES: usize = 64 * 1024;
@@ -18,6 +20,8 @@ const PIXEL_STD: [f32; 3] = [0.5, 0.5, 0.5];
 pub enum StatsDataset {
     /// `PushT` HDF5 shards.
     Pusht,
+    /// Pre-decoded `SO-100` HDF5 mirror.
+    So100,
 }
 
 /// Configuration for deterministic training-split statistics.
@@ -26,6 +30,8 @@ pub struct ComputeStatsConfig {
     /// Dataset family to inspect.
     pub dataset: StatsDataset,
     /// Dataset root: either a single HDF5 shard or a directory of shards.
+    /// For `SO-100`, this points to the pre-decoded HDF5 mirror file or to a
+    /// directory containing exactly one mirror file.
     pub root_path: PathBuf,
     /// Deterministic seed recorded by the caller; current `PushT` stats read rows in sorted order.
     pub seed: u64,
@@ -46,6 +52,17 @@ impl ComputeStatsConfig {
             validate_schema: true,
         }
     }
+
+    /// Build an `SO-100` stats config with the deterministic defaults used by CI.
+    pub fn so100(hdf5_path: impl Into<PathBuf>) -> Self {
+        Self {
+            dataset: StatsDataset::So100,
+            root_path: hdf5_path.into(),
+            seed: 0,
+            horizon: DEFAULT_STATS_HORIZON,
+            validate_schema: true,
+        }
+    }
 }
 
 /// Persisted dataset statistics.
@@ -60,15 +77,12 @@ pub type DatasetStats = TransformStats;
 pub fn compute_stats(config: &ComputeStatsConfig) -> Result<DatasetStats, DataError> {
     match config.dataset {
         StatsDataset::Pusht => compute_pusht_stats(config),
+        StatsDataset::So100 => compute_so100_stats(config),
     }
 }
 
 fn compute_pusht_stats(config: &ComputeStatsConfig) -> Result<DatasetStats, DataError> {
-    if config.horizon == 0 {
-        return Err(DataError::InvalidConfig(
-            "stats horizon must be greater than zero".to_string(),
-        ));
-    }
+    validate_stats_config(config)?;
 
     let content_hash = hash_dataset_bytes(&config.root_path)?;
     let mut pusht_config = PushtConfig::new(config.root_path.clone(), config.horizon);
@@ -92,6 +106,54 @@ fn compute_pusht_stats(config: &ComputeStatsConfig) -> Result<DatasetStats, Data
         n_train_samples,
         content_hash,
     )
+}
+
+fn compute_so100_stats(config: &ComputeStatsConfig) -> Result<DatasetStats, DataError> {
+    validate_stats_config(config)?;
+
+    let hdf5_path = resolve_so100_hdf5_path(&config.root_path)?;
+    let content_hash = hash_dataset_bytes(&hdf5_path)?;
+    let mut so100_config = So100Config::new(hdf5_path, config.horizon);
+    so100_config.split = Split::Train;
+    so100_config.seed = Some(config.seed);
+    let dataset = So100Dataset::from_hdf5(so100_config)?;
+
+    let mut accum = ActionAccumulator::default();
+    for index in 0..dataset.len() {
+        let sample = dataset.get(index)?;
+        accum.push_actions(&sample.actions, sample.action_shape)?;
+    }
+
+    let (mean, std, n_train_samples) = accum.finish()?;
+    TransformStats::new(
+        mean,
+        std,
+        PIXEL_MEAN,
+        PIXEL_STD,
+        n_train_samples,
+        content_hash,
+    )
+}
+
+fn validate_stats_config(config: &ComputeStatsConfig) -> Result<(), DataError> {
+    if config.horizon == 0 {
+        return Err(DataError::InvalidConfig(
+            "stats horizon must be greater than zero".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+fn resolve_so100_hdf5_path(root_path: &Path) -> Result<PathBuf, DataError> {
+    let paths = data_files(root_path)?;
+    match paths.as_slice() {
+        [path] => Ok(path.clone()),
+        _ => Err(DataError::InvalidConfig(format!(
+            "SO-100 stats expects exactly one .h5 or .hdf5 mirror under {}, found {}",
+            root_path.display(),
+            paths.len()
+        ))),
+    }
 }
 
 #[derive(Debug, Default)]
@@ -284,6 +346,38 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    fn so100_compute_stats_per_dim() -> Result<(), Box<dyn std::error::Error>> {
+        let dir = tempfile::tempdir()?;
+        let hdf5_path = dir.path().join("so100.h5");
+        write_so100_fixture(&hdf5_path)?;
+
+        let stats = compute_stats(&ComputeStatsConfig::so100(dir.path()))?;
+        let stats_path = dir.path().join("stats.safetensors");
+        stats.save_safetensors(&stats_path)?;
+        let loaded = TransformStats::load_safetensors(&stats_path)?;
+
+        assert_eq!(stats, loaded);
+        assert_eq!(stats.action_mean, vec![3.0, 14.0, 0.0, 7.0, 2.0, 11.0]);
+        assert_close(stats.action_std[2], 1.0);
+        assert_close(stats.action_std[4], 1.0);
+        assert_close(stats.action_std[0], population_std(&[1.0, 3.0, 5.0]));
+        assert_close(stats.action_std[1], population_std(&[10.0, 14.0, 18.0]));
+        assert_close(stats.action_std[3], population_std(&[5.0, 7.0, 9.0]));
+        assert_close(stats.action_std[5], population_std(&[7.0, 11.0, 15.0]));
+        assert_eq!(stats.n_train_samples, 3);
+        assert_eq!(stats.content_hash, hash_dataset_bytes(&hdf5_path)?);
+
+        let normalizer = loaded.action_normalizer()?;
+        assert_eq!(normalizer.action_dim(), 6);
+        let restored = normalizer.inverse(&normalizer.apply(&[3.0, 14.0, 0.0, 7.0, 2.0, 11.0])?)?;
+        for (left, right) in restored.iter().zip([3.0, 14.0, 0.0, 7.0, 2.0, 11.0]) {
+            assert_close(*left, right);
+        }
+
+        Ok(())
+    }
+
     fn write_fixture(path: &Path, rows: usize) -> Result<(), Box<dyn std::error::Error>> {
         let file = hdf5::File::create(path)?;
         let observation = file.create_group("observation")?;
@@ -318,5 +412,72 @@ mod tests {
             .create("action")?;
 
         Ok(())
+    }
+
+    fn write_so100_fixture(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
+        let file = hdf5::File::create(path)?;
+        let observation = file.create_group("observation")?;
+        let rows = 5usize;
+
+        let episode_index = Array1::<i32>::from_vec(vec![0, 0, 5, 5, 1]);
+        let timestep = Array1::<i32>::from_vec(vec![0, 1, 0, 1, 0]);
+        let pixels_top = Array4::from_shape_fn((rows, 2, 2, 3), |(r, y, x, c)| {
+            u8::try_from((r + y + x + c) % 251).unwrap_or(0)
+        });
+        let pixels_wrist = Array4::from_shape_fn((rows, 2, 2, 3), |(r, y, x, c)| {
+            100u8.saturating_add(u8::try_from((r + y + x + c) % 101).unwrap_or(0))
+        });
+        let actions = Array2::<f32>::from_shape_vec(
+            (rows, 6),
+            vec![
+                1.0, 10.0, 0.0, 5.0, 2.0, 7.0, 3.0, 14.0, 0.0, 7.0, 2.0, 11.0, 999.0, 999.0, 999.0,
+                999.0, 999.0, 999.0, 999.0, 999.0, 999.0, 999.0, 999.0, 999.0, 5.0, 18.0, 0.0, 9.0,
+                2.0, 15.0,
+            ],
+        )?;
+        let joint_pos = Array2::<f32>::zeros((rows, 6));
+
+        file.new_dataset_builder()
+            .with_data(&episode_index)
+            .create("episode_index")?;
+        file.new_dataset_builder()
+            .with_data(&timestep)
+            .create("timestep")?;
+        observation
+            .new_dataset_builder()
+            .with_data(&pixels_top)
+            .create("pixels_top")?;
+        observation
+            .new_dataset_builder()
+            .with_data(&pixels_wrist)
+            .create("pixels_wrist")?;
+        file.new_dataset_builder()
+            .with_data(&actions)
+            .create("action")?;
+        file.new_dataset_builder()
+            .with_data(&joint_pos)
+            .create("joint_pos")?;
+
+        Ok(())
+    }
+
+    fn population_std(values: &[f64]) -> f64 {
+        let len = u32::try_from(values.len())
+            .map(f64::from)
+            .expect("fixture length fits in u32");
+        let mean = values.iter().copied().sum::<f64>() / len;
+        let variance = values
+            .iter()
+            .copied()
+            .map(|value| (value - mean).powi(2))
+            .sum::<f64>()
+            / len;
+        variance.sqrt()
+    }
+
+    fn assert_close(left: impl Into<f64>, right: impl Into<f64>) {
+        let left = left.into();
+        let right = right.into();
+        assert!((left - right).abs() <= 1e-5, "left={left}, right={right}");
     }
 }
