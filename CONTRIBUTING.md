@@ -31,6 +31,20 @@ This repository is spec-first. Before changing behavior, read `PRD.md`,
 - Keep generated artifacts out of commits unless the RFC explicitly requires
   them.
 
+## Performance profiling
+
+When a benchmark gate fails, profile before optimizing. Use
+`scripts/run_local.sh flamegraph <name> -- <cargo-flamegraph args...>` for CPU
+flamegraphs and check outputs into `profiling/flamegraphs/<git_sha>/` only when
+they support a concrete performance PR. For GPU work, run Nsight Systems with
+NVTX enabled through the `lewm-telemetry/nvtx` feature, then attach the
+before/after `nsys-rep` summary required by RFC 0014.
+
+Climb the RFC 0014 optimization ladder in order and name the rung in the PR:
+configuration, layout, kernel selection, batch-size sweep, mixed precision,
+cache the cacheable, then algorithmic changes. Do not skip straight to a deeper
+rewrite without a measurement showing the earlier rungs are exhausted.
+
 ## Developer Certificate of Origin
 
 Contributions use the Developer Certificate of Origin. By adding a

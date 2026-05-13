@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="220" viewBox="0 0 960 220" role="img" aria-labelledby="title desc">
+  <title id="title">Sample lewm-rs flamegraph</title>
+  <desc id="desc">Reference flamegraph layout for profiling artifacts; widths are illustrative only.</desc>
+  <style>
+    text { font-family: Menlo, Consolas, monospace; font-size: 12px; fill: #111827; }
+    .frame { stroke: #111827; stroke-width: 0.5; }
+  </style>
+  <rect width="960" height="220" fill="#ffffff" />
+  <text x="16" y="24">sample/tensor_ops.svg</text>
+  <rect class="frame" x="16" y="180" width="928" height="24" fill="#fde68a" />
+  <text x="22" y="197">criterion::routine</text>
+  <rect class="frame" x="34" y="150" width="690" height="24" fill="#fca5a5" />
+  <text x="40" y="167">lewm_core::tensor_ops::interpolate_pos_embed</text>
+  <rect class="frame" x="54" y="120" width="430" height="24" fill="#93c5fd" />
+  <text x="60" y="137">interpolate_patch</text>
+  <rect class="frame" x="78" y="90" width="250" height="24" fill="#86efac" />
+  <text x="84" y="107">cubic_weight</text>
+  <rect class="frame" x="508" y="120" width="178" height="24" fill="#c4b5fd" />
+  <text x="514" y="137">PositionEmbedding::from_values</text>
+  <rect class="frame" x="744" y="150" width="176" height="24" fill="#fcd34d" />
+  <text x="750" y="167">gelu_tanh_approx</text>
+</svg>

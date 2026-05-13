@@ -1,0 +1,33 @@
+{
+  "benches": [
+    {
+      "mean_ns": 32.24139146392194,
+      "median_ns": 32.170758210935865,
+      "name": "lewm_core_causal_mask_256_cached",
+      "unit": "ns"
+    },
+    {
+      "mean_ns": 8051.8781500131445,
+      "median_ns": 8038.4430218655,
+      "name": "lewm_core_gelu_erf_1024",
+      "unit": "ns"
+    },
+    {
+      "mean_ns": 1878.0959175396831,
+      "median_ns": 1874.3035292638724,
+      "name": "lewm_core_gelu_tanh_approx_1024",
+      "unit": "ns"
+    },
+    {
+      "mean_ns": 24706.654241746397,
+      "median_ns": 24702.188291954957,
+      "name": "lewm_core_interpolate_pos_embed_14_to_16_dim16",
+      "unit": "ns"
+    }
+  ],
+  "generated_at": "2026-05-13T02:54:05Z",
+  "hardware": "local-macos-bootstrap",
+  "schema_version": 1,
+  "source": "criterion",
+  "threshold": 0.05
+}

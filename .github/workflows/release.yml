@@ -12,6 +12,8 @@ permissions:
 
 env:
   RUST_TOOLCHAIN: "1.85.0"
+  REPRO_PROFILE: release-lto
+  REPRO_TARGET: x86_64-unknown-linux-musl
 
 jobs:
   tag-format:
@@ -33,17 +35,39 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Rust
-        run: rustup toolchain install "$RUST_TOOLCHAIN" --profile default --target x86_64-unknown-linux-musl
-
-      - name: Build release binaries
-        run: cargo build --workspace --profile release-lto --target x86_64-unknown-linux-musl --locked
+      - name: Build release binaries in reproducible container
+        run: |
+          docker run --rm \
+            -e RUST_TOOLCHAIN="${RUST_TOOLCHAIN}" \
+            -e REPRO_PROFILE="${REPRO_PROFILE}" \
+            -e REPRO_TARGET="${REPRO_TARGET}" \
+            -e SOURCE_DATE_EPOCH="$(git log -1 --format=%ct)" \
+            -e HOST_UID="$(id -u)" \
+            -e HOST_GID="$(id -g)" \
+            -v "${GITHUB_WORKSPACE}:/workspace" \
+            -w /workspace \
+            ubuntu:22.04 bash -lc '
+              set -euo pipefail
+              git config --global --add safe.directory /workspace
+              apt-get update
+              apt-get install -y --no-install-recommends \
+                ca-certificates cmake curl build-essential pkg-config musl-tools binutils
+              rm -rf /var/lib/apt/lists/*
+              curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs \
+                | sh -s -- -y --default-toolchain "${RUST_TOOLCHAIN}" \
+                  --profile minimal --target "${REPRO_TARGET}"
+              . "${HOME}/.cargo/env"
+              REPRO_TARGET_DIR=target/reproducible-linux \
+                REPRO_OUTPUT_DIR=dist/linux-static-binaries \
+                scripts/build_reproducible_release.sh
+              chown -R "${HOST_UID}:${HOST_GID}" dist/linux-static-binaries target/reproducible-linux
+            '
 
       - name: Upload Linux binaries
         uses: actions/upload-artifact@v4
         with:
           name: linux-static-binaries
-          path: target/x86_64-unknown-linux-musl/release-lto/lewm-*
+          path: dist/linux-static-binaries/lewm-*
 
   build-macos-arm:
     name: build-macos-arm
@@ -57,13 +81,13 @@ jobs:
         run: rustup toolchain install "$RUST_TOOLCHAIN" --profile default --target aarch64-apple-darwin
 
       - name: Build release binaries
-        run: cargo build --workspace --profile release-lto --target aarch64-apple-darwin --locked
+        run: REPRO_TARGET=aarch64-apple-darwin REPRO_TARGET_DIR=target/reproducible-macos-arm REPRO_OUTPUT_DIR=dist/macos-arm-binaries scripts/build_reproducible_release.sh
 
       - name: Upload macOS binaries
         uses: actions/upload-artifact@v4
         with:
           name: macos-arm-binaries
-          path: target/aarch64-apple-darwin/release-lto/lewm-*
+          path: dist/macos-arm-binaries/lewm-*
 
   container:
     name: container
@@ -73,13 +97,36 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build container when Dockerfile exists
+      - name: Log in to GHCR when Dockerfile exists
+        if: hashFiles('Dockerfile') != ''
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Build and push container when Dockerfile exists
+        id: container_image
         run: |
+          image='ghcr.io/abdelstark/lewm-rs'
           if [ -f Dockerfile ]; then
-            docker build -t ghcr.io/abdelstark/lewm-rs:${GITHUB_REF_NAME} .
+            docker build -t "${image}:${GITHUB_REF_NAME}" -t "${image}:latest" .
+            docker push "${image}:${GITHUB_REF_NAME}"
+            docker push "${image}:latest"
+            printf 'image=%s\n' "${image}" >> "${GITHUB_OUTPUT}"
           else
             printf '%s\n' 'container build skipped: Dockerfile not present'
           fi
+
+      - name: Install cosign
+        if: steps.container_image.outputs.image != ''
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign container image
+        if: steps.container_image.outputs.image != ''
+        run: |
+          cosign sign --yes "${{ steps.container_image.outputs.image }}:${GITHUB_REF_NAME}"
+          cosign sign --yes "${{ steps.container_image.outputs.image }}:latest"
 
   release-notes:
     name: release-notes
@@ -100,22 +147,86 @@ jobs:
           name: release-notes
           path: dist/release-notes.md
 
-  verify-reproducible:
-    name: verify-reproducible
+  sbom:
+    name: sbom
     runs-on: ubuntu-22.04
-    needs: [build-linux-static]
+    needs: [tag-format]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Record reproducibility placeholder
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Generate CycloneDX SBOM
         run: |
-          printf '%s\n' 'reproducible binary diff is enforced once release artifact publishing lands'
+          SOURCE_DATE_EPOCH="$(git log -1 --format=%ct)" \
+            python3 scripts/sbom.py --output dist/sbom.cdx.json
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: dist/sbom.cdx.json
+
+  verify-reproducible:
+    name: verify-reproducible
+    runs-on: ubuntu-22.04
+    needs: [tag-format, build-linux-static]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download published Linux binaries
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-static-binaries
+          path: dist/published
+
+      - name: Rebuild and compare Linux binaries in a clean container
+        run: |
+          docker run --rm \
+            -e RUST_TOOLCHAIN="${RUST_TOOLCHAIN}" \
+            -e REPRO_PROFILE="${REPRO_PROFILE}" \
+            -e REPRO_TARGET="${REPRO_TARGET}" \
+            -e SOURCE_DATE_EPOCH="$(git log -1 --format=%ct)" \
+            -v "${GITHUB_WORKSPACE}:/workspace" \
+            -w /workspace \
+            ubuntu:22.04 bash -lc '
+              set -euo pipefail
+              git config --global --add safe.directory /workspace
+              apt-get update
+              apt-get install -y --no-install-recommends \
+                ca-certificates cmake curl build-essential pkg-config musl-tools binutils
+              rm -rf /var/lib/apt/lists/*
+              curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs \
+                | sh -s -- -y --default-toolchain "${RUST_TOOLCHAIN}" \
+                  --profile minimal --target "${REPRO_TARGET}"
+              . "${HOME}/.cargo/env"
+              REPRO_TARGET_DIR=target/reproducible-linux \
+                scripts/verify_reproducible_release.sh dist/published
+            '
+
+  infer-export-verifier:
+    name: infer-export-verifier
+    runs-on: ubuntu-22.04
+    needs: [tag-format]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        run: rustup toolchain install "$RUST_TOOLCHAIN" --profile default
+
+      - name: Run export verifier smoke
+        run: cargo test -p lewm-infer --locked export_verifier_release_smoke
 
   github-release:
     name: github-release
     runs-on: ubuntu-22.04
-    needs: [build-linux-static, build-macos-arm, container, release-notes, verify-reproducible]
+    needs: [build-linux-static, build-macos-arm, container, release-notes, sbom, verify-reproducible, infer-export-verifier]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -130,6 +241,7 @@ jobs:
           gh release create "$GITHUB_REF_NAME" \
             dist/linux-static-binaries/* \
             dist/macos-arm-binaries/* \
+            dist/sbom/sbom.cdx.json \
             --draft \
             --notes-file dist/release-notes/release-notes.md \
             --title "$GITHUB_REF_NAME"
