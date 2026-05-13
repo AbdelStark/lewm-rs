@@ -15,6 +15,10 @@ pub enum TelemetryError {
     #[error("metric sink error: {0}")]
     Sink(String),
 
+    /// A system telemetry sampler failed during setup or refresh.
+    #[error("system telemetry sampler error: {0}")]
+    Sampler(String),
+
     /// Collapse detector evaluation or artifact emission failed.
     #[error("collapse detector error: {0}")]
     Collapse(String),

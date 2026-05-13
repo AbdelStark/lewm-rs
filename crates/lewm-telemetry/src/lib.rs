@@ -16,6 +16,7 @@ pub mod logs;
 pub mod metrics;
 pub mod otlp;
 pub mod spans;
+pub mod system;
 pub mod tensorboard;
 pub mod tracker;
 
@@ -33,5 +34,9 @@ pub use crate::otlp::{
     OtlpSpanGuard, OtlpTracer, init_tracer, init_tracer_from_env, init_tracer_with_context,
 };
 pub use crate::spans::SpanName;
+pub use crate::system::{
+    GpuMetrics, SYSTEM_DISK_CADENCE, SYSTEM_FAST_CADENCE, SystemEmitReport, SystemMetricCadence,
+    SystemMetrics, SystemSampleDue, SystemSampler,
+};
 pub use crate::tensorboard::TensorboardWriter;
 pub use crate::tracker::TrackioWriter;
