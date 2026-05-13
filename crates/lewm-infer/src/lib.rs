@@ -6,5 +6,10 @@
 //!
 //! ## Module index
 //!
-//! Inference modules are added by the phase-specific implementation issues
-//! after the workspace scaffold lands.
+//! - [`export`] locks the RFC 0007 ONNX export graph contract.
+//! - [`errors`] exposes the crate error type.
+
+pub mod errors;
+pub mod export;
+
+pub use crate::errors::{InferError, InferResult};
