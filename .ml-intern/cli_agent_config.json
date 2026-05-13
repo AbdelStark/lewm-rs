@@ -8,18 +8,8 @@
     "per_job_default_timeout": "30m",
     "session_cap_usd": 20
   },
-  "hardware_allowed": [
-    "cpu-basic",
-    "cpu-xl",
-    "l4",
-    "a10g-large"
-  ],
-  "hardware_denied": [
-    "a100-large",
-    "a100-xl",
-    "h100",
-    "h100-xl"
-  ],
+  "hardware_allowed": ["cpu-basic", "cpu-xl", "l4", "a10g-large"],
+  "hardware_denied": ["a100-large", "a100-xl", "h100", "h100-xl"],
   "jobs_allowed": [
     "smoke_pusht.yaml",
     "short_pusht.yaml",
@@ -47,12 +37,33 @@
     "configs/overrides/**",
     ".ml-intern/sessions/**"
   ],
-  "command_denied_regex": [
-    "hf jobs run .*--hardware a100.*",
-    "hf jobs run .*--hardware h100.*",
+  "audit": {
+    "session_log_repo": "AbdelStark/lewm-rs-intern-audit",
+    "private": true,
+    "upload_at_session_end": true,
+    "redact_keys": ["HF_TOKEN", "OTEL_AUTH"]
+  },
+  "command_denylist": [
+    "rm -rf",
+    "rm -rf /",
+    "git push --force",
+    "git push -f",
+    "git push --force-with-lease",
+    "git checkout main",
+    "git reset --hard",
+    "cargo install --git",
+    "curl .* | sh",
+    "wget .* | sh",
+    "hf jobs run .* --hardware a100.*",
+    "hf jobs run .* --hardware h100.*",
     "hf jobs run .*(?!.*--timeout)"
   ],
-  "command_requires_human_approval_regex": [
-    "hf jobs run"
+  "command_require_confirmation": [
+    "hf jobs run",
+    "hf upload",
+    "git push",
+    "cargo publish",
+    "cargo add",
+    "uv add"
   ]
 }
