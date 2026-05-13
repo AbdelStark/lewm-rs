@@ -130,6 +130,70 @@ impl MetricSink for NoopMetricSink {
     }
 }
 
+/// Metric sink that mirrors every record to multiple child sinks.
+pub struct MetricFanout {
+    sinks: Vec<Arc<dyn MetricSink>>,
+}
+
+impl fmt::Debug for MetricFanout {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("MetricFanout")
+            .field("sinks", &self.sinks.len())
+            .finish()
+    }
+}
+
+impl MetricFanout {
+    /// Build a fanout sink.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if no child sinks are provided.
+    pub fn new(sinks: Vec<Arc<dyn MetricSink>>) -> Result<Self, TelemetryError> {
+        if sinks.is_empty() {
+            return Err(TelemetryError::InvalidConfig(
+                "metric fanout requires at least one sink".to_string(),
+            ));
+        }
+        Ok(Self { sinks })
+    }
+}
+
+impl MetricSink for MetricFanout {
+    fn emit_scalar(
+        &self,
+        context: &TelemetryContext,
+        name: MetricName,
+        step: u64,
+        value: f32,
+    ) -> Result<(), TelemetryError> {
+        for sink in &self.sinks {
+            sink.emit_scalar(context, name, step, value)?;
+        }
+        Ok(())
+    }
+
+    fn emit_histogram(
+        &self,
+        context: &TelemetryContext,
+        name: MetricName,
+        step: u64,
+        values: &[f32],
+    ) -> Result<(), TelemetryError> {
+        for sink in &self.sinks {
+            sink.emit_histogram(context, name, step, values)?;
+        }
+        Ok(())
+    }
+
+    fn flush(&self) -> Result<(), TelemetryError> {
+        for sink in &self.sinks {
+            sink.flush()?;
+        }
+        Ok(())
+    }
+}
+
 /// Single public entry point for metrics, spans, and logs.
 pub struct Telemetry {
     context: TelemetryContext,

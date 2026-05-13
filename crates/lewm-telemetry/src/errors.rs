@@ -19,3 +19,9 @@ pub enum TelemetryError {
     #[error("trace exporter error: {0}")]
     TraceExporter(String),
 }
+
+impl TelemetryError {
+    pub(crate) fn sink(error: impl std::fmt::Display) -> Self {
+        Self::Sink(error.to_string())
+    }
+}
