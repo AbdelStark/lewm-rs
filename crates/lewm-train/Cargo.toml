@@ -28,6 +28,10 @@ lewm-data = { workspace = true }
 lewm-hub = { workspace = true }
 lewm-plan = { workspace = true }
 lewm-telemetry = { workspace = true }
+blake3 = { workspace = true }
+rand = { workspace = true }
+rand_chacha = { workspace = true }
+safetensors = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 

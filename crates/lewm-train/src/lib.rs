@@ -6,6 +6,20 @@
 //!
 //! ## Module index
 //!
+//! - [`checkpoint`] — epoch checkpoint files, sidecars, atomic writes, and
+//!   pruning.
+//! - [`mixed_precision`] — precision policy and `F32` islands.
+//! - [`optim`] — `AdamW` configuration and RFC 0005 decay/no-decay partitioning.
+//! - [`resume`] — run-directory resume detection, RNG restoration, and
+//!   shutdown handling.
+//! - [`schedule`] — cosine decay with linear warmup.
+//! - [`step`] — gradient accumulation, clipping, and step guards.
 //! - [`trainer`] — outer-loop state machine and trainer artifacts.
-
+//!
+pub mod checkpoint;
+pub mod mixed_precision;
+pub mod optim;
+pub mod resume;
+pub mod schedule;
+pub mod step;
 pub mod trainer;
