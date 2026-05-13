@@ -7,5 +7,16 @@
 //!
 //! ## Module index
 //!
-//! Hub modules are added by the phase-specific implementation issues after the
-//! workspace scaffold lands.
+//! - [`client`] — authenticated client and transport-backed repo/upload APIs.
+//! - [`upload`] — SHA-256 idempotency and retry helpers.
+
+pub mod client;
+pub mod errors;
+pub mod upload;
+
+pub use crate::client::{
+    EnsureRepoRequest, EnvironmentHubTransport, HubClient, HubTransport, RemoteFile, RepoHandle,
+    RepoKind,
+};
+pub use crate::errors::HubError;
+pub use crate::upload::{RetryPolicy, UploadResult, UploadStatus, sha256_file, with_backoff};
