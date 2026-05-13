@@ -104,6 +104,23 @@ pub enum EvalError {
     #[error("invalid eval configuration: {0}")]
     InvalidConfig(String),
 
+    /// An evaluation input was malformed before a model was invoked.
+    #[error("invalid evaluation input: {0}")]
+    InvalidInput(String),
+
+    /// A specific SO-100 episode violated the latent-rollout contract.
+    #[error("invalid SO-100 episode {episode_id}: {reason}")]
+    InvalidEpisode {
+        /// Episode identifier from the dataset split.
+        episode_id: u32,
+        /// Human-readable validation failure.
+        reason: String,
+    },
+
+    /// A metric could not be computed from finite, non-degenerate vectors.
+    #[error("metric computation failed: {0}")]
+    Metric(String),
+
     /// The `PushT` JSON-RPC sidecar failed or returned an invalid response.
     #[error("PushT RPC error: {0}")]
     Rpc(String),
@@ -123,6 +140,26 @@ pub enum EvalError {
     /// Parquet writer failure.
     #[error(transparent)]
     Parquet(#[from] parquet::errors::ParquetError),
+
+    /// Arrow record-batch construction failed for a specific artifact path.
+    #[error("Arrow output error at {path}: {source}")]
+    ArrowAt {
+        /// Output path involved in the failing operation.
+        path: PathBuf,
+        /// Original Arrow error.
+        #[source]
+        source: arrow_schema::ArrowError,
+    },
+
+    /// Parquet writer failure for a specific artifact path.
+    #[error("Parquet output error at {path}: {source}")]
+    ParquetAt {
+        /// Output path involved in the failing operation.
+        path: PathBuf,
+        /// Original Parquet error.
+        #[source]
+        source: parquet::errors::ParquetError,
+    },
 }
 
 impl EvalError {
@@ -142,9 +179,41 @@ impl EvalError {
         }
     }
 
+    /// Build a JSON decode error with path context.
+    pub fn json_decode(path: impl Into<PathBuf>, source: serde_json::Error) -> Self {
+        let path = path.into();
+        Self::json(format!("parsing JSON at {}", path.display()), source)
+    }
+
+    /// Build a JSON encode error.
+    pub fn json_encode(source: serde_json::Error) -> Self {
+        Self::json("rendering JSON", source)
+    }
+
     /// Build a TOML error with path context.
     pub fn toml(path: impl Into<PathBuf>, source: toml::de::Error) -> Self {
         Self::Toml {
+            path: path.into(),
+            source,
+        }
+    }
+
+    pub(crate) fn invalid_episode(episode_id: u32, reason: impl Into<String>) -> Self {
+        Self::InvalidEpisode {
+            episode_id,
+            reason: reason.into(),
+        }
+    }
+
+    pub(crate) fn arrow(path: impl Into<PathBuf>, source: arrow_schema::ArrowError) -> Self {
+        Self::ArrowAt {
+            path: path.into(),
+            source,
+        }
+    }
+
+    pub(crate) fn parquet(path: impl Into<PathBuf>, source: parquet::errors::ParquetError) -> Self {
+        Self::ParquetAt {
             path: path.into(),
             source,
         }
