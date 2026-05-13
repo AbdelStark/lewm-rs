@@ -6,6 +6,8 @@
 //!
 //! ## Module index
 //!
+//! - [`optim`] — `AdamW` configuration and RFC 0005 decay/no-decay partitioning.
 //! - [`schedule`] — cosine decay with linear warmup.
 
+pub mod optim;
 pub mod schedule;

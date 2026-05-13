@@ -35,8 +35,10 @@ ALLOWED_DEPS = {
     "lewm-infer": {"lewm-core", "lewm-telemetry"},
 }
 
-INFER_BANNED_DEPS = {"burn-cuda", "burn-autodiff"}
+INFER_BANNED_DEPS = {"burn-cuda", "burn-autodiff", "nvml-wrapper"}
 PYTHON_BINDING_DEPS = {"pyo3", "pyo3-build-config", "pyo3-ffi", "pyo3-macros"}
+TELEMETRY_NVML_DEP = "nvml-wrapper"
+TELEMETRY_NVML_FEATURE = "nvml"
 
 
 def load_toml(path: Path) -> dict[str, Any]:
@@ -77,6 +79,24 @@ def python_binding_deps(deps: set[str]) -> list[str]:
     return sorted(dep for dep in deps if dep in PYTHON_BINDING_DEPS or dep.startswith("pyo3-"))
 
 
+def dependency_spec(manifest: dict[str, Any], dep_name: str) -> Any:
+    for table_name in ("dependencies", "dev-dependencies", "build-dependencies"):
+        table = manifest.get(table_name, {})
+        if isinstance(table, dict) and dep_name in table:
+            return table[dep_name]
+    return None
+
+
+def feature_list(manifest: dict[str, Any], feature_name: str) -> list[str]:
+    features = manifest.get("features", {})
+    if not isinstance(features, dict):
+        return []
+    values = features.get(feature_name, [])
+    if isinstance(values, list) and all(isinstance(value, str) for value in values):
+        return values
+    return []
+
+
 def main() -> int:
     repo_root = Path(__file__).resolve().parents[1]
     failures: list[str] = []
@@ -111,6 +131,30 @@ def main() -> int:
             banned = sorted(deps & INFER_BANNED_DEPS)
             if banned:
                 failures.append(f"{crate}: forbidden inference dependencies present: {banned}")
+
+            telemetry_dep = dependency_spec(manifest, "lewm-telemetry")
+            if isinstance(telemetry_dep, dict):
+                enabled_features = telemetry_dep.get("features", [])
+                if (
+                    isinstance(enabled_features, list)
+                    and TELEMETRY_NVML_FEATURE in enabled_features
+                ):
+                    failures.append(
+                        f"{crate}: lewm-telemetry enables forbidden feature "
+                        f"{TELEMETRY_NVML_FEATURE!r}"
+                    )
+
+        if crate == "lewm-telemetry":
+            nvml_dep = dependency_spec(manifest, TELEMETRY_NVML_DEP)
+            if not isinstance(nvml_dep, dict) or nvml_dep.get("optional") is not True:
+                failures.append(
+                    f"{crate}: {TELEMETRY_NVML_DEP} must remain an optional dependency"
+                )
+
+            if TELEMETRY_NVML_FEATURE in feature_list(manifest, "default"):
+                failures.append(
+                    f"{crate}: default features must not enable {TELEMETRY_NVML_FEATURE!r}"
+                )
 
         python_deps = python_binding_deps(deps)
         if python_deps:
