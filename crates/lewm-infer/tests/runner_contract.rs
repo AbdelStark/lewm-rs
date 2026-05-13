@@ -1,4 +1,5 @@
 //! Integration tests for the public runner loading and execution contract.
+#![allow(unexpected_cfgs)]
 
 #[cfg(feature = "tract-onnx")]
 mod onnx_contract {
@@ -26,6 +27,9 @@ mod onnx_contract {
     const LATENT_DIM_I64: i64 = 4;
 
     #[test]
+    // Tarpaulin's ptrace backend can report false enum assertion failures after
+    // Tract graph loading; the normal CI test matrix still runs this contract.
+    #[cfg_attr(tarpaulin, ignore)]
     fn tract_onnx_runner_load_and_encode() -> Result<(), Box<dyn std::error::Error>> {
         let root = onnx_fixture_dir("lewm-onnx-encode")?;
         let mut runner = load(&root)?;
@@ -249,6 +253,9 @@ graph predictor( history, actions ) -> ( output )
 ";
 
     #[test]
+    // Tarpaulin's ptrace backend can report false enum assertion failures after
+    // Tract graph loading; the normal CI test matrix still runs this contract.
+    #[cfg_attr(tarpaulin, ignore)]
     fn tract_nnef_runner_load_and_encode() -> Result<(), Box<dyn std::error::Error>> {
         let root = nnef_fixture_dir("lewm-nnef-encode")?;
         let mut runner = load(&root)?;
