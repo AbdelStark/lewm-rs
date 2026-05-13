@@ -7,7 +7,7 @@ use std::fs::File;
 use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
-use std::time::Instant;
+use std::time::Instant as StdInstant;
 
 use clap::{Args, Parser, Subcommand};
 use lewm_infer::plan::{
@@ -30,13 +30,14 @@ fn run() -> Result<(), CliError> {
     let cli = Cli::parse();
     let checkpoint_dir = validate_global(&cli)?.to_path_buf();
     let action_dim = cli.action_dim;
+    let clock = WallClock;
     configure_threads(cli.threads)?;
 
     match cli.command {
-        Commands::Plan(args) => run_plan(&checkpoint_dir, action_dim, &args),
-        Commands::Bench(args) => run_bench(&checkpoint_dir, action_dim, &args),
+        Commands::Plan(args) => run_plan(&checkpoint_dir, action_dim, &args, &clock),
+        Commands::Bench(args) => run_bench(&checkpoint_dir, action_dim, &args, &clock),
         Commands::Serve(args) => run_serve(&checkpoint_dir, &args),
-        Commands::Verify(args) => run_verify(&checkpoint_dir, &args),
+        Commands::Verify(args) => run_verify(&checkpoint_dir, &args, &clock),
     }
 }
 
@@ -190,13 +191,40 @@ struct HealthJson {
     checkpoint_format: String,
 }
 
-fn run_plan(checkpoint_dir: &Path, action_dim: usize, args: &PlanArgs) -> Result<(), CliError> {
+trait Clock {
+    type Instant: Copy;
+
+    fn now(&self) -> Self::Instant;
+    fn elapsed_ms(&self, start: Self::Instant) -> f64;
+}
+
+#[derive(Debug, Clone, Copy)]
+struct WallClock;
+
+impl Clock for WallClock {
+    type Instant = StdInstant;
+
+    fn now(&self) -> Self::Instant {
+        StdInstant::now()
+    }
+
+    fn elapsed_ms(&self, start: Self::Instant) -> f64 {
+        start.elapsed().as_secs_f64() * 1000.0
+    }
+}
+
+fn run_plan<C: Clock>(
+    checkpoint_dir: &Path,
+    action_dim: usize,
+    args: &PlanArgs,
+    clock: &C,
+) -> Result<(), CliError> {
     validate_positive("horizon", args.horizon)?;
     validate_positive("n-cand", args.n_cand)?;
     validate_positive("n-iter", args.n_iter)?;
     validate_positive("history-steps", args.history_steps)?;
 
-    let start_time = Instant::now();
+    let start_time = clock.now();
     let start_pixels = preprocess_path(&args.start)?;
     let goal_pixels = preprocess_path(&args.goal)?;
     let mut runner = load(checkpoint_dir)?;
@@ -216,7 +244,7 @@ fn run_plan(checkpoint_dir: &Path, action_dim: usize, args: &PlanArgs) -> Result
     let payload = PlanJson {
         cost: result.best_cost,
         best_actions: action_rows(&result.best_actions, action_dim),
-        latency_ms: elapsed_ms(start_time),
+        latency_ms: clock.elapsed_ms(start_time),
         checkpoint_format: metadata.format.to_string(),
         trace: result
             .trace
@@ -233,7 +261,12 @@ fn run_plan(checkpoint_dir: &Path, action_dim: usize, args: &PlanArgs) -> Result
     write_json(args.out.as_deref(), &payload)
 }
 
-fn run_bench(checkpoint_dir: &Path, action_dim: usize, args: &BenchArgs) -> Result<(), CliError> {
+fn run_bench<C: Clock>(
+    checkpoint_dir: &Path,
+    action_dim: usize,
+    args: &BenchArgs,
+    clock: &C,
+) -> Result<(), CliError> {
     validate_positive("episodes", args.episodes)?;
     validate_positive("history-steps", args.history_steps)?;
 
@@ -247,13 +280,13 @@ fn run_bench(checkpoint_dir: &Path, action_dim: usize, args: &BenchArgs) -> Resu
     let mut latencies = Vec::with_capacity(args.episodes);
 
     for run_index in 0..total_runs {
-        let start_time = Instant::now();
+        let start_time = clock.now();
         let start_latent = runner.encode(pixels.as_ref())?;
         let goal_latent = runner.encode(pixels.as_ref())?;
         let z_history = repeat_history(&start_latent, args.history_steps);
         let mut rng = cem_rng(args.seed.saturating_add(run_index as u64))?;
         let _result = planner.plan(&mut *runner, &z_history, &goal_latent, &mut rng, action_dim)?;
-        let latency = elapsed_ms(start_time);
+        let latency = clock.elapsed_ms(start_time);
         if run_index >= args.warmup_runs {
             latencies.push(latency);
         }
@@ -290,8 +323,12 @@ fn run_serve(checkpoint_dir: &Path, args: &ServeArgs) -> Result<(), CliError> {
     Ok(())
 }
 
-fn run_verify(checkpoint_dir: &Path, args: &VerifyArgs) -> Result<(), CliError> {
-    let start_time = Instant::now();
+fn run_verify<C: Clock>(
+    checkpoint_dir: &Path,
+    args: &VerifyArgs,
+    clock: &C,
+) -> Result<(), CliError> {
+    let start_time = clock.now();
     let mut runner = load(checkpoint_dir)?;
     let encoded_len = if let Some(image) = &args.image {
         let pixels = preprocess_path(image)?;
@@ -306,7 +343,7 @@ fn run_verify(checkpoint_dir: &Path, args: &VerifyArgs) -> Result<(), CliError> 
         optimized: metadata.optimized,
         intra_op_threads: metadata.intra_op_threads,
         encoded_len,
-        latency_ms: elapsed_ms(start_time),
+        latency_ms: clock.elapsed_ms(start_time),
     };
 
     write_json(args.out.as_deref(), &payload)
@@ -419,10 +456,6 @@ fn mean_latency(values: &[f64]) -> f64 {
 fn percentile(values: &[f64], percentile: usize) -> f64 {
     let index = (values.len() - 1) * percentile / 100;
     values[index]
-}
-
-fn elapsed_ms(start: Instant) -> f64 {
-    start.elapsed().as_secs_f64() * 1000.0
 }
 
 #[derive(Debug)]
