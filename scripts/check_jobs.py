@@ -1,40 +1,81 @@
 #!/usr/bin/env python3
-"""Validate HF Jobs YAML contracts without requiring a YAML dependency."""
+"""Validate checked-in HF Jobs specs without requiring HF credentials."""
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 import re
 import sys
-from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-JOBS_DIR = ROOT / "jobs"
 
-ALLOWED_HARDWARE = {"cpu-basic", "cpu-xl", "l4", "a10g-large"}
-REQUIRED_TOP_LEVEL = {"name", "hardware", "timeout", "namespace", "image", "env", "command"}
-TIMEOUT_RE = re.compile(r"^[1-9][0-9]*[mh]$")
+REQUIRED_ENV = {
+    "RUST_LOG",
+    "HF_TOKEN",
+    "OTEL_EXPORTER_OTLP_ENDPOINT",
+}
 
-EXPECTED_JOBS = {
+JOB_SPECS = {
+    "smoke_pusht.yaml": {
+        "hardware": "l4",
+        "timeout": "30m",
+        "command_tokens": [
+            "lewm-train smoke",
+            "--config configs/pusht.toml",
+            "--steps 200",
+            "--batch-size 16",
+            "--max-steps 200",
+            "python python/upload_checkpoints.py",
+        ],
+    },
+    "short_pusht.yaml": {
+        "hardware": "a10g-large",
+        "timeout": "2h",
+        "command_tokens": [
+            "lewm-train train",
+            "--config configs/pusht.toml",
+            "--data-dir /tmp/data",
+            "--max-steps 7500",
+            "python python/upload_checkpoints.py",
+        ],
+    },
+    "train_pusht.yaml": {
+        "hardware": "a10g-large",
+        "timeout": "12h",
+        "command_tokens": [
+            "lewm-train train",
+            "--config configs/pusht.toml",
+            "--data-dir /tmp/data",
+            "--output-dir /tmp/out",
+            "--resume-if-present",
+            "python python/upload_checkpoints.py",
+        ],
+    },
     "smoke_so100.yaml": {
         "hardware": "l4",
         "timeout": "30m",
-        "fragments": [
+        "requires_upload": False,
+        "command_tokens": [
             "hf download AbdelStark/so100-pickplace-lewm-ready",
             "--repo-type dataset",
             "lewm-train smoke",
             "--config configs/so100.toml",
+            "--data-dir /tmp/data/so100",
             "--max-steps 200",
         ],
     },
     "short_so100.yaml": {
         "hardware": "a10g-large",
         "timeout": "2h",
-        "fragments": [
+        "requires_upload": False,
+        "command_tokens": [
             "hf download AbdelStark/so100-pickplace-lewm-ready",
             "--repo-type dataset",
             "lewm-train train",
             "--config configs/so100.toml",
+            "--data-dir /tmp/data/so100",
             "--set training.epochs=1",
             "--set experimental.subset_name=so100-short",
         ],
@@ -42,162 +83,129 @@ EXPECTED_JOBS = {
 }
 
 
-class JobSpecError(Exception):
-    """Raised when a job spec violates the local schema contract."""
-
-
 def main() -> int:
-    try:
-        check_jobs()
-    except JobSpecError as error:
-        print(f"check_jobs: {error}", file=sys.stderr)
+    failures: list[str] = []
+
+    for name, expected in JOB_SPECS.items():
+        path = ROOT / "jobs" / name
+        if not path.exists():
+            failures.append(f"{path}: missing job spec")
+            continue
+
+        text = path.read_text(encoding="utf-8")
+        fields = parse_top_level_fields(text)
+        env_keys = parse_env_keys(text)
+        command = normalize_command(fields.get("command", ""))
+
+        for field in ("hardware", "timeout", "namespace", "image", "command"):
+            if field not in fields:
+                failures.append(f"{path}: missing top-level {field!r}")
+
+        if fields.get("hardware") != expected["hardware"]:
+            failures.append(
+                f"{path}: hardware must be {expected['hardware']!r}, got {fields.get('hardware')!r}"
+            )
+
+        if fields.get("timeout") != expected["timeout"]:
+            failures.append(
+                f"{path}: timeout must be {expected['timeout']!r}, got {fields.get('timeout')!r}"
+            )
+
+        missing_env = sorted(REQUIRED_ENV - env_keys)
+        if missing_env:
+            failures.append(f"{path}: missing env passthrough keys {missing_env}")
+
+        for token in expected["command_tokens"]:
+            if token not in command:
+                failures.append(f"{path}: command missing {token!r}")
+
+        if expected.get("requires_upload", True):
+            upload_pos = command.rfind("python python/upload_checkpoints.py")
+            train_pos = max(command.rfind("lewm-train smoke"), command.rfind("lewm-train train"))
+            if upload_pos <= train_pos:
+                failures.append(f"{path}: upload_checkpoints.py must run after lewm-train")
+
+    validate_intern_config(failures)
+
+    if failures:
+        for failure in failures:
+            print(f"check_jobs: {failure}", file=sys.stderr)
         return 1
-    print("check_jobs: jobs ok")
+
+    print("check_jobs: HF Jobs specs ok")
     return 0
 
 
-def check_jobs() -> None:
-    if not JOBS_DIR.is_dir():
-        raise JobSpecError("jobs/ directory is missing")
-
-    paths = sorted(JOBS_DIR.glob("*.yaml"))
-    if not paths:
-        raise JobSpecError("jobs/ contains no .yaml files")
-
-    seen = {path.name for path in paths}
-    missing = sorted(set(EXPECTED_JOBS) - seen)
-    if missing:
-        raise JobSpecError(f"missing expected job specs: {', '.join(missing)}")
-
-    for path in paths:
-        spec = parse_simple_yaml(path)
-        validate_common(path, spec)
-        if path.name in EXPECTED_JOBS:
-            validate_expected(path, spec, EXPECTED_JOBS[path.name])
-
-
-def parse_simple_yaml(path: Path) -> dict[str, object]:
-    lines = path.read_text(encoding="utf-8").splitlines()
-    data: dict[str, object] = {}
+def parse_top_level_fields(text: str) -> dict[str, str]:
+    fields: dict[str, str] = {}
+    lines = text.splitlines()
     index = 0
 
     while index < len(lines):
-        raw = lines[index]
-        stripped = raw.strip()
-        if not stripped or stripped.startswith("#"):
+        line = lines[index]
+        match = re.match(r"^([A-Za-z_][A-Za-z0-9_-]*):\s*(.*)$", line)
+        if not match:
             index += 1
             continue
-        if raw.startswith(" "):
-            index += 1
-            continue
-
-        match = re.match(r"^([A-Za-z_][A-Za-z0-9_-]*):(?:\s*(.*))?$", raw)
-        if match is None:
-            raise JobSpecError(f"{path}: could not parse line {index + 1}: {raw!r}")
 
         key, value = match.groups()
-        value = value or ""
-        if key == "command" and value in {">", "|"}:
-            block, index = collect_indented_block(lines, index + 1)
-            data[key] = " ".join(block.split())
+        if value == ">":
+            block: list[str] = []
+            index += 1
+            while index < len(lines) and (not lines[index] or lines[index].startswith(" ")):
+                block.append(lines[index])
+                index += 1
+            fields[key] = "\n".join(block)
             continue
-        if key == "env" and value == "":
-            env, index = collect_env(lines, index + 1)
-            data[key] = env
+
+        fields[key] = value
+        index += 1
+
+    return fields
+
+
+def parse_env_keys(text: str) -> set[str]:
+    keys: set[str] = set()
+    lines = text.splitlines()
+    in_env = False
+
+    for line in lines:
+        if line == "env:":
+            in_env = True
             continue
-
-        data[key] = strip_quotes(value)
-        index += 1
-
-    return data
-
-
-def collect_indented_block(lines: list[str], start: int) -> tuple[str, int]:
-    block: list[str] = []
-    index = start
-    while index < len(lines):
-        raw = lines[index]
-        if raw and not raw.startswith(" "):
+        if in_env and line and not line.startswith(" "):
             break
-        block.append(raw.strip())
-        index += 1
-    return "\n".join(block), index
+        if in_env:
+            match = re.match(r"^\s{2}([A-Za-z_][A-Za-z0-9_]*):", line)
+            if match:
+                keys.add(match.group(1))
+
+    return keys
 
 
-def collect_env(lines: list[str], start: int) -> tuple[dict[str, str], int]:
-    env: dict[str, str] = {}
-    index = start
-    while index < len(lines):
-        raw = lines[index]
-        if raw and not raw.startswith(" "):
-            break
-        stripped = raw.strip()
-        if stripped:
-            match = re.match(r"^([A-Za-z_][A-Za-z0-9_]*):\s*(.*)$", stripped)
-            if match is None:
-                raise JobSpecError(f"invalid env line: {raw!r}")
-            key, value = match.groups()
-            env[key] = strip_quotes(value)
-        index += 1
-    return env, index
+def normalize_command(command: str) -> str:
+    return " ".join(command.split())
 
 
-def strip_quotes(value: str) -> str:
-    value = value.strip()
-    if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
-        return value[1:-1]
-    return value
+def validate_intern_config(failures: list[str]) -> None:
+    path = ROOT / ".ml-intern" / "cli_agent_config.json"
+    if not path.exists():
+        failures.append(f"{path}: missing ml-intern leash config")
+        return
 
+    try:
+        config = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as error:
+        failures.append(f"{path}: invalid JSON: {error}")
+        return
 
-def validate_common(path: Path, spec: dict[str, object]) -> None:
-    missing = sorted(REQUIRED_TOP_LEVEL - set(spec))
-    if missing:
-        raise JobSpecError(f"{path}: missing required keys: {', '.join(missing)}")
+    approval_required = set(config.get("jobs_human_approval_required", []))
+    jobs_allowed = set(config.get("jobs_allowed", []))
 
-    hardware = expect_string(path, spec, "hardware")
-    if hardware not in ALLOWED_HARDWARE:
-        raise JobSpecError(f"{path}: hardware {hardware!r} is not allowed")
-
-    timeout = expect_string(path, spec, "timeout")
-    if not TIMEOUT_RE.fullmatch(timeout):
-        raise JobSpecError(f"{path}: timeout {timeout!r} must look like 30m or 2h")
-
-    namespace = expect_string(path, spec, "namespace")
-    if namespace != "AbdelStark":
-        raise JobSpecError(f"{path}: namespace must be AbdelStark")
-
-    command = expect_string(path, spec, "command")
-    if not command:
-        raise JobSpecError(f"{path}: command is empty")
-
-    env = spec["env"]
-    if not isinstance(env, dict):
-        raise JobSpecError(f"{path}: env must be a mapping")
-    for key in ("RUST_LOG", "HF_HOME", "TRACKIO_PROJECT"):
-        if key not in env:
-            raise JobSpecError(f"{path}: env.{key} is required")
-
-
-def validate_expected(path: Path, spec: dict[str, object], expected: dict[str, object]) -> None:
-    hardware = expect_string(path, spec, "hardware")
-    timeout = expect_string(path, spec, "timeout")
-    command = expect_string(path, spec, "command")
-
-    if hardware != expected["hardware"]:
-        raise JobSpecError(f"{path}: expected hardware {expected['hardware']!r}, got {hardware!r}")
-    if timeout != expected["timeout"]:
-        raise JobSpecError(f"{path}: expected timeout {expected['timeout']!r}, got {timeout!r}")
-
-    for fragment in expected["fragments"]:
-        if fragment not in command:
-            raise JobSpecError(f"{path}: command missing fragment {fragment!r}")
-
-
-def expect_string(path: Path, spec: dict[str, object], key: str) -> str:
-    value = spec[key]
-    if not isinstance(value, str):
-        raise JobSpecError(f"{path}: {key} must be a string")
-    return value
+    if "train_pusht.yaml" not in approval_required:
+        failures.append(f"{path}: train_pusht.yaml must require human approval")
+    if "train_pusht.yaml" in jobs_allowed:
+        failures.append(f"{path}: train_pusht.yaml must not be pre-approved")
 
 
 if __name__ == "__main__":

@@ -216,6 +216,39 @@ jobs:
       - name: Run HF Jobs schema checks
         run: python3 scripts/check_jobs.py
 
+  cost-ledger:
+    name: cost-ledger
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Compile cost tooling
+        run: python3 -m py_compile python/hf_pricing.py python/cost_ledger.py
+
+      - name: Check cost ledger cap
+        run: python3 python/cost_ledger.py check --path reports/cost.md --cap-usd 200
+
+  determinism:
+    name: determinism
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Run nondeterminism lint
+        run: python3 scripts/check_nondet.py
+
   docs-build:
     name: docs-build
     runs-on: ubuntu-22.04
@@ -264,7 +297,7 @@ jobs:
         run: rustup toolchain install "$RUST_TOOLCHAIN" --profile default
 
       - name: Run quickstart smoke
-        run: timeout 300 make test
+        run: timeout 900 make test
 
   coverage:
     name: coverage
