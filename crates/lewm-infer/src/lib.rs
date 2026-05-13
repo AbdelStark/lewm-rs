@@ -6,5 +6,6 @@
 //!
 //! ## Module index
 //!
-//! Inference modules are added by the phase-specific implementation issues
-//! after the workspace scaffold lands.
+//! - [`export`] contains export verification and fallback selection helpers.
+
+pub mod export;
