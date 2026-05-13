@@ -1,0 +1,25 @@
+hardware: a10g-large
+timeout: 2h
+namespace: AbdelStark
+image: ghcr.io/abdelstark/lewm-rs:latest
+env:
+  RUST_LOG: lewm=info,burn=info
+  HF_TOKEN: ${HF_TOKEN}
+  HF_HOME: /tmp/hf
+  TRACKIO_PROJECT: lewm-rs
+  TRACKIO_RUN: pusht-short-${HF_JOB_ID:-local}
+  OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_ENDPOINT}
+command: >
+  bash -lc "
+    set -euo pipefail
+    hf download quentinll/lewm-pusht --repo-type dataset --local-dir /tmp/data &&
+    tar --zstd -xvf /tmp/data/archive.tar.zst -C /tmp/data &&
+    lewm-train train
+      --config configs/pusht.toml
+      --data-dir /tmp/data
+      --output-dir /tmp/out
+      --max-steps 7500 &&
+    python python/upload_checkpoints.py
+      --src /tmp/out
+      --dst AbdelStark/lewm-rs-pusht
+  "

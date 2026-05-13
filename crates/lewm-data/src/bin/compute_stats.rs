@@ -98,8 +98,9 @@ fn next_value(args: &mut impl Iterator<Item = String>, flag: &str) -> Result<Str
 fn parse_dataset(value: &str) -> Result<StatsDataset, CliError> {
     match value {
         "pusht" => Ok(StatsDataset::Pusht),
+        "so100" => Ok(StatsDataset::So100),
         _ => Err(CliError(format!(
-            "unsupported dataset {value:?}; expected \"pusht\""
+            "unsupported dataset {value:?}; expected \"pusht\" or \"so100\""
         ))),
     }
 }
@@ -118,7 +119,7 @@ fn parse_usize(flag: &str, value: &str) -> Result<usize, CliError> {
 
 fn write_usage(mut writer: impl Write) -> Result<(), CliError> {
     writer.write_all(
-        b"Usage: compute_stats --dataset pusht --root <path> --out <stats.safetensors> [--seed <u64>] [--horizon <n>] [--no-schema-validate]\n",
+        b"Usage: compute_stats --dataset <pusht|so100> --root <path> --out <stats.safetensors> [--seed <u64>] [--horizon <n>] [--no-schema-validate]\n",
     )?;
     Ok(())
 }

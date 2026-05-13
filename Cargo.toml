@@ -41,6 +41,7 @@ burn-train = { version = "=0.20.1", default-features = false }
 tract = "=0.22.1"
 tract-onnx = "=0.22.1"
 tract-nnef = "=0.22.1"
+tract-linalg = { version = "=0.22.1", features = ["multithread-mm"] }
 
 # Data
 hdf5-metno = { version = "0.10", features = ["static"] }
@@ -50,6 +51,7 @@ arrow-schema = "56"
 image = { version = "=0.25.8", default-features = false }
 safetensors = "0.5"
 ndarray = "0.16"
+sha2 = "0.10"
 
 # Concurrency
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "fs", "sync", "signal"] }
@@ -60,13 +62,16 @@ rayon = "1.10"
 # Telemetry
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "fmt"] }
-tracing-opentelemetry = "0.27"
 nvtx = "1.3"
+tracing-opentelemetry = "0.28"
 opentelemetry = { version = "0.27", features = ["trace", "metrics"] }
 opentelemetry-otlp = { version = "0.27", features = ["grpc-tonic", "trace", "metrics"] }
 opentelemetry_sdk = "0.27"
+sysinfo = { version = "0.36", default-features = false, features = ["disk", "system"] }
+nvml-wrapper = { version = "0.12.1", default-features = false }
 
 # Serialization, config, CLI
+base64 = "0.22"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 toml = "0.8"
@@ -78,6 +83,7 @@ validator = { version = "0.20", features = ["derive"] }
 anyhow = "1"
 thiserror = "2"
 miette = { version = "7", features = ["fancy"] }
+serde_yaml_ng = "0.10"
 
 # RNG
 rand = { version = "0.8", default-features = false, features = ["std", "std_rng"] }
@@ -96,6 +102,7 @@ humantime = "2"
 bytes = "1"
 glob = "0.3"
 walkdir = "2"
+ureq = { version = "2", features = ["json"] }
 once_cell = "1"
 itertools = "0.13"
 regex = "1"
