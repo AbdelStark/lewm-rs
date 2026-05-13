@@ -14,4 +14,26 @@ pub enum TelemetryError {
     /// A metric sink failed while accepting or flushing records.
     #[error("metric sink error: {0}")]
     Sink(String),
+
+    /// A system telemetry sampler failed during setup or refresh.
+    #[error("system telemetry sampler error: {0}")]
+    Sampler(String),
+
+    /// Collapse detector evaluation or artifact emission failed.
+    #[error("collapse detector error: {0}")]
+    Collapse(String),
+
+    /// Structured logging initialization or emission failed.
+    #[error("logger error: {0}")]
+    Logger(String),
+
+    /// A trace exporter failed while initializing or flushing spans.
+    #[error("trace exporter error: {0}")]
+    TraceExporter(String),
+}
+
+impl TelemetryError {
+    pub(crate) fn sink(error: impl std::fmt::Display) -> Self {
+        Self::Sink(error.to_string())
+    }
 }

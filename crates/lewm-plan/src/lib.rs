@@ -8,3 +8,12 @@
 //!
 //! Planning modules are added by the phase-specific implementation issues after
 //! the workspace scaffold lands.
+
+pub mod cem;
+pub mod errors;
+
+pub use crate::cem::{
+    CEM_RNG_STREAM, Cem, CemCostModel, CemCostRequest, CemIterTrace, CemPlanInput, CemResult,
+    DEFAULT_CEM_CHUNK_SIZE, DEFAULT_CEM_MAX_BATCH_BYTES,
+};
+pub use crate::errors::LewmPlanError;
