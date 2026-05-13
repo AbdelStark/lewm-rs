@@ -25,6 +25,10 @@ slow-tests = []
 lewm-core = { workspace = true }
 lewm-data = { workspace = true }
 lewm-telemetry = { workspace = true }
+rand = { workspace = true }
+rand_chacha = { workspace = true }
+rand_distr = { workspace = true }
+thiserror = { workspace = true }
 
 [dev-dependencies]
 insta = { workspace = true }
