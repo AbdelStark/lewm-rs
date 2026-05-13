@@ -97,7 +97,11 @@ struct StructuredJsonLayer {
 
 impl StructuredJsonLayer {
     fn stdout(context: TelemetryContext) -> Self {
-        Self::with_sink(context, Arc::new(StdoutLogSink), Instant::now())
+        Self::with_sink(
+            context,
+            Arc::new(StdoutLogSink),
+            Instant::now(), // determinism-lint: allow Instant::now telemetry wall time
+        )
     }
 
     fn with_sink(context: TelemetryContext, sink: Arc<dyn LogSink>, started_at: Instant) -> Self {
@@ -386,7 +390,7 @@ mod tests {
         Registry::default().with(StructuredJsonLayer::with_sink(
             test_context(),
             sink,
-            Instant::now(),
+            Instant::now(), // determinism-lint: allow Instant::now telemetry wall time
         ))
     }
 

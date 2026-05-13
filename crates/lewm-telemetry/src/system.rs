@@ -202,7 +202,11 @@ impl SystemSampler {
         telemetry: &Telemetry,
         step: u64,
     ) -> Result<SystemEmitReport, TelemetryError> {
-        self.emit_due_at(telemetry, step, Instant::now())
+        self.emit_due_at(
+            telemetry,
+            step,
+            Instant::now(), // determinism-lint: allow Instant::now system telemetry cadence
+        )
     }
 
     /// Emit every system metric family that is due at `now`.
@@ -403,7 +407,7 @@ mod tests {
     #[test]
     fn cadence_matches_rfc_0009_intervals() {
         let mut cadence = SystemMetricCadence::new();
-        let start = Instant::now();
+        let start = Instant::now(); // determinism-lint: allow Instant::now test clock seed
 
         let first = cadence.due_at(start);
         assert_eq!(
@@ -483,7 +487,7 @@ mod tests {
             sink.clone(),
         )?;
         let mut sampler = SystemSampler::new()?;
-        let now = Instant::now();
+        let now = Instant::now(); // determinism-lint: allow Instant::now test clock seed
 
         let report = sampler.emit_due_at(&telemetry, 13, now)?;
         assert_eq!(

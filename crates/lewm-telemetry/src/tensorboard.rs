@@ -87,7 +87,7 @@ impl TensorboardWriter {
             state: Mutex::new(TensorboardState {
                 sink,
                 records_since_flush: 0,
-                last_flush: Instant::now(),
+                last_flush: Instant::now(), // determinism-lint: allow Instant::now telemetry flush cadence
             }),
         })
     }
@@ -180,7 +180,7 @@ fn validate_flush_policy(
 fn flush_locked(state: &mut TensorboardState) -> Result<(), TelemetryError> {
     state.sink.flush().map_err(TelemetryError::sink)?;
     state.records_since_flush = 0;
-    state.last_flush = Instant::now();
+    state.last_flush = Instant::now(); // determinism-lint: allow Instant::now telemetry flush cadence
     Ok(())
 }
 

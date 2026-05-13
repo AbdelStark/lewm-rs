@@ -9,6 +9,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Added
 
+- RFC 0013 RNG sub-stream state serialization and a nondeterminism lint for
+  Rust sources.
 - RFC 0009 system metric samplers for CPU utilization, process RSS, disk usage,
   and optional NVML GPU utilization/memory telemetry.
 - Initial Rust workspace, spec validation, quality gate configuration, and OSS

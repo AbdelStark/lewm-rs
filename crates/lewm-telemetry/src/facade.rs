@@ -335,7 +335,7 @@ impl Telemetry {
             name,
             step: None,
             epoch: None,
-            started_at: Instant::now(),
+            started_at: Instant::now(), // determinism-lint: allow Instant::now telemetry wall time
             _entered_span: tracing_span_for(&self.context, name, None, None).entered(),
             _otlp_span: otlp_span,
         }
@@ -353,7 +353,7 @@ impl Telemetry {
             name,
             step: Some(step),
             epoch: Some(epoch),
-            started_at: Instant::now(),
+            started_at: Instant::now(), // determinism-lint: allow Instant::now telemetry wall time
             _entered_span: tracing_span_for(&self.context, name, Some(step), Some(epoch)).entered(),
             _otlp_span: otlp_span,
         }
