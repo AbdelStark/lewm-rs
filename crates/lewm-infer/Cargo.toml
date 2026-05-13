@@ -25,6 +25,9 @@ slow-tests = []
 [dependencies]
 lewm-core = { workspace = true }
 lewm-telemetry = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
 tract-onnx = { workspace = true, optional = true }
 tract-nnef = { workspace = true, optional = true }
 tract-linalg = { workspace = true, optional = true }

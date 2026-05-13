@@ -1,0 +1,17 @@
+{
+  "schema_version": "1.0",
+  "fixture_path": "tests/fixtures/collapse_probe.npz",
+  "fixture_seed": 0,
+  "source_split": "eval",
+  "pixels": {
+    "dtype": "float32",
+    "normalization": "pre-normalized frame tensor",
+    "shape": [
+      32,
+      3,
+      224,
+      224
+    ]
+  },
+  "regeneration_policy": "RFC0009 requires the collapse probe fixture to remain fixed across runs; regenerate only with an explicit fixture update."
+}

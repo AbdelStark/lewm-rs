@@ -14,7 +14,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Compute deterministic lewm-data action stats."
     )
-    parser.add_argument("--dataset", choices=("pusht",), required=True)
+    parser.add_argument("--dataset", choices=("pusht", "so100"), required=True)
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--seed", type=int, default=0)

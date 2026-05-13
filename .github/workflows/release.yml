@@ -112,10 +112,24 @@ jobs:
         run: |
           printf '%s\n' 'reproducible binary diff is enforced once release artifact publishing lands'
 
+  infer-export-verifier:
+    name: infer-export-verifier
+    runs-on: ubuntu-22.04
+    needs: [tag-format]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        run: rustup toolchain install "$RUST_TOOLCHAIN" --profile default
+
+      - name: Run export verifier smoke
+        run: cargo test -p lewm-infer --locked export_verifier_release_smoke
+
   github-release:
     name: github-release
     runs-on: ubuntu-22.04
-    needs: [build-linux-static, build-macos-arm, container, release-notes, verify-reproducible]
+    needs: [build-linux-static, build-macos-arm, container, release-notes, verify-reproducible, infer-export-verifier]
     steps:
       - name: Checkout
         uses: actions/checkout@v4

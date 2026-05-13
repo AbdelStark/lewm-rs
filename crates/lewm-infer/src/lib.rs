@@ -6,6 +6,13 @@
 //!
 //! ## Module index
 //!
+//! - [`export`] locks the RFC 0007 ONNX export graph contract and verifier
+//!   fallback contract.
 //! - [`runner`] contains the CPU inference runner trait and Tract-backed loaders.
+//! - [`errors`] exposes the crate error type.
 
+pub mod errors;
+pub mod export;
 pub mod runner;
+
+pub use crate::errors::{InferError, InferResult};
