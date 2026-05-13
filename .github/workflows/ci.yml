@@ -216,6 +216,21 @@ jobs:
       - name: Run HF Jobs schema checks
         run: python3 scripts/check_jobs.py
 
+  train-so100-job-schema:
+    name: train-so100-job-schema
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Run train SO-100 job schema check
+        run: python3 scripts/check_train_so100_job.py
+
   cost-ledger:
     name: cost-ledger
     runs-on: ubuntu-22.04

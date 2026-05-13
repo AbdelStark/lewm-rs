@@ -25,6 +25,7 @@ check: fmt lint
 	$(PYTHON) scripts/check_layers.py
 	$(PYTHON) scripts/check_specs.py
 	$(PYTHON) scripts/check_jobs.py
+	$(PYTHON) scripts/check_train_so100_job.py
 	$(PYTHON) scripts/check_nondet.py
 	$(PYTHON) -m py_compile python/hf_pricing.py python/cost_ledger.py
 	$(PYTHON) python/cost_ledger.py check --path reports/cost.md --cap-usd 200
