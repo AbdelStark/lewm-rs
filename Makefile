@@ -24,6 +24,8 @@ check: fmt lint
 	cargo check --workspace --all-targets
 	$(PYTHON) scripts/check_layers.py
 	$(PYTHON) scripts/check_specs.py
+	$(PYTHON) scripts/check_jobs.py
+	$(PYTHON) scripts/check_nondet.py
 	$(PYTHON) -m py_compile python/hf_pricing.py python/cost_ledger.py
 	$(PYTHON) python/cost_ledger.py check --path reports/cost.md --cap-usd 200
 	cargo deny check
