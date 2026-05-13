@@ -15,6 +15,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   and optional NVML GPU utilization/memory telemetry.
 - Initial Rust workspace, spec validation, quality gate configuration, and OSS
   scaffolding.
+- Added `lewm-train` trainer state-machine, transition, parity-probe, smoke
+  slope, and eval-cadence primitives.
 - Added `lewm-train` resume detection, RNG restoration, and shutdown-signal
   checkpoint handler primitives.
 - Added `lewm-train` checkpoint sidecar, atomic write, safetensors mirror, and

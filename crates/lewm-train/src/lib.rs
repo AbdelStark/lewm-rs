@@ -14,6 +14,7 @@
 //!   shutdown handling.
 //! - [`schedule`] — cosine decay with linear warmup.
 //! - [`step`] — gradient accumulation, clipping, and step guards.
+//! - [`trainer`] — outer-loop state machine and trainer artifacts.
 //!
 pub mod checkpoint;
 pub mod mixed_precision;
@@ -21,3 +22,4 @@ pub mod optim;
 pub mod resume;
 pub mod schedule;
 pub mod step;
+pub mod trainer;
