@@ -15,3 +15,9 @@ pub enum TelemetryError {
     #[error("metric sink error: {0}")]
     Sink(String),
 }
+
+impl TelemetryError {
+    pub(crate) fn sink(error: impl std::fmt::Display) -> Self {
+        Self::Sink(error.to_string())
+    }
+}
