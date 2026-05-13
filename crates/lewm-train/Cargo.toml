@@ -23,6 +23,7 @@ metal = []
 slow-tests = []
 
 [dependencies]
+clap = { workspace = true }
 lewm-core = { workspace = true }
 lewm-data = { workspace = true }
 lewm-hub = { workspace = true }
@@ -34,6 +35,7 @@ rand_chacha = { workspace = true }
 safetensors = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+toml = { workspace = true }
 
 [dev-dependencies]
 insta = { workspace = true }
