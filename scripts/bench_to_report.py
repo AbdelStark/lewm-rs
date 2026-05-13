@@ -199,8 +199,10 @@ def compare_points(
         status = "pass"
         grace_started_at = baseline_point.grace_started_at or default_grace_start_date
         if change_pct > threshold:
-            status = "grace"
-            if grace_started_at is not None:
+            if grace_started_at is None:
+                status = "blocking"
+            else:
+                status = "grace"
                 age_days = (today - grace_started_at).days
                 if age_days > grace_days:
                     status = "blocking"
