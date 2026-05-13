@@ -9,10 +9,20 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Added
 
+- RFC 0013 RNG sub-stream state serialization and a nondeterminism lint for
+  Rust sources.
+- RFC 0009 system metric samplers for CPU utilization, process RSS, disk usage,
+  and optional NVML GPU utilization/memory telemetry.
 - Initial Rust workspace, spec validation, quality gate configuration, and OSS
   scaffolding.
 - Added `lewm-train` checkpoint sidecar, atomic write, safetensors mirror, and
   pruning primitives.
+- Added `lewm-train` inner-step accumulation, clipping, and non-finite guard
+  primitives.
+- Added `lewm-train` mixed-precision policy contracts.
+- Added `lewm-train` cosine warmup learning-rate schedule.
+- Added `lewm-train` AdamW RFC defaults and decay/no-decay parameter
+  partitioning.
 
 ### Changed
 
