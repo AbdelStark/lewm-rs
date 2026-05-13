@@ -14,6 +14,9 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Changed
 
+- Expanded GitHub issue templates, the pull request traceability checklist, and
+  CODEOWNERS mappings for crate-level review routing.
+
 ### Deprecated
 
 ### Removed

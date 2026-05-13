@@ -1,1 +1,27 @@
+# Default repository owner.
 * @AbdelStark
+
+# Workspace manifests and shared project policy.
+/Cargo.toml @AbdelStark
+/Cargo.lock @AbdelStark
+/rust-toolchain.toml @AbdelStark
+/rustfmt.toml @AbdelStark
+/clippy.toml @AbdelStark
+/deny.toml @AbdelStark
+/Makefile @AbdelStark
+
+# Crate ownership.
+/crates/lewm-core/ @AbdelStark
+/crates/lewm-data/ @AbdelStark
+/crates/lewm-train/ @AbdelStark
+/crates/lewm-plan/ @AbdelStark
+/crates/lewm-infer/ @AbdelStark
+/crates/lewm-telemetry/ @AbdelStark
+/crates/lewm-hub/ @AbdelStark
+
+# Specs, automation, and release surfaces.
+/specs/ @AbdelStark
+/scripts/ @AbdelStark
+/.github/ @AbdelStark
+/docs/ @AbdelStark
+/reports/ @AbdelStark
