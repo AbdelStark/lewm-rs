@@ -41,6 +41,7 @@ burn-train = { version = "=0.20.1", default-features = false }
 tract = "=0.22.1"
 tract-onnx = "=0.22.1"
 tract-nnef = "=0.22.1"
+tract-linalg = { version = "=0.22.1", features = ["multithread-mm"] }
 
 # Data
 hdf5-metno = { version = "0.10", features = ["static"] }
