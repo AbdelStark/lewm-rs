@@ -6,6 +6,11 @@
 //!
 //! ## Module index
 //!
-//! - [`export`] contains export verification and fallback selection helpers.
+//! - [`export`] locks the RFC 0007 ONNX export graph contract and verifier
+//!   fallback contract.
+//! - [`errors`] exposes the crate error type.
 
+pub mod errors;
 pub mod export;
+
+pub use crate::errors::{InferError, InferResult};

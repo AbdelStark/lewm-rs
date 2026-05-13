@@ -1,0 +1,24 @@
+[project]
+name = "lewm-python-edge"
+version = "0.1.0"
+description = "Python edge helpers for lewm-rs evaluation workflows."
+requires-python = ">=3.13,<4"
+dependencies = [
+    "av>=16,<17",
+    "blake3>=1,<2",
+    "h5py>=3.14,<4",
+    "numpy>=2.2,<3",
+    "pillow>=11,<13",
+    "pyarrow>=20,<23",
+]
+
+[project.optional-dependencies]
+sim = [
+    "gym-pusht==0.1.6",
+    "pymunk==6.6.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8,<9",
+]
