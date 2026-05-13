@@ -8,10 +8,12 @@
 //! ## Module index
 //!
 //! - [`client`] — authenticated client and transport-backed repo/upload APIs.
+//! - [`model_card`] — model repository README rendering.
 //! - [`upload`] — SHA-256 idempotency and retry helpers.
 
 pub mod client;
 pub mod errors;
+pub mod model_card;
 pub mod upload;
 
 pub use crate::client::{
@@ -19,4 +21,7 @@ pub use crate::client::{
     RepoKind,
 };
 pub use crate::errors::HubError;
+pub use crate::model_card::{
+    LEWM_CITATION_BIBTEX, LEWM_RS_CITATION_BIBTEX, ModelCardError, ModelCardMetadata, render,
+};
 pub use crate::upload::{RetryPolicy, UploadResult, UploadStatus, sha256_file, with_backoff};

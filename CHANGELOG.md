@@ -15,6 +15,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   and optional NVML GPU utilization/memory telemetry.
 - Initial Rust workspace, spec validation, quality gate configuration, and OSS
   scaffolding.
+- Hugging Face model-card renderer with YAML frontmatter, provenance, and
+  attribution blocks.
 - Hugging Face Hub client upload pipeline with SHA-256 idempotency and retry
   policy.
 - PushT evaluation driver plumbing, pinned eval config, `lewm-eval pusht`
