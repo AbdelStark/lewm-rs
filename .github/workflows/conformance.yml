@@ -7,8 +7,11 @@ on:
 
 permissions:
   contents: read
+  discussions: write
+  issues: write
 
 env:
+  DISCUSSION_CATEGORY_NAME: "General"
   RUST_TOOLCHAIN: "1.85.0"
 
 jobs:
@@ -18,9 +21,16 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          lfs: true
 
       - name: Install Rust
         run: rustup toolchain install "$RUST_TOOLCHAIN" --profile default --component rustfmt --component clippy
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
 
       - name: Install cargo-deny
         uses: taiki-e/install-action@v2
@@ -33,4 +43,159 @@ jobs:
           tool: cargo-audit
 
       - name: Run conformance gate
-        run: make accept
+        id: accept
+        shell: bash
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          set +e
+          set -o pipefail
+          make accept 2>&1 | tee conformance.log
+          status="${PIPESTATUS[0]}"
+          set -e
+          printf 'exit_code=%s\n' "$status" >> "$GITHUB_OUTPUT"
+
+      - name: Write conformance summary
+        id: report
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          status="${{ steps.accept.outputs.exit_code }}"
+          if [ -z "$status" ]; then
+            status="1"
+          fi
+          if [ "$status" = "0" ]; then
+            result="passed"
+          else
+            result="failed"
+          fi
+          title="Weekly conformance ${result}: run ${GITHUB_RUN_NUMBER}"
+
+          if [ ! -f conformance.log ]; then
+            printf '%s\n' 'conformance log unavailable' > conformance.log
+          fi
+
+          {
+            printf '# %s\n\n' "$title"
+            printf -- '- Workflow: [%s](%s/%s/actions/runs/%s)\n' \
+              "$GITHUB_WORKFLOW" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID"
+            printf -- '- Commit: `%s`\n' "$GITHUB_SHA"
+            printf -- '- Trigger: `%s`\n' "$GITHUB_EVENT_NAME"
+            printf -- '- Gate: `make accept`\n'
+            printf -- '- Exit code: `%s`\n\n' "$status"
+            printf '## Log tail\n\n'
+            printf '```text\n'
+            tail -n 80 conformance.log || true
+            printf '```\n'
+          } > conformance-summary.md
+
+          {
+            printf 'status=%s\n' "$status"
+            printf 'result=%s\n' "$result"
+            printf 'title=%s\n' "$title"
+          } >> "$GITHUB_OUTPUT"
+
+          cat conformance-summary.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload conformance report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: conformance-report
+          path: |
+            conformance.log
+            conformance-summary.md
+          retention-days: 30
+
+      - name: Post conformance discussion
+        if: ${{ always() }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require("fs");
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const body = fs.readFileSync("conformance-summary.md", "utf8");
+            const title = "${{ steps.report.outputs.title }}";
+            const requestedCategory = process.env.DISCUSSION_CATEGORY_NAME;
+
+            try {
+              const response = await github.graphql(
+                `query($owner: String!, $repo: String!) {
+                  repository(owner: $owner, name: $repo) {
+                    id
+                    hasDiscussionsEnabled
+                    discussionCategories(first: 25) {
+                      nodes { id name }
+                    }
+                  }
+                }`,
+                { owner, repo },
+              );
+
+              const repository = response.repository;
+              if (!repository.hasDiscussionsEnabled) {
+                core.warning("Repository Discussions are disabled; skipping discussion summary.");
+                return;
+              }
+
+              const categories = repository.discussionCategories.nodes;
+              const category =
+                categories.find((candidate) => candidate.name === requestedCategory) ||
+                categories[0];
+              if (!category) {
+                core.warning("No Discussion category is available; skipping discussion summary.");
+                return;
+              }
+
+              const result = await github.graphql(
+                `mutation(
+                  $repositoryId: ID!,
+                  $categoryId: ID!,
+                  $title: String!,
+                  $body: String!
+                ) {
+                  createDiscussion(input: {
+                    repositoryId: $repositoryId,
+                    categoryId: $categoryId,
+                    title: $title,
+                    body: $body
+                  }) {
+                    discussion { url }
+                  }
+                }`,
+                {
+                  repositoryId: repository.id,
+                  categoryId: category.id,
+                  title,
+                  body,
+                },
+              );
+              core.notice(`Created conformance discussion: ${result.createDiscussion.discussion.url}`);
+            } catch (error) {
+              core.warning(`Could not create conformance discussion: ${error.message}`);
+            }
+
+      - name: Open failure issue
+        if: ${{ always() && steps.report.outputs.status != '0' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          existing="$(gh issue list \
+            --state open \
+            --search 'Weekly conformance failed in:title' \
+            --json number \
+            --jq '.[0].number // empty')"
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body-file conformance-summary.md
+          else
+            gh issue create \
+              --title "${{ steps.report.outputs.title }}" \
+              --body-file conformance-summary.md \
+              --label area:ci \
+              --label type:infra
+          fi
+
+      - name: Preserve conformance failure
+        if: ${{ always() && steps.report.outputs.status != '0' }}
+        run: exit "${{ steps.report.outputs.status }}"

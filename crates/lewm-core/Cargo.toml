@@ -27,10 +27,15 @@ thiserror = { workspace = true }
 validator = { workspace = true }
 
 [dev-dependencies]
+criterion = { workspace = true }
 insta = { workspace = true }
 proptest = { workspace = true }
 serde_json = { workspace = true }
 toml = { workspace = true }
+
+[[bench]]
+name = "tensor_ops"
+harness = false
 
 [lints]
 workspace = true

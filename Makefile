@@ -1,4 +1,5 @@
 PYTHON ?= python3
+CARGO_AUDIT_DB ?= target/advisory-db/cargo-audit
 
 .PHONY: fmt lint test test-fast bench docs check accept clean
 
@@ -15,7 +16,7 @@ test-fast:
 	cargo test --workspace --lib --bins -- --skip "_slow_"
 
 bench:
-	cargo bench --workspace
+	cargo bench --workspace --benches
 
 docs:
 	RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
@@ -24,9 +25,15 @@ check: fmt lint
 	cargo check --workspace --all-targets
 	$(PYTHON) scripts/check_layers.py
 	$(PYTHON) scripts/check_specs.py
+	$(PYTHON) scripts/check_jobs.py
+	$(PYTHON) scripts/check_train_so100_job.py
+	$(PYTHON) scripts/check_nondet.py
+	$(PYTHON) -m py_compile python/hf_pricing.py python/cost_ledger.py
+	$(PYTHON) python/cost_ledger.py check --path reports/cost.md --cap-usd 200
 	cargo deny check
 	# hdf5-metno depends on paste; cargo-deny still blocks direct workspace unmaintained deps.
-	cargo audit --deny warnings --ignore RUSTSEC-2024-0436
+	# Tract 0.22.1 pulls Liquid/time; the patched time release requires Rust 1.88 while this repo is pinned to 1.85.
+	cargo audit --db "$(CARGO_AUDIT_DB)" --deny warnings --ignore RUSTSEC-2024-0436 --ignore RUSTSEC-2026-0009
 
 accept: check test docs
 	@if [ -d python ] && [ -f python/Makefile ]; then \
@@ -34,6 +41,7 @@ accept: check test docs
 	else \
 		printf '%s\n' 'python check skipped: python/Makefile not present'; \
 	fi
+	$(PYTHON) scripts/check_hub_artifacts.py
 	@if [ -x scripts/check_release_inventory.sh ]; then \
 		scripts/check_release_inventory.sh; \
 	else \
