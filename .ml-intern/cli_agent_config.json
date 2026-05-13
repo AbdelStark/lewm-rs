@@ -1,0 +1,69 @@
+{
+  "schema_version": "1.0.0",
+  "project": "lewm-rs",
+  "namespace": "AbdelStark",
+  "billing": {
+    "hard_cap_usd": 200,
+    "soft_cap_usd": 100,
+    "per_job_default_timeout": "30m",
+    "session_cap_usd": 20
+  },
+  "hardware_allowed": ["cpu-basic", "cpu-xl", "l4", "a10g-large"],
+  "hardware_denied": ["a100-large", "a100-xl", "h100", "h100-xl"],
+  "jobs_allowed": [
+    "smoke_pusht.yaml",
+    "short_pusht.yaml",
+    "smoke_so100.yaml",
+    "short_so100.yaml",
+    "eval.yaml"
+  ],
+  "jobs_human_approval_required": [
+    "train_pusht.yaml",
+    "train_so100.yaml"
+  ],
+  "files_readonly_glob": [
+    "crates/lewm-core/src/losses/**",
+    "specs/**",
+    "PRD.md",
+    "configs/pusht.toml",
+    "configs/so100.toml",
+    "rust-toolchain.toml",
+    "Cargo.lock"
+  ],
+  "files_writable_glob": [
+    "reports/**",
+    "python/**",
+    "jobs/**",
+    "configs/overrides/**",
+    ".ml-intern/sessions/**"
+  ],
+  "audit": {
+    "session_log_repo": "AbdelStark/lewm-rs-intern-audit",
+    "private": true,
+    "upload_at_session_end": true,
+    "redact_keys": ["HF_TOKEN", "OTEL_AUTH"]
+  },
+  "command_denylist": [
+    "rm -rf",
+    "rm -rf /",
+    "git push --force",
+    "git push -f",
+    "git push --force-with-lease",
+    "git checkout main",
+    "git reset --hard",
+    "cargo install --git",
+    "curl .* | sh",
+    "wget .* | sh",
+    "hf jobs run .* --hardware a100.*",
+    "hf jobs run .* --hardware h100.*",
+    "hf jobs run .*(?!.*--timeout)"
+  ],
+  "command_require_confirmation": [
+    "hf jobs run",
+    "hf upload",
+    "git push",
+    "cargo publish",
+    "cargo add",
+    "uv add"
+  ]
+}

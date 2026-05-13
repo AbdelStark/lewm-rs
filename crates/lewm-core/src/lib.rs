@@ -16,6 +16,7 @@ pub mod config;
 pub mod errors;
 pub mod init;
 pub mod losses;
+pub mod rng;
 pub mod tensor_ops;
 
 pub use crate::config::{
@@ -23,14 +24,16 @@ pub use crate::config::{
     VitSize,
 };
 pub use crate::errors::LewmCoreError;
-pub use crate::init::{
-    InitTensor, MODEL_INIT_STREAM, ModelInitRng, model_init_rng, ones, substream_rng,
-    substream_seed, trunc_normal, zeros,
-};
+pub use crate::init::{InitTensor, ModelInitRng, model_init_rng, ones, trunc_normal, zeros};
 pub use crate::losses::{
     CLS_COSINE_PAIR_CEILING, CLS_MEAN_ABS_CEILING, CLS_VAR_FLOOR, CollapseProbe,
     CollapseProbeResult, CollapseThresholds, CollapseTrip, run_collapse_probe,
     run_collapse_probe_with_thresholds,
+};
+pub use crate::rng::{
+    CEM_STREAM, DATA_SHUFFLE_STREAM, DROPOUT_STREAM, MISC_STREAM, MODEL_INIT_STREAM,
+    RFC_0013_STREAMS, RNG_STATE_BYTES, RngState, SIGREG_SKETCH_STREAM, deserialize_rng,
+    is_registered_substream, rng_state, serialize_rng, substream_rng, substream_seed,
 };
 pub use crate::tensor_ops::{
     BICUBIC_ALIGN_CORNERS, CausalMask, DeviceKey, PositionEmbedding, build_causal_mask, gelu_erf,

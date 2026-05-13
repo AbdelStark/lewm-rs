@@ -17,8 +17,13 @@ python-bridge = []
 slow-tests = []
 
 [dependencies]
+base64 = { workspace = true }
 lewm-core = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
 thiserror = { workspace = true }
+ureq = { workspace = true }
+walkdir = { workspace = true }
 
 [dev-dependencies]
 insta = { workspace = true }
