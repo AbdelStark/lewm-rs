@@ -1,0 +1,13 @@
+title = "lewm-rs gitleaks configuration"
+
+[extend]
+useDefault = true
+
+# Project allowlists belong here. Keep entries narrow and explain why the
+# finding is safe; broad path or regex allowlists weaken TST-0016-SECRETS-001.
+#
+# Example:
+# [[allowlists]]
+# description = "documented non-secret placeholder"
+# paths = ['''^docs/example\.md$''']
+# regexes = ['''EXAMPLE_NON_SECRET_[A-Z0-9_]+''']
