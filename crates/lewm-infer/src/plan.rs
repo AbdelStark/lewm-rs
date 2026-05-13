@@ -3,7 +3,7 @@
 use std::fmt;
 
 use lewm_core::LewmCoreError;
-use lewm_core::init::substream_rng;
+use lewm_core::rng::substream_rng;
 use rand_chacha::ChaCha20Rng;
 use rand_distr::{Distribution, Normal};
 
@@ -438,7 +438,7 @@ fn invalid_input(reason: &str) -> PlanError {
 
 #[cfg(test)]
 mod tests {
-    use lewm_core::init::substream_rng;
+    use lewm_core::rng::substream_rng;
 
     use super::*;
     use crate::runner::{RunnerFormat, RunnerMetadata};
