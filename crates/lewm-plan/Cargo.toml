@@ -31,6 +31,9 @@ base64 = { workspace = true }
 chrono = { workspace = true }
 clap = { workspace = true }
 parquet = { workspace = true }
+rand = { workspace = true }
+rand_chacha = { workspace = true }
+rand_distr = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

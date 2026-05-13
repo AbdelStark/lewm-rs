@@ -70,7 +70,7 @@ enum Command {
 #[derive(Debug, Args)]
 struct PushtArgs {
     /// `PushT` eval config path.
-    #[arg(long, default_value = "configs/pusht.toml")]
+    #[arg(long, default_value = "configs/pusht_eval.toml")]
     config: PathBuf,
 
     /// Use the in-process deterministic simulator mock.

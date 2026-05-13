@@ -216,6 +216,34 @@ pub trait PushtPlanner {
     fn plan(&mut self, request: PushtPlanRequest<'_>) -> Result<PushtPlan, EvalError>;
 }
 
+/// Clock boundary used to keep eval-loop timing injectable.
+pub trait EvalClock {
+    /// Opaque timestamp type used by this clock.
+    type Tick: Copy;
+
+    /// Capture a timestamp at the start of an operation.
+    fn now(&self) -> Self::Tick;
+
+    /// Convert elapsed time since `start` to seconds.
+    fn elapsed_s(&self, start: Self::Tick) -> f32;
+}
+
+/// Wall-clock implementation used by production CLI runs.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct WallClock;
+
+impl EvalClock for WallClock {
+    type Tick = Instant;
+
+    fn now(&self) -> Self::Tick {
+        Instant::now() // determinism-lint: allow Instant::now injectable eval wall clock
+    }
+
+    fn elapsed_s(&self, start: Self::Tick) -> f32 {
+        start.elapsed().as_secs_f32()
+    }
+}
+
 /// `PushT` simulator observation returned by reset and step calls.
 #[derive(Debug, Clone, PartialEq)]
 pub struct PushtObservation {
@@ -289,15 +317,16 @@ pub trait PushtRpc {
 
 /// `PushT` evaluation driver.
 #[derive(Debug)]
-pub struct PushtEvaluator<P, R> {
+pub struct PushtEvaluator<P, R, C = WallClock> {
     planner: P,
     image_preproc: ImagePreprocessor,
     action_norm: ActionNormalizer,
     rpc: R,
     config: PushtEvalConfig,
+    clock: C,
 }
 
-impl<P, R> PushtEvaluator<P, R>
+impl<P, R> PushtEvaluator<P, R, WallClock>
 where
     P: PushtPlanner,
     R: PushtRpc,
@@ -314,6 +343,29 @@ where
         rpc: R,
         config: PushtEvalConfig,
     ) -> Result<Self, EvalError> {
+        Self::new_with_clock(planner, image_preproc, action_norm, rpc, config, WallClock)
+    }
+}
+
+impl<P, R, C> PushtEvaluator<P, R, C>
+where
+    P: PushtPlanner,
+    R: PushtRpc,
+    C: EvalClock,
+{
+    /// Build a `PushT` evaluator with an explicit clock.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the eval config or action normalizer is invalid.
+    pub fn new_with_clock(
+        planner: P,
+        image_preproc: ImagePreprocessor,
+        action_norm: ActionNormalizer,
+        rpc: R,
+        config: PushtEvalConfig,
+        clock: C,
+    ) -> Result<Self, EvalError> {
         config.validate()?;
         if action_norm.action_dim() != config.action_dim() {
             return Err(EvalError::InvalidConfig(format!(
@@ -328,6 +380,7 @@ where
             action_norm,
             rpc,
             config,
+            clock,
         })
     }
 
@@ -338,7 +391,7 @@ where
     /// Returns an error when simulator reset/step, image preprocessing, planner
     /// inference, or action inverse-normalization fails.
     pub fn run(&mut self) -> Result<PushtEvalReport, EvalError> {
-        let start = Instant::now();
+        let start = self.clock.now();
         let mut per_episode = Vec::with_capacity(self.config.episode_ids.len());
         let mut trajectories = Vec::new();
         let mut total_steps = 0_u32;
@@ -360,7 +413,7 @@ where
         Ok(PushtEvalReport {
             success_rate,
             per_episode,
-            wall_time_s: start.elapsed().as_secs_f32(),
+            wall_time_s: self.clock.elapsed_s(start),
             total_steps,
             seed: self.config.seed,
             max_steps_per_episode: self.config.max_steps_per_episode,
@@ -876,7 +929,7 @@ mod tests {
     #[test]
     fn pusht_config_pins_default_episode_set() -> Result<(), Box<dyn std::error::Error>> {
         let config_path =
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../configs/pusht.toml");
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../configs/pusht_eval.toml");
         let config = PushtConfigFile::from_toml_path(config_path)?;
 
         assert_eq!(config.eval.episode_ids.len(), 50);
