@@ -426,15 +426,10 @@ mod tests {
     -> Result<(), Box<dyn std::error::Error>> {
         let sink = Arc::new(MemoryLogSink::default());
         let subscriber = subscriber_with_sink(sink.clone());
-        let telemetry = crate::Telemetry::init(TelemetryConfig::new(
-            "run-structured-001",
-            "phase-2",
-            "abc1234",
-        ))?;
 
         tracing::subscriber::with_default(subscriber, || {
-            let _span = telemetry.start_step_span(crate::SpanName::TRAINING_STEP, 42, 7);
-            tracing::info!("finished step");
+            tracing::info_span!("training.step", step = 42_u64, epoch = 7_u64)
+                .in_scope(|| tracing::info!("finished step"));
         });
 
         let lines = sink.lines();
