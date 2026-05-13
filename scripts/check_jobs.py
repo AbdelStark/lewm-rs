@@ -53,6 +53,33 @@ JOB_SPECS = {
             "python python/upload_checkpoints.py",
         ],
     },
+    "smoke_so100.yaml": {
+        "hardware": "l4",
+        "timeout": "30m",
+        "requires_upload": False,
+        "command_tokens": [
+            "hf download AbdelStark/so100-pickplace-lewm-ready",
+            "--repo-type dataset",
+            "lewm-train smoke",
+            "--config configs/so100.toml",
+            "--data-dir /tmp/data/so100",
+            "--max-steps 200",
+        ],
+    },
+    "short_so100.yaml": {
+        "hardware": "a10g-large",
+        "timeout": "2h",
+        "requires_upload": False,
+        "command_tokens": [
+            "hf download AbdelStark/so100-pickplace-lewm-ready",
+            "--repo-type dataset",
+            "lewm-train train",
+            "--config configs/so100.toml",
+            "--data-dir /tmp/data/so100",
+            "--set training.epochs=1",
+            "--set experimental.subset_name=so100-short",
+        ],
+    },
 }
 
 
@@ -92,10 +119,11 @@ def main() -> int:
             if token not in command:
                 failures.append(f"{path}: command missing {token!r}")
 
-        upload_pos = command.rfind("python python/upload_checkpoints.py")
-        train_pos = max(command.rfind("lewm-train smoke"), command.rfind("lewm-train train"))
-        if upload_pos <= train_pos:
-            failures.append(f"{path}: upload_checkpoints.py must run after lewm-train")
+        if expected.get("requires_upload", True):
+            upload_pos = command.rfind("python python/upload_checkpoints.py")
+            train_pos = max(command.rfind("lewm-train smoke"), command.rfind("lewm-train train"))
+            if upload_pos <= train_pos:
+                failures.append(f"{path}: upload_checkpoints.py must run after lewm-train")
 
     validate_intern_config(failures)
 
