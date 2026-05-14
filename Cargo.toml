@@ -33,7 +33,7 @@ lewm-hub = { path = "crates/lewm-hub", version = "0.1.0" }
 burn = { version = "=0.20.1", default-features = false }
 burn-cuda = { version = "=0.20.1" }
 burn-ndarray = { version = "=0.20.1" }
-burn-autodiff = { version = "=0.20.1" }
+burn-autodiff = { version = "=0.20.1", default-features = false }
 burn-import = { version = "=0.20.1" }
 burn-train = { version = "=0.20.1", default-features = false }
 

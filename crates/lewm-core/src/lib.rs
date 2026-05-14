@@ -34,8 +34,9 @@ pub use crate::errors::LewmCoreError;
 pub use crate::init::{InitTensor, ModelInitRng, model_init_rng, ones, trunc_normal, zeros};
 pub use crate::losses::{
     CLS_COSINE_PAIR_CEILING, CLS_MEAN_ABS_CEILING, CLS_VAR_FLOOR, CollapseProbe,
-    CollapseProbeResult, CollapseThresholds, CollapseTrip, prediction_loss, run_collapse_probe,
-    run_collapse_probe_with_thresholds,
+    CollapseProbeResult, CollapseThresholds, CollapseTrip, DEFAULT_SIGREG_KNOTS,
+    DEFAULT_SIGREG_NUM_PROJ, DEFAULT_SIGREG_T_MAX, SigReg, SigRegConsts, prediction_loss,
+    run_collapse_probe, run_collapse_probe_with_thresholds, sample_sigreg_projection,
 };
 pub use crate::mlp::Mlp;
 pub use crate::predictor::{ArPredictor, ConditionalBlock};
