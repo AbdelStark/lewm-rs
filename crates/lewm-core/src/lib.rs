@@ -18,6 +18,7 @@ pub mod init;
 pub mod losses;
 pub mod rng;
 pub mod tensor_ops;
+pub mod vit;
 
 pub use crate::config::{
     EmbedderConfig, GeluVariant, JepaConfig, MlpConfig, NormVariant, PredictorConfig, VitConfig,
@@ -38,4 +39,7 @@ pub use crate::rng::{
 pub use crate::tensor_ops::{
     BICUBIC_ALIGN_CORNERS, CausalMask, DeviceKey, PositionEmbedding, build_causal_mask, gelu_erf,
     gelu_tanh_approx, interpolate_pos_embed,
+};
+pub use crate::vit::{
+    Attention, EncoderBlock, MlpBlock, PatchEmbed, ViTEmbeddings, ViTOutput, Vit,
 };
