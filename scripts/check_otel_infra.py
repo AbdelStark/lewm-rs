@@ -36,6 +36,7 @@ def validate_compose(failures: list[str]) -> None:
         "grafana/grafana:",
         "127.0.0.1:4317:4317",
         "127.0.0.1:4318:4318",
+        "127.0.0.1:8888:8888",
         "127.0.0.1:3000:3000",
     ):
         require(needle in text, f"docker-compose.yml missing {needle!r}", failures)
@@ -57,8 +58,26 @@ def validate_collector(failures: list[str]) -> None:
         "processors: [memory_limiter, resource, batch]",
         "exporters: [otlp/tempo, debug]",
         "exporters: [prometheus, debug]",
+        "telemetry:",
+        "readers:",
+        "host: 0.0.0.0",
+        "port: 8888",
     ):
         require(needle in text, f"collector.yaml missing {needle!r}", failures)
+
+
+def validate_prometheus(failures: list[str]) -> None:
+    text = read_required(STACK / "prometheus.yml", failures)
+    if not text:
+        return
+
+    for needle in (
+        "otel-collector-internal",
+        "otel-collector:8888",
+        "lewm-otel-metrics",
+        "otel-collector:9464",
+    ):
+        require(needle in text, f"prometheus.yml missing {needle!r}", failures)
 
 
 def validate_docs(failures: list[str]) -> None:
@@ -76,6 +95,32 @@ def validate_docs(failures: list[str]) -> None:
         "README.md must document the local OTLP endpoint",
         failures,
     )
+    require(
+        "python3 scripts/otel_smoke.py" in text,
+        "README.md must document the local OTLP smoke command",
+        failures,
+    )
+    require(
+        "No public Trackio dashboard URL is documented here yet" in text,
+        "README.md must avoid placeholder Trackio URLs",
+        failures,
+    )
+
+
+def validate_smoke_script(failures: list[str]) -> None:
+    text = read_required(ROOT / "scripts" / "otel_smoke.py", failures)
+    if not text:
+        return
+
+    for needle in (
+        "OTEL_EXPORTER_OTLP_ENDPOINT",
+        "cargo",
+        "otlp_endpoint_smoke",
+        "otelcol_receiver_accepted_spans",
+        "otelcol_exporter_sent_spans",
+        "127.0.0.1:8888/metrics",
+    ):
+        require(needle in text, f"otel_smoke.py missing {needle!r}", failures)
 
 
 def validate_dashboard(failures: list[str]) -> None:
@@ -100,7 +145,9 @@ def main() -> int:
     failures: list[str] = []
     validate_compose(failures)
     validate_collector(failures)
+    validate_prometheus(failures)
     validate_docs(failures)
+    validate_smoke_script(failures)
     validate_dashboard(failures)
 
     if failures:
