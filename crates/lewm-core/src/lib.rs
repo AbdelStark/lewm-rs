@@ -17,6 +17,7 @@ pub mod config;
 pub mod embedder;
 pub mod errors;
 pub mod init;
+pub mod jepa;
 pub mod losses;
 pub mod mlp;
 pub mod predictor;
@@ -32,6 +33,7 @@ pub use crate::config::{
 pub use crate::embedder::Embedder;
 pub use crate::errors::LewmCoreError;
 pub use crate::init::{InitTensor, ModelInitRng, model_init_rng, ones, trunc_normal, zeros};
+pub use crate::jepa::{Jepa, JepaLosses};
 pub use crate::losses::{
     CLS_COSINE_PAIR_CEILING, CLS_MEAN_ABS_CEILING, CLS_VAR_FLOOR, CollapseProbe,
     CollapseProbeResult, CollapseThresholds, CollapseTrip, DEFAULT_SIGREG_KNOTS,

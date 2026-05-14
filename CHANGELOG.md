@@ -64,6 +64,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   gradient/RNG coverage.
 - Burn tensor `lewm-core::losses::prediction_loss` with shape, value, and
   bidirectional-gradient coverage.
+- Burn-backed `lewm-core::Jepa` top-level wrapper with encode, predict,
+  rollout, criterion, and per-candidate cost contracts.
 
 ### Changed
 

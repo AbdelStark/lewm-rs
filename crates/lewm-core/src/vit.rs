@@ -369,10 +369,18 @@ impl<B: Backend> Vit<B> {
                 reason: errors.join("; "),
             })?;
         let mut rng = model_init_rng(seed)?;
-        let embeddings = ViTEmbeddings::init(&config, &mut rng, device)?;
+        Self::init_with_rng(config, &mut rng, device)
+    }
+
+    pub(crate) fn init_with_rng(
+        config: VitConfig,
+        rng: &mut ModelInitRng,
+        device: &B::Device,
+    ) -> Result<Self, LewmCoreError> {
+        let embeddings = ViTEmbeddings::init(&config, rng, device)?;
         let mut blocks = Vec::with_capacity(config.num_hidden_layers);
         for _ in 0..config.num_hidden_layers {
-            blocks.push(EncoderBlock::init(&config, &mut rng, device)?);
+            blocks.push(EncoderBlock::init(&config, rng, device)?);
         }
         let norm = layer_norm(&config, device);
 
