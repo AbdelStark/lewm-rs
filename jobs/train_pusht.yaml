@@ -23,5 +23,5 @@ command: |
     python python/upload_checkpoints.py \
       --src /tmp/out \
       --dst abdelstark/lewm-rs-pusht \
-      --path-prefix train/pusht-minimal-lewm-$(date -u +%Y%m%dT%H%M%SZ)
+      --path-prefix train/pusht-full-module-lewm-$(date -u +%Y%m%dT%H%M%SZ)
   "

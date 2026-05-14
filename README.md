@@ -50,10 +50,10 @@ Make targets mirror the local gates:
 
 | Result | Current state | Target |
 |--------|---------------|--------|
-| PushT planning success | Not measured yet; `pusht-minimal-lewm` short train is green | >= 87% |
+| PushT planning success | Not measured yet; `pusht-full-module-lewm` short train is green | >= 87% |
 | SO-100 pick-and-place extension | Prep/config/job scaffolds exist; hosted train/eval evidence pending | Warm-start ablation report |
 | CPU inference | Tract export/runner scaffolds exist; real-checkpoint benchmark pending | Sub-second Tract cost computation |
-| Hub publication | GHCR image and minimal PushT short-run artifacts are published | Model, dataset, and Space artifacts |
+| Hub publication | GHCR image and PushT short-run artifacts are published | Model, dataset, and Space artifacts |
 
 Final metrics will link to model cards and reports once the training and
 evaluation milestones land.
@@ -101,14 +101,15 @@ scripts/launch_hf_job.py jobs/smoke_pusht.yaml
 ## Short PushT train
 
 The bounded `train --max-steps` path is a real PushT data-plane train run for
-`pusht-minimal-lewm`: a deterministic 4D repo-native `LeWM` core with named
-encoder, action encoder, predictor, projector, and prediction-projection
-components, plus AdamW update, scheduler, gradient clipping, JSONL losses,
-checkpoint sidecar, `.mpk`, `.safetensors`, and parity JSON. It uses HDF5 PushT
-windows when a dataset path is provided, and otherwise writes an explicitly
-marked PushT-compatible fixture run for local plumbing checks. It is not the
-full Burn ViT stack and does not make PushT success-rate claims. Resume is
-intentionally rejected for this bounded mode.
+`pusht-full-module-lewm`: a deterministic config-shaped host `LeWM` path with
+encoder, projector, action encoder, predictor, and prediction-projection
+components at the locked PushT dimensions, plus AdamW update, scheduler,
+gradient clipping, JSONL losses, checkpoint sidecar, `.mpk`, `.safetensors`,
+and parity JSON. It uses HDF5 PushT windows when a dataset path is provided, and
+otherwise writes an explicitly marked PushT-compatible fixture run for local
+plumbing checks. It is not the final Burn ViT parity stack and does not make
+PushT success-rate claims. Resume is intentionally rejected for this bounded
+mode.
 
 The public `quentinll/lewm-pusht` HDF5 stores pixels with the Blosc HDF5 filter;
 set `HDF5_PLUGIN_PATH` from the Python `hdf5plugin` package before reading that

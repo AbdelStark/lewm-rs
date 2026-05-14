@@ -517,7 +517,7 @@ mod tests {
     }
 
     #[test]
-    fn cli_train_writes_uploadable_pusht_minimal_lewm_artifacts() -> TestResult {
+    fn cli_train_writes_uploadable_pusht_full_module_lewm_artifacts() -> TestResult {
         let dir = tempfile::tempdir()?;
         let config_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("../..")

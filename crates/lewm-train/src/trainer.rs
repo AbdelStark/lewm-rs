@@ -11,6 +11,10 @@ use crate::checkpoint::{
 };
 use crate::config::{DatasetConfig, DatasetSplit, RootConfig, TrainingConfig};
 use crate::optim::OptimConfig;
+use crate::pusht_full::{
+    PUSHT_FULL_LEWM_RUN_ID, PushtFullLewmCore, PushtFullLewmError, PushtFullLewmExample,
+    PushtFullLewmImageFeatures,
+};
 use crate::pusht_lewm::{
     PUSHT_ACTION_DIM, PUSHT_MINIMAL_LEWM_LATENT_DIM, PUSHT_MINIMAL_LEWM_PARAM_COUNT,
     PUSHT_MINIMAL_LEWM_PARAMETER_SPECS, PushtMinimalLewmCore, PushtMinimalLewmExample,
@@ -137,14 +141,14 @@ pub enum TrainerError {
         /// Requested training batch size.
         batch_size: usize,
     },
-    /// The train guard rejected a `PushT` tiny-JEPA step.
+    /// The train guard rejected a `PushT` train step.
     TrainGuardRejected {
         /// Rejected optimizer step.
         step: u64,
         /// Guard reason.
         reason: String,
     },
-    /// The bounded `PushT` model path does not yet restore checkpoints.
+    /// The bounded `PushT` train path does not yet restore checkpoints.
     TrainResumeUnsupported,
 }
 
@@ -218,7 +222,7 @@ impl fmt::Display for TrainerError {
                 write!(formatter, "train guard rejected step {step}: {reason}")
             },
             Self::TrainResumeUnsupported => formatter.write_str(
-                "lewm-train train --resume-if-present is not supported for pusht-minimal-lewm yet; start a fresh output directory",
+                "lewm-train train --resume-if-present is not supported for pusht-full-module-lewm yet; start a fresh output directory",
             ),
         }
     }
@@ -558,7 +562,7 @@ pub struct TrainRunReport {
     pub checkpoint_files: Vec<String>,
     /// Number of gradient-explosion events observed by the guard.
     pub grad_explosion_events: u64,
-    /// Explicitly scopes the bounded path while the full JEPA loop is pending.
+    /// Explicitly scopes the bounded training implementation.
     pub mode: String,
     /// Deterministic loss observations.
     pub losses: Vec<TrainLossPoint>,
@@ -1070,10 +1074,11 @@ fn f32_from_f64(value: f64) -> f32 {
 
 /// Write bounded `PushT` training artifacts for local/container/HF validation.
 ///
-/// This is a real data-plane train path for a minimal componentized `LeWM`
-/// core: it consumes `PushT` windows when the dataset exists and falls back to
+/// This is a real data-plane train path for the config-shaped host `LeWM` module
+/// stack: it consumes `PushT` windows when the dataset exists and falls back to
 /// an explicit `PushT`-compatible fixture when the default local path is absent.
-/// It does not claim to train the full Burn `ViT` stack.
+/// It keeps the full artifact contract while the Burn `ViT` parity path remains a
+/// separate implementation milestone.
 ///
 /// # Errors
 ///
@@ -1093,13 +1098,8 @@ pub fn write_train_artifacts(
     fs::create_dir_all(output_dir).map_err(|source| io_error(output_dir, source))?;
 
     let mut source = open_pusht_training_source(root, data_dir)?;
-    let outcome = run_pusht_minimal_lewm_training(
-        &mut source,
-        &root.training,
-        root.loss.lambda_sigreg,
-        max_steps,
-    )?;
-    let paths = write_pusht_minimal_lewm_checkpoint(output_dir, config_hash, seed, &outcome)?;
+    let outcome = run_pusht_full_lewm_training(&mut source, root, max_steps, seed)?;
+    let paths = write_pusht_full_lewm_checkpoint(output_dir, config_hash, seed, &outcome)?;
     let losses = outcome.losses.clone();
     let report = TrainRunReport {
         schema_version: "1.0.0".to_owned(),
@@ -1121,7 +1121,7 @@ pub fn write_train_artifacts(
         checkpoint_complete: paths.is_complete(),
         checkpoint_files: checkpoint_file_names(&paths),
         grad_explosion_events: outcome.grad_explosion_events,
-        mode: "pusht-minimal-lewm".to_owned(),
+        mode: "pusht-full-module-lewm".to_owned(),
         losses,
     };
 
@@ -1185,6 +1185,42 @@ impl PushtTrainingSource {
     }
 }
 
+#[derive(Clone, Debug, PartialEq)]
+struct PushtFullLewmAdamWState {
+    step: i32,
+    params: Vec<ScalarAdamWParamState>,
+}
+
+impl PushtFullLewmAdamWState {
+    fn new(param_count: usize) -> Self {
+        Self {
+            step: 0,
+            params: vec![ScalarAdamWParamState::default(); param_count],
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct PushtFullLewmOutcome {
+    losses: Vec<TrainLossPoint>,
+    model: PushtFullLewmCore,
+    optimizer: PushtFullLewmAdamWState,
+    step: u64,
+    batch_size: usize,
+    samples_seen: u64,
+    grad_explosion_events: u64,
+}
+
+#[derive(Clone, Debug, Serialize)]
+struct PushtFullLewmRecord {
+    schema_version: &'static str,
+    kind: &'static str,
+    step: u64,
+    params: Vec<f64>,
+    adamw_step: i32,
+    samples_seen: u64,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct PushtMinimalLewmAdamWState {
     step: i32,
@@ -1201,6 +1237,7 @@ impl Default for PushtMinimalLewmAdamWState {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+#[allow(dead_code)]
 struct PushtMinimalLewmOutcome {
     losses: Vec<TrainLossPoint>,
     model: PushtMinimalLewmCore,
@@ -1212,6 +1249,7 @@ struct PushtMinimalLewmOutcome {
 }
 
 #[derive(Clone, Debug, Serialize)]
+#[allow(dead_code)]
 struct PushtMinimalLewmRecord {
     schema_version: &'static str,
     kind: &'static str,
@@ -1261,6 +1299,123 @@ fn open_pusht_training_source(
     })
 }
 
+fn run_pusht_full_lewm_training(
+    source: &mut PushtTrainingSource,
+    root: &RootConfig,
+    max_steps: u64,
+    seed: u64,
+) -> Result<PushtFullLewmOutcome, TrainerError> {
+    if !root.loss.lambda_sigreg.is_finite() {
+        return Err(TrainerError::Data {
+            source: DataError::InvalidTransform(
+                "PushT full LeWM lambda_sigreg must be finite".to_owned(),
+            ),
+        });
+    }
+    let DatasetConfig::Pusht(dataset_config) = &root.dataset else {
+        return Err(TrainerError::UnsupportedTrainDataset {
+            kind: dataset_kind_name(&root.dataset).to_owned(),
+        });
+    };
+    let total_steps = train_steps_as_u32(max_steps)?;
+    let batch_size_u32 = train_batch_size_as_u32(root.training.batch_size)?;
+    let batch_size =
+        usize::try_from(batch_size_u32).map_err(|_| TrainerError::InvalidTrainBatchSize {
+            batch_size: root.training.batch_size,
+        })?;
+    let schedule = CosineWarmup::from_parts(
+        root.training.lr_peak,
+        root.training.lr_min,
+        root.training.warmup_steps,
+        total_steps.max(root.training.warmup_steps.saturating_add(1)),
+    );
+    let optim_config = OptimConfig::new()
+        .with_beta1(root.training.betas.0)
+        .with_beta2(root.training.betas.1)
+        .with_weight_decay(root.training.weight_decay);
+    let mut model = PushtFullLewmCore::new(&root.model, seed).map_err(full_lewm_error)?;
+    let mut optimizer = PushtFullLewmAdamWState::new(model.parameter_count());
+    let mut guard = NanGuard::new();
+    let mut losses = Vec::with_capacity(usize::try_from(total_steps).unwrap_or_default());
+    let mut samples_seen = 0_u64;
+    let mut grad_explosion_events = 0_u64;
+    let sigreg_weight = root.loss.lambda_sigreg.max(0.0);
+
+    for step in 1..=total_steps {
+        let mut total_loss = 0.0;
+        let mut pred_loss = 0.0;
+        let mut sigreg_proxy_loss = 0.0;
+        let mut sample_gradients = Vec::with_capacity(batch_size);
+        for sample_offset in 0..batch_size {
+            let dataset_index = training_sample_index(step, sample_offset, batch_size);
+            let sample = source.get(dataset_index)?;
+            let example = full_lewm_example_from_sample(&sample, dataset_config, &root.model)?;
+            let (sample_loss, gradients) = model
+                .loss_and_gradients(&example, sigreg_weight)
+                .map_err(full_lewm_error)?;
+            total_loss += scale_loss_for_accumulation(sample_loss.total, batch_size_u32)?;
+            pred_loss += scale_loss_for_accumulation(sample_loss.pred, batch_size_u32)?;
+            sigreg_proxy_loss +=
+                scale_loss_for_accumulation(sample_loss.sigreg_proxy, batch_size_u32)?;
+            sample_gradients.push(gradients);
+            samples_seen = samples_seen.saturating_add(1);
+        }
+
+        let mut gradients = accumulate_scaled_gradients(&sample_gradients, batch_size_u32)?;
+        let step_u64 = u64::from(step);
+        match guard.observe(step_u64, total_loss, &gradients) {
+            NanGuardDecision::Apply => {},
+            NanGuardDecision::Skip { artifact } | NanGuardDecision::Abort { artifact } => {
+                return Err(TrainerError::TrainGuardRejected {
+                    step: step_u64,
+                    reason: artifact.reason,
+                });
+            },
+        }
+
+        let clip = clip_global_norm(&mut gradients, root.training.grad_clip_norm)?;
+        if grad_explosion_artifact(step_u64, clip.grad_norm_pre).is_some() {
+            grad_explosion_events += 1;
+        }
+        let learning_rate = schedule.lr(step);
+        apply_pusht_full_lewm_adamw(
+            &mut model,
+            &gradients,
+            &mut optimizer,
+            learning_rate,
+            &optim_config,
+        );
+        losses.push(TrainLossPoint {
+            step: step_u64,
+            loss: total_loss,
+            pred_loss,
+            sigreg_proxy_loss,
+            grad_norm_pre: clip.grad_norm_pre,
+            grad_norm_post: clip.grad_norm_post,
+            learning_rate,
+            samples_seen,
+        });
+    }
+
+    Ok(PushtFullLewmOutcome {
+        losses,
+        model,
+        optimizer,
+        step: max_steps,
+        batch_size,
+        samples_seen,
+        grad_explosion_events,
+    })
+}
+
+#[allow(clippy::needless_pass_by_value)]
+fn full_lewm_error(source: PushtFullLewmError) -> TrainerError {
+    TrainerError::Data {
+        source: DataError::InvalidTransform(format!("PushT full LeWM error: {source}")),
+    }
+}
+
+#[allow(dead_code)]
 fn run_pusht_minimal_lewm_training(
     source: &mut PushtTrainingSource,
     config: &TrainingConfig,
@@ -1384,6 +1539,196 @@ fn training_sample_index(step: u32, sample_offset: usize, batch_size: usize) -> 
         .saturating_add(sample_offset)
 }
 
+fn full_lewm_example_from_sample(
+    sample: &PushtSample,
+    dataset: &crate::config::PushtDatasetConfig,
+    model: &lewm_core::JepaConfig,
+) -> Result<PushtFullLewmExample, TrainerError> {
+    validate_full_lewm_sample(sample, dataset)?;
+    if sample.frame_shape.0 <= model.history_size {
+        return Err(TrainerError::Data {
+            source: DataError::InvalidTransform(format!(
+                "PushT full LeWM requires at least history_size + 1 frames, found {} frames for history_size {}",
+                sample.frame_shape.0, model.history_size
+            )),
+        });
+    }
+
+    let source = (0..model.history_size)
+        .map(|frame_index| full_lewm_image_features(sample, frame_index))
+        .collect::<Result<Vec<_>, _>>()?;
+    let target_index = model.history_size;
+    let target = vec![full_lewm_image_features(sample, target_index)?];
+    let packed_actions = vec![full_lewm_packed_action(
+        sample,
+        target_index,
+        dataset.raw_action_dim,
+        dataset.frameskip,
+        model.action_encoder.input_dim,
+    )?];
+
+    Ok(PushtFullLewmExample {
+        source,
+        target,
+        packed_actions,
+    })
+}
+
+fn validate_full_lewm_sample(
+    sample: &PushtSample,
+    dataset: &crate::config::PushtDatasetConfig,
+) -> Result<(), TrainerError> {
+    let action_values = sample.actions.len();
+    let expected_action_values = sample
+        .action_shape
+        .0
+        .checked_mul(dataset.raw_action_dim)
+        .ok_or_else(|| TrainerError::Data {
+            source: DataError::InvalidTransform("PushT action shape overflow".to_owned()),
+        })?;
+    if sample.action_shape.1 != dataset.raw_action_dim || action_values != expected_action_values {
+        return Err(TrainerError::Data {
+            source: DataError::InvalidTransform(format!(
+                "PushT full LeWM expects raw action shape (T, {}), found {:?} with {action_values} values",
+                dataset.raw_action_dim, sample.action_shape
+            )),
+        });
+    }
+    if sample.frame_shape.3 != 3 {
+        return Err(TrainerError::Data {
+            source: DataError::InvalidTransform(format!(
+                "PushT full LeWM expects RGB frames, found {} channels",
+                sample.frame_shape.3
+            )),
+        });
+    }
+    Ok(())
+}
+
+fn full_lewm_image_features(
+    sample: &PushtSample,
+    frame_index: usize,
+) -> Result<PushtFullLewmImageFeatures, TrainerError> {
+    let frame_stride = sample
+        .frame_shape
+        .1
+        .checked_mul(sample.frame_shape.2)
+        .and_then(|value| value.checked_mul(sample.frame_shape.3))
+        .ok_or_else(|| TrainerError::Data {
+            source: DataError::InvalidTransform("PushT full LeWM frame shape overflow".to_owned()),
+        })?;
+    let start = frame_index
+        .checked_mul(frame_stride)
+        .ok_or_else(|| TrainerError::Data {
+            source: DataError::InvalidTransform("PushT full LeWM frame offset overflow".to_owned()),
+        })?;
+    let end = start
+        .checked_add(frame_stride)
+        .ok_or_else(|| TrainerError::Data {
+            source: DataError::InvalidTransform("PushT full LeWM frame range overflow".to_owned()),
+        })?;
+    let values = sample
+        .frames_t
+        .get(start..end)
+        .ok_or_else(|| TrainerError::Data {
+            source: DataError::InvalidTransform(format!(
+                "PushT full LeWM frame {frame_index} exceeds frame shape {:?}",
+                sample.frame_shape
+            )),
+        })?;
+    let mut sum = 0.0;
+    let mut energy = 0.0;
+    let mut channel_sum = [0.0; 3];
+    for pixel in values.chunks_exact(3) {
+        for channel in 0..3 {
+            let normalized = (f64::from(pixel[channel]) / 255.0 * 2.0) - 1.0;
+            sum += normalized;
+            energy += normalized * normalized;
+            channel_sum[channel] += normalized;
+        }
+    }
+
+    let total_values = usize_to_f64(values.len())?;
+    let pixels_per_channel = usize_to_f64(values.len() / 3)?;
+    let absolute_frame = u64::from(sample.meta.start_frame)
+        .saturating_add(u64::try_from(frame_index).unwrap_or(u64::MAX));
+    let absolute_frame_f64 = u32::try_from(absolute_frame).map_or(f64::from(u32::MAX), f64::from);
+    Ok(PushtFullLewmImageFeatures {
+        pixel_mean: sum / total_values,
+        pixel_energy: energy / total_values,
+        channel_mean: [
+            channel_sum[0] / pixels_per_channel,
+            channel_sum[1] / pixels_per_channel,
+            channel_sum[2] / pixels_per_channel,
+        ],
+        time_fraction: absolute_frame_f64 / 1_000.0,
+    })
+}
+
+fn full_lewm_packed_action(
+    sample: &PushtSample,
+    target_index: usize,
+    raw_action_dim: usize,
+    frameskip: usize,
+    packed_dim: usize,
+) -> Result<Vec<f64>, TrainerError> {
+    let expected_dim = raw_action_dim
+        .checked_mul(frameskip)
+        .ok_or_else(|| TrainerError::Data {
+            source: DataError::InvalidTransform("PushT action packing overflow".to_owned()),
+        })?;
+    if packed_dim != expected_dim {
+        return Err(TrainerError::Data {
+            source: DataError::InvalidTransform(format!(
+                "PushT full LeWM packed action dim must be raw_action_dim * frameskip = {expected_dim}, found {packed_dim}",
+            )),
+        });
+    }
+
+    let mut packed = Vec::with_capacity(packed_dim);
+    for skip in 0..frameskip {
+        let action_index = target_index
+            .saturating_add(skip)
+            .min(sample.action_shape.0 - 1);
+        let start = action_index
+            .checked_mul(raw_action_dim)
+            .ok_or_else(|| TrainerError::Data {
+                source: DataError::InvalidTransform(
+                    "PushT packed action offset overflow".to_owned(),
+                ),
+            })?;
+        let end = start
+            .checked_add(raw_action_dim)
+            .ok_or_else(|| TrainerError::Data {
+                source: DataError::InvalidTransform(
+                    "PushT packed action range overflow".to_owned(),
+                ),
+            })?;
+        let action = sample
+            .actions
+            .get(start..end)
+            .ok_or_else(|| TrainerError::Data {
+                source: DataError::InvalidTransform(format!(
+                    "PushT packed action range {start}..{end} exceeds action shape {:?}",
+                    sample.action_shape
+                )),
+            })?;
+        for value in action {
+            if !value.is_finite() {
+                return Err(TrainerError::Data {
+                    source: DataError::InvalidTransform(
+                        "PushT action value must be finite".to_owned(),
+                    ),
+                });
+            }
+            packed.push(f64::from(*value));
+        }
+    }
+
+    Ok(packed)
+}
+
+#[allow(dead_code)]
 fn minimal_lewm_example_from_sample(
     sample: &PushtSample,
     history_size: usize,
@@ -1422,6 +1767,7 @@ fn minimal_lewm_example_from_sample(
     })
 }
 
+#[allow(dead_code)]
 fn sample_temporal_features(
     sample: &PushtSample,
     start_frame: usize,
@@ -1482,6 +1828,7 @@ fn sample_temporal_features(
     })
 }
 
+#[allow(dead_code)]
 fn sample_action_mean(sample: &PushtSample) -> Result<[f64; PUSHT_ACTION_DIM], TrainerError> {
     let time = sample.action_shape.0;
     if time == 0 {
@@ -1506,6 +1853,7 @@ fn sample_action_mean(sample: &PushtSample) -> Result<[f64; PUSHT_ACTION_DIM], T
     Ok([sums[0] / denominator, sums[1] / denominator])
 }
 
+#[allow(dead_code)]
 fn apply_pusht_minimal_lewm_adamw(
     model: &mut PushtMinimalLewmCore,
     gradients: &[f64],
@@ -1534,6 +1882,146 @@ fn apply_pusht_minimal_lewm_adamw(
     }
 }
 
+fn apply_pusht_full_lewm_adamw(
+    model: &mut PushtFullLewmCore,
+    gradients: &[f64],
+    optimizer: &mut PushtFullLewmAdamWState,
+    learning_rate: f64,
+    config: &OptimConfig,
+) {
+    optimizer.step += 1;
+    for (param_index, gradient) in gradients
+        .iter()
+        .copied()
+        .enumerate()
+        .take(model.parameter_count())
+    {
+        let spec = model.parameter_spec_for_flat_index(param_index);
+        let updated = adamw_update_scalar(
+            model.parameter(param_index),
+            gradient,
+            &mut optimizer.params[param_index],
+            optimizer.step,
+            learning_rate,
+            config,
+            spec.apply_weight_decay,
+        );
+        model.set_parameter(param_index, updated);
+    }
+}
+
+fn write_pusht_full_lewm_checkpoint(
+    output_dir: &Path,
+    config_hash: &str,
+    seed: u64,
+    outcome: &PushtFullLewmOutcome,
+) -> Result<CheckpointPaths, TrainerError> {
+    let parameters = outcome
+        .model
+        .parameter_specs()
+        .iter()
+        .map(|spec| full_lewm_parameter_tensor(&outcome.model, spec))
+        .collect::<Result<Vec<_>, _>>()?;
+    let parity = ParityProbe {
+        encoder_cls_l_inf: outcome.losses.last().map_or(0.0, |point| point.pred_loss),
+        predictor_l_inf: last_train_loss(&outcome.losses),
+        sigreg_value: outcome
+            .losses
+            .last()
+            .map_or(0.0, |point| point.sigreg_proxy_loss),
+    };
+    let record = PushtFullLewmRecord {
+        schema_version: "1.0.0",
+        kind: "lewm-rs-pusht-full-module-lewm-record",
+        step: outcome.step,
+        params: outcome.model.flat_parameters().to_vec(),
+        adamw_step: outcome.optimizer.step,
+        samples_seen: outcome.samples_seen,
+    };
+    let burn_record = serde_json::to_vec(&record)?;
+    let request = CheckpointWriteRequest {
+        output_dir,
+        run_id: PUSHT_FULL_LEWM_RUN_ID,
+        step: outcome.step,
+        epoch: 0,
+        wall_time_s: 0.0,
+        git_short_sha: option_env!("LEWM_GIT_SHA").unwrap_or("unknown"),
+        config_hash,
+        rng_state: CheckpointRngState {
+            global_seed: seed,
+            step_at_save: outcome.step,
+            data_shuffle: "sequential-window-modulo-v1".to_owned(),
+            sigreg_sketch: "full-module-moment-proxy-v1".to_owned(),
+            dropout: "disabled-for-host-bounded-path".to_owned(),
+            cem: "disabled-for-train".to_owned(),
+            model_init: "pusht-full-module-deterministic-init-v1".to_owned(),
+        },
+        metrics_last_step: full_train_checkpoint_metrics(outcome),
+        burn_record: &burn_record,
+        parameters: &parameters,
+        parity: &parity,
+    };
+
+    save_checkpoint(&request).map_err(TrainerError::from)
+}
+
+fn full_lewm_parameter_tensor(
+    model: &PushtFullLewmCore,
+    spec: &crate::pusht_full::PushtFullLewmParameterSpec,
+) -> Result<ParameterTensor, TrainerError> {
+    let values = model
+        .parameter_values(spec)
+        .iter()
+        .copied()
+        .map(f32_from_f64)
+        .collect();
+    Ok(ParameterTensor::f32(
+        spec.name.clone(),
+        spec.shape.clone(),
+        values,
+    )?)
+}
+
+fn full_train_checkpoint_metrics(outcome: &PushtFullLewmOutcome) -> BTreeMap<String, f64> {
+    let mut metrics = BTreeMap::new();
+    metrics.insert("loss/train".to_owned(), last_train_loss(&outcome.losses));
+    metrics.insert(
+        "loss/prediction".to_owned(),
+        outcome.losses.last().map_or(0.0, |point| point.pred_loss),
+    );
+    metrics.insert(
+        "loss/sigreg_proxy".to_owned(),
+        outcome
+            .losses
+            .last()
+            .map_or(0.0, |point| point.sigreg_proxy_loss),
+    );
+    metrics.insert(
+        "optim/grad_norm_pre".to_owned(),
+        outcome
+            .losses
+            .last()
+            .map_or(0.0, |point| point.grad_norm_pre),
+    );
+    metrics.insert(
+        "optim/grad_norm_post".to_owned(),
+        outcome
+            .losses
+            .last()
+            .map_or(0.0, |point| point.grad_norm_post),
+    );
+    metrics.insert(
+        "train/samples_seen".to_owned(),
+        smoke_step_as_f64(outcome.samples_seen).unwrap_or(0.0),
+    );
+    metrics.insert(
+        "train/grad_explosion_events".to_owned(),
+        smoke_step_as_f64(outcome.grad_explosion_events).unwrap_or(0.0),
+    );
+    metrics
+}
+
+#[allow(dead_code)]
 fn write_pusht_minimal_lewm_checkpoint(
     output_dir: &Path,
     config_hash: &str,
@@ -1588,6 +2076,7 @@ fn write_pusht_minimal_lewm_checkpoint(
     save_checkpoint(&request).map_err(TrainerError::from)
 }
 
+#[allow(dead_code)]
 fn minimal_lewm_parameter_tensor(
     model: &PushtMinimalLewmCore,
     spec: crate::pusht_lewm::PushtMinimalLewmParameterSpec,
@@ -1601,6 +2090,7 @@ fn minimal_lewm_parameter_tensor(
     )?)
 }
 
+#[allow(dead_code)]
 fn train_checkpoint_metrics(outcome: &PushtMinimalLewmOutcome) -> BTreeMap<String, f64> {
     let mut metrics = BTreeMap::new();
     metrics.insert("loss/train".to_owned(), last_train_loss(&outcome.losses));
@@ -1868,7 +2358,7 @@ mod tests {
         let report = write_train_artifacts(dir.path(), &root, "abc123", None, 10, 7, "cpu")?;
 
         assert_eq!(report.kind, "lewm-rs-train-report");
-        assert_eq!(report.mode, "pusht-minimal-lewm");
+        assert_eq!(report.mode, "pusht-full-module-lewm");
         assert!(report.data_source.starts_with("pusht-compatible-fixture"));
         assert_eq!(report.steps_completed, 10);
         assert_eq!(report.checkpoint_step, 10);
@@ -1891,7 +2381,7 @@ mod tests {
         let loaded = crate::checkpoint::load_checkpoint(dir.path().join("step_0000010.json"))?;
         assert_eq!(loaded.sidecar.step, 10);
         assert_eq!(loaded.sidecar.rng_state.global_seed, 7);
-        assert_eq!(loaded.sidecar.run_id, "pusht-minimal-lewm-v1");
+        assert_eq!(loaded.sidecar.run_id, PUSHT_FULL_LEWM_RUN_ID);
         assert!(
             loaded
                 .sidecar

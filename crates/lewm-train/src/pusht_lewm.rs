@@ -4,6 +4,8 @@
 //! path named encoder, action-encoder, predictor, projector, and prediction
 //! projection components without claiming to be the full Burn `ViT` stack.
 
+#![allow(dead_code)]
+
 /// `PushT` action dimensionality.
 pub(crate) const PUSHT_ACTION_DIM: usize = 2;
 

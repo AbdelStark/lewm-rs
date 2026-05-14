@@ -16,9 +16,9 @@ pr: null
 
 RFC 0002 originally carried an unresolved question about whether the published
 PushT checkpoint used ViT-Small or ViT-Tiny. The repository now needs a locked
-target before replacing `pusht-minimal-lewm` with the full trainable model.
-Guessing this from the paper summary would risk implementing the wrong parameter
-shapes.
+target before replacing the minimal PushT train core with config-shaped module
+training. Guessing this from the paper summary would risk implementing the wrong
+parameter shapes.
 
 ## Decision
 
@@ -55,8 +55,8 @@ and projector/pred_proj MLPs with `input=192`, `hidden=2048`, `output=192`.
 
 ### Neutral or to revisit
 
-- The current `pusht-minimal-lewm` smoke mode remains intentionally separate and
-  keeps using its 4-D scalar training core.
+- The bounded `pusht-full-module-lewm` path uses these dimensions for local and
+  hosted short-run validation before the Burn parity stack lands.
 
 ## Implementation
 

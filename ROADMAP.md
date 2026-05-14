@@ -15,22 +15,22 @@ the next vertical slices needed to finish the project.
 | Specs and workspace | Implemented enough for current local gates | `CARGO_INCREMENTAL=0 make check` passed during this refresh |
 | GHCR training image | Published | `ghcr.io/abdelstark/lewm-rs:latest@sha256:831f685a733a801620bbfa3f7ea649a4795ed731934bcb230896d3a47428d3e9` |
 | HF Jobs short PushT run | Completed | `https://huggingface.co/jobs/abdelstark/6a05cf0ee48bea4538b9ccd6` |
-| HF artifact upload | Completed for minimal short run | `abdelstark/lewm-rs-pusht/train/pusht-minimal-lewm-short-20260514T133423Z/` |
-| PushT train command | Real bounded data-plane path exists | `lewm-train --config configs/pusht.toml --device cpu --output-dir /tmp/lewm-train-pusht --max-steps 10 train` |
+| HF artifact upload | Completed for earlier minimal short run | `abdelstark/lewm-rs-pusht/train/pusht-minimal-lewm-short-20260514T133423Z/` |
+| PushT train command | Bounded full-module host path exists | `lewm-train --config configs/pusht.toml --device cpu --output-dir /tmp/lewm-train-pusht --max-steps 10 train` |
 | PushT reference architecture | Locked | `tests/fixtures/reference_model.meta.json`; [#190](https://github.com/AbdelStark/lewm-rs/issues/190) |
-| Artifact contract | Implemented for smoke and minimal PushT train | run report, losses JSONL, checkpoint sidecar, `.mpk`, `.safetensors`, parity JSON |
+| Artifact contract | Implemented for smoke and bounded PushT train | run report, losses JSONL, checkpoint sidecar, `.mpk`, `.safetensors`, parity JSON |
 | Optional observability | Implemented as optional infra | `infra/otel/`; CI and smoke runs do not require OTLP |
 | SO-100 preparation | Partially implemented | decode/stats/config/job scaffolds exist; full hosted run evidence is pending |
 | Inference/export | Partially implemented | Tract runner/export scaffolds and tests exist; real trained-checkpoint benchmark and Space validation are pending |
 
 ## Non-Claims
 
-- `pusht-minimal-lewm` is not the final Burn ViT/action-encoder/predictor
-  LeWorldModel. It is a narrow real training path for validating data, training,
-  checkpoint, upload, and job mechanics.
+- `pusht-full-module-lewm` is a config-shaped host training path, not the final
+  Burn ViT parity stack. It is a narrow real training path for validating data,
+  module boundaries, training, checkpoint, upload, and job mechanics.
 - PushT planning success rate has not been measured for a trained Rust model.
 - SO-100 full training and evaluation have not been run to a publishable report.
-- Resume is intentionally rejected for the bounded `pusht-minimal-lewm` path.
+- Resume is intentionally rejected for the bounded `pusht-full-module-lewm` path.
   Robust resume remains required for full training.
 - Tract inference has not yet been benchmarked from a real trained checkpoint,
   and the demo Space is not release-validated.
@@ -41,8 +41,8 @@ the next vertical slices needed to finish the project.
 The project is complete when the acceptance criteria in `PRD.md` are satisfied
 with linked evidence:
 
-- Full module-backed LeWorldModel training in Rust, not only the minimal PushT
-  path.
+- Burn-backed LeWorldModel training in Rust with parity to the published PushT
+  checkpoint, beyond the bounded host full-module path.
 - Reference parity against the published PushT checkpoint, with fixtures small
   enough for CI.
 - Full PushT training, CEM planning evaluation, model card, report, and Hub
@@ -58,8 +58,9 @@ with linked evidence:
 | Priority | Issue | Work | Acceptance |
 |----------|-------|------|------------|
 | Done | [#190](https://github.com/AbdelStark/lewm-rs/issues/190) | Lock final LeWM architecture and parity source of truth | Final module dimensions and parity fixture contract are documented; RFC 0002 open question is resolved |
-| P0 | [#191](https://github.com/AbdelStark/lewm-rs/issues/191) | Replace minimal PushT core with full module-backed LeWM training | Short CPU train can run the full path and preserve the artifact contract |
+| Done | [#191](https://github.com/AbdelStark/lewm-rs/issues/191) | Replace minimal PushT core with bounded full-module LeWM training | Short CPU train can run `pusht-full-module-lewm` and preserve the artifact contract |
 | P0 | [#192](https://github.com/AbdelStark/lewm-rs/issues/192) | Implement robust checkpoint restore and resume | Full training can stop and resume with model, optimizer, scheduler, RNG, and step state restored |
+| P0 | [#26](https://github.com/AbdelStark/lewm-rs/issues/26)-[#33](https://github.com/AbdelStark/lewm-rs/issues/33) | Replace host full-module path with Burn-backed ViT/predictor/SIGReg parity stack | `lewm-core::Jepa` modules train with autodiff and pass reference parity fixtures |
 | P1 | [#193](https://github.com/AbdelStark/lewm-rs/issues/193) | Run full PushT training, planning eval, and publish artifacts | HF run, planning success report, model card, uploaded checkpoints, and cost ledger are linked |
 | P1 | [#194](https://github.com/AbdelStark/lewm-rs/issues/194) | Complete SO-100 short/full training and evaluation path | Prepared data, short/full runs, warm-start eval, report, and Hub artifacts are linked |
 | P1 | [#195](https://github.com/AbdelStark/lewm-rs/issues/195) | Finish Tract export, CPU benchmark, and demo Space validation | Export from a real trained checkpoint works; CPU benchmark and Space smoke are recorded |
@@ -72,7 +73,8 @@ with linked evidence:
   If the reference checkpoint cannot be used directly in CI, R0 must produce a
   small derived parity fixture.
 - Full PushT and SO-100 runs require HF quota and explicit cost control. The
-  long runs should not start until R1 and R2 are green locally.
+  long runs should not start until robust resume and Burn parity are green
+  locally.
 - The pasted HF token must be rotated before public release. The repo should
   continue using environment variables and must not commit live secrets.
 - SO-100 raw Parquet/MP4 decode remains a Python edge-prep path for v1; Rust
@@ -88,7 +90,7 @@ creating a second tracker.
 
 ## Next Logical Step
 
-Start [#191](https://github.com/AbdelStark/lewm-rs/issues/191): replace the
-minimal PushT core with the full module-backed LeWM training path. Hosted GPU
-time should still wait until the full path has a local CPU smoke and restore
-contract.
+Start [#192](https://github.com/AbdelStark/lewm-rs/issues/192): implement
+robust checkpoint restore and resume for the bounded full-module train path.
+Hosted GPU time should still wait until resume and the Burn parity stack are
+green locally.
