@@ -55,6 +55,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   smoothing and shape coverage.
 - Burn-backed `lewm-core::mlp` projector heads with feature-axis normalization
   and RFC 0002 shape coverage.
+- Burn-backed `lewm-core::ada_ln::AdaLNZero` with zero-initialized
+  modulation heads and RFC 0002 shape coverage.
 
 ### Changed
 
