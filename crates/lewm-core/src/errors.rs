@@ -53,6 +53,17 @@ pub enum LewmCoreError {
         reason: String,
     },
 
+    /// A predictor input sequence exceeded the learned positional embedding.
+    #[error(
+        "predictor sequence too long: got {got}, max {max}; slice to the configured num_frames"
+    )]
+    SequenceTooLong {
+        /// Sequence length received by the predictor.
+        got: usize,
+        /// Maximum sequence length supported by the predictor.
+        max: usize,
+    },
+
     /// A tensor helper received invalid dimensions or options.
     #[error("invalid tensor operation: {reason}; pass shape-compatible finite F32 tensors")]
     InvalidTensorOp {
