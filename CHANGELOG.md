@@ -70,6 +70,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   JEPA wrapper.
 - Python reference-checkpoint parameter-name map for the locked PushT source
   state dict and Burn record conversion preflight.
+- `python/convert_reference.py audit` for validating the downloaded PushT
+  reference checkpoint keys against the locked conversion map.
 
 ### Changed
 

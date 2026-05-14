@@ -18,7 +18,7 @@ the next vertical slices needed to finish the project.
 | HF artifact upload | Completed for earlier minimal short run | `abdelstark/lewm-rs-pusht/train/pusht-minimal-lewm-short-20260514T133423Z/` |
 | PushT train command | Bounded full-module host path exists | `lewm-train --config configs/pusht.toml --device cpu --output-dir /tmp/lewm-train-pusht --max-steps 10 train` |
 | PushT reference architecture | Locked | `tests/fixtures/reference_model.meta.json`; [#190](https://github.com/AbdelStark/lewm-rs/issues/190) |
-| PushT reference conversion preflight | Started | `python/param_name_map.py` locks the 303 source tensor names and Burn destination names before heavy checkpoint conversion |
+| PushT reference conversion preflight | Started | `python/param_name_map.py` locks the 303 source tensor names and Burn destination names; `python/convert_reference.py audit` validates a downloaded checkpoint before heavy conversion |
 | Core prediction loss | Implemented as MSRV-compatible kernel | `lewm_core::prediction_loss`; first slice of [#32](https://github.com/AbdelStark/lewm-rs/issues/32) |
 | Artifact contract | Implemented for smoke and bounded PushT train | run report, losses JSONL, checkpoint sidecar, `.mpk`, `.safetensors`, parity JSON |
 | Optional observability | Implemented as optional infra | `infra/otel/`; CI and smoke runs do not require OTLP |
@@ -95,11 +95,10 @@ creating a second tracker.
 
 ## Next Logical Step
 
-Continue [#38](https://github.com/AbdelStark/lewm-rs/issues/38): turn the
-locked parameter-name map into the actual reference conversion path. The next
-slice should download `quentinll/lewm-pusht`, validate the exact source key set,
-emit the Burn record plus artifact sidecars, generate small activation parity
-dumps, upload them to `abdelstark/lewm-rs-parity-dumps`, and then enable the
-Rust parity fixture tests for encoder, action encoder, predictor, projector,
+Continue [#38](https://github.com/AbdelStark/lewm-rs/issues/38): extend the
+reference conversion path beyond key auditing. The next slice should emit the
+Burn record plus artifact sidecars, generate small activation parity dumps,
+upload them to `abdelstark/lewm-rs-parity-dumps`, and then enable the Rust
+parity fixture tests for encoder, action encoder, predictor, projector,
 pred_proj, and SIGReg. Hosted GPU time should still wait until the Burn parity
 stack is green locally.
