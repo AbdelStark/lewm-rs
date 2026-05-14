@@ -27,11 +27,12 @@ the next vertical slices needed to finish the project.
 
 - `pusht-full-module-lewm` is a config-shaped host training path, not the final
   Burn ViT parity stack. It is a narrow real training path for validating data,
-  module boundaries, training, checkpoint, upload, and job mechanics.
+  module boundaries, training, checkpoint, resume, upload, and job mechanics.
 - PushT planning success rate has not been measured for a trained Rust model.
 - SO-100 full training and evaluation have not been run to a publishable report.
-- Resume is intentionally rejected for the bounded `pusht-full-module-lewm` path.
-  Robust resume remains required for full training.
+- Resume is implemented for the bounded `pusht-full-module-lewm` path, including
+  sidecar, `.mpk`, `.safetensors`, config hash, seed, step, AdamW, and RNG
+  validation before continuing from the next step.
 - Tract inference has not yet been benchmarked from a real trained checkpoint,
   and the demo Space is not release-validated.
 - Paper, blog, and release evidence are not complete.
@@ -59,7 +60,7 @@ with linked evidence:
 |----------|-------|------|------------|
 | Done | [#190](https://github.com/AbdelStark/lewm-rs/issues/190) | Lock final LeWM architecture and parity source of truth | Final module dimensions and parity fixture contract are documented; RFC 0002 open question is resolved |
 | Done | [#191](https://github.com/AbdelStark/lewm-rs/issues/191) | Replace minimal PushT core with bounded full-module LeWM training | Short CPU train can run `pusht-full-module-lewm` and preserve the artifact contract |
-| P0 | [#192](https://github.com/AbdelStark/lewm-rs/issues/192) | Implement robust checkpoint restore and resume | Full training can stop and resume with model, optimizer, scheduler, RNG, and step state restored |
+| Done | [#192](https://github.com/AbdelStark/lewm-rs/issues/192) | Implement robust checkpoint restore and resume | Bounded full-module training can resume with model, optimizer, scheduler target, RNG, config hash, seed, and step state validated |
 | P0 | [#26](https://github.com/AbdelStark/lewm-rs/issues/26)-[#33](https://github.com/AbdelStark/lewm-rs/issues/33) | Replace host full-module path with Burn-backed ViT/predictor/SIGReg parity stack | `lewm-core::Jepa` modules train with autodiff and pass reference parity fixtures |
 | P1 | [#193](https://github.com/AbdelStark/lewm-rs/issues/193) | Run full PushT training, planning eval, and publish artifacts | HF run, planning success report, model card, uploaded checkpoints, and cost ledger are linked |
 | P1 | [#194](https://github.com/AbdelStark/lewm-rs/issues/194) | Complete SO-100 short/full training and evaluation path | Prepared data, short/full runs, warm-start eval, report, and Hub artifacts are linked |
@@ -73,8 +74,7 @@ with linked evidence:
   If the reference checkpoint cannot be used directly in CI, R0 must produce a
   small derived parity fixture.
 - Full PushT and SO-100 runs require HF quota and explicit cost control. The
-  long runs should not start until robust resume and Burn parity are green
-  locally.
+  long runs should not start until the Burn parity stack is green locally.
 - The pasted HF token must be rotated before public release. The repo should
   continue using environment variables and must not commit live secrets.
 - SO-100 raw Parquet/MP4 decode remains a Python edge-prep path for v1; Rust
@@ -90,7 +90,7 @@ creating a second tracker.
 
 ## Next Logical Step
 
-Start [#192](https://github.com/AbdelStark/lewm-rs/issues/192): implement
-robust checkpoint restore and resume for the bounded full-module train path.
-Hosted GPU time should still wait until resume and the Burn parity stack are
+Start [#26](https://github.com/AbdelStark/lewm-rs/issues/26)-[#33](https://github.com/AbdelStark/lewm-rs/issues/33):
+replace the host full-module path with the Burn-backed ViT/predictor/SIGReg
+parity stack. Hosted GPU time should still wait until the Burn parity stack is
 green locally.

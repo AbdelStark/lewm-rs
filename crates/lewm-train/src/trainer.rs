@@ -6,8 +6,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::checkpoint::{
-    CheckpointError, CheckpointPaths, CheckpointRngState, CheckpointWriteRequest, ParameterTensor,
-    ParityProbe, save_checkpoint,
+    CHECKPOINT_SCHEMA_VERSION, CheckpointError, CheckpointPaths, CheckpointRngState,
+    CheckpointWriteRequest, ParameterTensor, ParityProbe, load_checkpoint, save_checkpoint,
 };
 use crate::config::{DatasetConfig, DatasetSplit, RootConfig, TrainingConfig};
 use crate::optim::OptimConfig;
@@ -20,15 +20,24 @@ use crate::pusht_lewm::{
     PUSHT_MINIMAL_LEWM_PARAMETER_SPECS, PushtMinimalLewmCore, PushtMinimalLewmExample,
     PushtMinimalLewmFeatures, loss_and_gradients, parameter_spec_for_flat_index,
 };
+use crate::resume::{
+    RUN_ID_FILE, RestoredRngStreams, StartupMode, detect_resume, encode_rng, restore_rng_streams,
+};
 use crate::schedule::CosineWarmup;
 use crate::step::{
     DEFAULT_MAX_GRAD_NORM, NanGuard, NanGuardDecision, StepError, accumulate_scaled_gradients,
     clip_global_norm, grad_explosion_artifact, scale_loss_for_accumulation,
 };
+use lewm_core::{
+    CEM_STREAM, DATA_SHUFFLE_STREAM, DROPOUT_STREAM, MODEL_INIT_STREAM, SIGREG_SKETCH_STREAM,
+    substream_rng,
+};
 use lewm_data::{
     DataError, PushtConfig as DataPushtConfig, PushtDataset, Sample as PushtSample,
     SampleMeta as PushtSampleMeta, Split as DataSplit,
 };
+use rand::RngCore;
+use safetensors::tensor::{Dtype, SafeTensors};
 use serde::{Deserialize, Serialize};
 
 /// Number of steps included in the local smoke run.
@@ -65,6 +74,16 @@ pub enum TrainerError {
     Checkpoint {
         /// Original checkpoint error.
         source: CheckpointError,
+    },
+    /// Resume detection or RNG restoration failed.
+    Resume {
+        /// Original resume error.
+        source: crate::resume::ResumeError,
+    },
+    /// Core deterministic helper failed.
+    Core {
+        /// Original core error.
+        source: lewm_core::LewmCoreError,
     },
     /// Inner step primitive failed.
     Step {
@@ -148,8 +167,32 @@ pub enum TrainerError {
         /// Guard reason.
         reason: String,
     },
-    /// The bounded `PushT` train path does not yet restore checkpoints.
-    TrainResumeUnsupported,
+    /// A resume checkpoint does not match the current run contract.
+    ResumeCheckpointInvalid {
+        /// Actionable validation failure.
+        reason: String,
+    },
+    /// A resume checkpoint was written from a different config.
+    ResumeConfigHashMismatch {
+        /// Config hash stored in the checkpoint sidecar.
+        checkpoint: String,
+        /// Config hash for the current invocation.
+        current: String,
+    },
+    /// A resume checkpoint was written from a different seed.
+    ResumeSeedMismatch {
+        /// Seed stored in the checkpoint sidecar.
+        checkpoint: u64,
+        /// Seed for the current invocation.
+        current: u64,
+    },
+    /// A resume checkpoint is already beyond the requested target step.
+    ResumeStepBeyondTarget {
+        /// Checkpoint step.
+        checkpoint_step: u64,
+        /// Requested max steps.
+        max_steps: u64,
+    },
 }
 
 impl fmt::Display for TrainerError {
@@ -164,6 +207,8 @@ impl fmt::Display for TrainerError {
             },
             Self::Json { source } => write!(formatter, "trainer JSON error: {source}"),
             Self::Checkpoint { source } => write!(formatter, "trainer checkpoint error: {source}"),
+            Self::Resume { source } => write!(formatter, "trainer resume error: {source}"),
+            Self::Core { source } => write!(formatter, "trainer core error: {source}"),
             Self::Step { source } => write!(formatter, "trainer step error: {source}"),
             Self::Data { source } => write!(formatter, "trainer data error: {source}"),
             Self::InvalidTransition { from, to } => {
@@ -221,8 +266,29 @@ impl fmt::Display for TrainerError {
             Self::TrainGuardRejected { step, reason } => {
                 write!(formatter, "train guard rejected step {step}: {reason}")
             },
-            Self::TrainResumeUnsupported => formatter.write_str(
-                "lewm-train train --resume-if-present is not supported for pusht-full-module-lewm yet; start a fresh output directory",
+            Self::ResumeCheckpointInvalid { reason } => {
+                write!(formatter, "invalid PushT resume checkpoint: {reason}")
+            },
+            Self::ResumeConfigHashMismatch {
+                checkpoint,
+                current,
+            } => write!(
+                formatter,
+                "resume config hash mismatch: checkpoint has {checkpoint}, current config has {current}; use the original config or start a fresh output directory"
+            ),
+            Self::ResumeSeedMismatch {
+                checkpoint,
+                current,
+            } => write!(
+                formatter,
+                "resume seed mismatch: checkpoint has {checkpoint}, current run has {current}; use the original seed or start a fresh output directory"
+            ),
+            Self::ResumeStepBeyondTarget {
+                checkpoint_step,
+                max_steps,
+            } => write!(
+                formatter,
+                "resume checkpoint step {checkpoint_step} is beyond requested --max-steps {max_steps}; increase --max-steps or start a fresh output directory"
             ),
         }
     }
@@ -234,6 +300,8 @@ impl std::error::Error for TrainerError {
             Self::Io { source, .. } => Some(source),
             Self::Json { source } => Some(source),
             Self::Checkpoint { source } => Some(source),
+            Self::Resume { source } => Some(source),
+            Self::Core { source } => Some(source),
             Self::Step { source } => Some(source),
             Self::Data { source } => Some(source),
             Self::InvalidTransition { .. }
@@ -250,7 +318,10 @@ impl std::error::Error for TrainerError {
             | Self::InvalidTrainSteps { .. }
             | Self::InvalidTrainBatchSize { .. }
             | Self::TrainGuardRejected { .. }
-            | Self::TrainResumeUnsupported => None,
+            | Self::ResumeCheckpointInvalid { .. }
+            | Self::ResumeConfigHashMismatch { .. }
+            | Self::ResumeSeedMismatch { .. }
+            | Self::ResumeStepBeyondTarget { .. } => None,
         }
     }
 }
@@ -264,6 +335,18 @@ impl From<serde_json::Error> for TrainerError {
 impl From<CheckpointError> for TrainerError {
     fn from(source: CheckpointError) -> Self {
         Self::Checkpoint { source }
+    }
+}
+
+impl From<crate::resume::ResumeError> for TrainerError {
+    fn from(source: crate::resume::ResumeError) -> Self {
+        Self::Resume { source }
+    }
+}
+
+impl From<lewm_core::LewmCoreError> for TrainerError {
+    fn from(source: lewm_core::LewmCoreError) -> Self {
+        Self::Core { source }
     }
 }
 
@@ -568,6 +651,27 @@ pub struct TrainRunReport {
     pub losses: Vec<TrainLossPoint>,
 }
 
+/// Inputs for [`write_train_artifacts`].
+#[derive(Clone, Copy, Debug)]
+pub struct TrainArtifactRequest<'a> {
+    /// Output directory used for reports and checkpoints.
+    pub output_dir: &'a Path,
+    /// Loaded root config.
+    pub root: &'a RootConfig,
+    /// Twelve-hex canonical config hash.
+    pub config_hash: &'a str,
+    /// Optional caller-provided dataset directory.
+    pub data_dir: Option<&'a Path>,
+    /// Target optimizer step for this invocation.
+    pub max_steps: u64,
+    /// Run-global seed.
+    pub seed: u64,
+    /// Requested device string.
+    pub device: &'a str,
+    /// Resume from the latest complete checkpoint when `run_id.txt` exists.
+    pub resume_if_present: bool,
+}
+
 /// Return whether `from -> to` is an RFC 0005 success transition.
 pub const fn is_valid_success_transition(from: State, to: State) -> bool {
     matches!(
@@ -772,7 +876,7 @@ impl ScalarSmokeModel {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Serialize)]
 struct ScalarAdamWParamState {
     first_moment: f64,
     second_moment: f64,
@@ -1059,6 +1163,14 @@ fn checkpoint_file_names(paths: &CheckpointPaths) -> Vec<String> {
     .collect()
 }
 
+fn step_from_sidecar_file_name(file_name: &str) -> Option<u64> {
+    let step = file_name.strip_prefix("step_")?.strip_suffix(".json")?;
+    if step.len() != 7 || !step.bytes().all(|byte| byte.is_ascii_digit()) {
+        return None;
+    }
+    step.parse().ok()
+}
+
 fn first_loss(points: &[SmokeLossPoint]) -> f64 {
     points.first().map_or(0.0, |point| point.loss)
 }
@@ -1086,48 +1198,108 @@ fn f32_from_f64(value: f64) -> f32 {
 /// caller-provided data directory is missing, dataset reads fail, a train step
 /// guard rejects the update, or artifact/checkpoint writes fail.
 pub fn write_train_artifacts(
-    output_dir: impl AsRef<Path>,
-    root: &RootConfig,
-    config_hash: &str,
-    data_dir: Option<&Path>,
-    max_steps: u64,
-    seed: u64,
-    device: &str,
+    request: TrainArtifactRequest<'_>,
 ) -> Result<TrainRunReport, TrainerError> {
-    let output_dir = output_dir.as_ref();
+    let output_dir = request.output_dir;
     fs::create_dir_all(output_dir).map_err(|source| io_error(output_dir, source))?;
 
-    let mut source = open_pusht_training_source(root, data_dir)?;
-    let outcome = run_pusht_full_lewm_training(&mut source, root, max_steps, seed)?;
-    let paths = write_pusht_full_lewm_checkpoint(output_dir, config_hash, seed, &outcome)?;
-    let losses = outcome.losses.clone();
+    let mut source = open_pusht_training_source(request.root, request.data_dir)?;
+    let startup = detect_resume(
+        output_dir,
+        request.resume_if_present,
+        option_env!("LEWM_GIT_SHA").unwrap_or("unknown"),
+    )?;
+    let mut previous_losses = Vec::new();
+    let start = match startup {
+        StartupMode::Fresh => {
+            write_train_run_id(output_dir)?;
+            PushtFullLewmTrainingStart::fresh(request.root, request.seed)?
+        },
+        StartupMode::Resume(plan) => {
+            previous_losses = read_train_losses(output_dir)?;
+            restore_pusht_full_lewm_start(
+                &plan,
+                request.root,
+                request.config_hash,
+                request.max_steps,
+                request.seed,
+                &previous_losses,
+            )?
+        },
+    };
+
+    if u64::from(start.start_step) == request.max_steps {
+        let paths = CheckpointPaths::for_step(output_dir, request.max_steps);
+        return write_train_report(
+            output_dir,
+            request,
+            &source,
+            previous_losses,
+            &paths,
+            start.batch_size,
+            start.grad_explosion_events,
+        );
+    }
+
+    let outcome =
+        run_pusht_full_lewm_training(&mut source, request.root, request.max_steps, start)?;
+    let paths = write_pusht_full_lewm_checkpoint(
+        output_dir,
+        request.config_hash,
+        request.seed,
+        request.max_steps,
+        &outcome,
+    )?;
+    previous_losses.extend(outcome.losses.clone());
+    write_train_report(
+        output_dir,
+        request,
+        &source,
+        previous_losses,
+        &paths,
+        outcome.batch_size,
+        outcome.grad_explosion_events,
+    )
+}
+
+fn write_train_report(
+    output_dir: &Path,
+    request: TrainArtifactRequest<'_>,
+    source: &PushtTrainingSource,
+    losses: Vec<TrainLossPoint>,
+    paths: &CheckpointPaths,
+    batch_size: usize,
+    grad_explosion_events: u64,
+) -> Result<TrainRunReport, TrainerError> {
+    let checkpoint_step = paths
+        .sidecar
+        .file_name()
+        .and_then(|name| name.to_str())
+        .and_then(step_from_sidecar_file_name)
+        .unwrap_or(request.max_steps);
     let report = TrainRunReport {
         schema_version: "1.0.0".to_owned(),
         kind: "lewm-rs-train-report".to_owned(),
-        config_hash: config_hash.to_owned(),
+        config_hash: request.config_hash.to_owned(),
         output_dir: output_dir.display().to_string(),
-        data_dir: data_dir.map(|path| path.display().to_string()),
+        data_dir: request.data_dir.map(|path| path.display().to_string()),
         data_source: source.description(),
         dataset_windows: source.len(),
-        max_steps,
-        steps_completed: outcome.step,
-        batch_size: outcome.batch_size,
-        seed,
-        device: device.to_owned(),
+        max_steps: request.max_steps,
+        steps_completed: checkpoint_step,
+        batch_size,
+        seed: request.seed,
+        device: request.device.to_owned(),
         initial_loss: first_train_loss(&losses),
         final_loss: last_train_loss(&losses),
         loss_decreased: last_train_loss(&losses) < first_train_loss(&losses),
-        checkpoint_step: outcome.step,
+        checkpoint_step,
         checkpoint_complete: paths.is_complete(),
-        checkpoint_files: checkpoint_file_names(&paths),
-        grad_explosion_events: outcome.grad_explosion_events,
+        checkpoint_files: checkpoint_file_names(paths),
+        grad_explosion_events,
         mode: "pusht-full-module-lewm".to_owned(),
         losses,
     };
-
-    let report_path = output_dir.join("train_report.json");
-    fs::write(&report_path, serde_json::to_vec_pretty(&report)?)
-        .map_err(|source| io_error(&report_path, source))?;
 
     let losses_path = output_dir.join("train_losses.jsonl");
     let mut losses_jsonl = String::new();
@@ -1136,6 +1308,10 @@ pub fn write_train_artifacts(
         losses_jsonl.push('\n');
     }
     fs::write(&losses_path, losses_jsonl).map_err(|source| io_error(&losses_path, source))?;
+
+    let report_path = output_dir.join("train_report.json");
+    fs::write(&report_path, serde_json::to_vec_pretty(&report)?)
+        .map_err(|source| io_error(&report_path, source))?;
 
     Ok(report)
 }
@@ -1200,25 +1376,56 @@ impl PushtFullLewmAdamWState {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 struct PushtFullLewmOutcome {
     losses: Vec<TrainLossPoint>,
     model: PushtFullLewmCore,
     optimizer: PushtFullLewmAdamWState,
+    rng_streams: RestoredRngStreams,
     step: u64,
     batch_size: usize,
     samples_seen: u64,
     grad_explosion_events: u64,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 struct PushtFullLewmRecord {
-    schema_version: &'static str,
-    kind: &'static str,
+    schema_version: String,
+    kind: String,
     step: u64,
     params: Vec<f64>,
     adamw_step: i32,
+    #[serde(default)]
+    adamw_params: Vec<ScalarAdamWParamState>,
     samples_seen: u64,
+    #[serde(default)]
+    scheduler_total_steps: u64,
+}
+
+#[derive(Debug)]
+struct PushtFullLewmTrainingStart {
+    model: PushtFullLewmCore,
+    optimizer: PushtFullLewmAdamWState,
+    rng_streams: RestoredRngStreams,
+    start_step: u32,
+    batch_size: usize,
+    samples_seen: u64,
+    grad_explosion_events: u64,
+}
+
+impl PushtFullLewmTrainingStart {
+    fn fresh(root: &RootConfig, seed: u64) -> Result<Self, TrainerError> {
+        let model = PushtFullLewmCore::new(&root.model, seed).map_err(full_lewm_error)?;
+        Ok(Self {
+            optimizer: PushtFullLewmAdamWState::new(model.parameter_count()),
+            rng_streams: fresh_pusht_full_lewm_rng_streams(seed)?,
+            model,
+            start_step: 0,
+            batch_size: train_batch_size(root)?,
+            samples_seen: 0,
+            grad_explosion_events: 0,
+        })
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -1299,11 +1506,276 @@ fn open_pusht_training_source(
     })
 }
 
+fn write_train_run_id(output_dir: &Path) -> Result<(), TrainerError> {
+    let path = output_dir.join(RUN_ID_FILE);
+    fs::write(&path, format!("{PUSHT_FULL_LEWM_RUN_ID}\n"))
+        .map_err(|source| io_error(&path, source))
+}
+
+fn read_train_losses(output_dir: &Path) -> Result<Vec<TrainLossPoint>, TrainerError> {
+    let path = output_dir.join("train_losses.jsonl");
+    let raw = match fs::read_to_string(&path) {
+        Ok(raw) => raw,
+        Err(source) if source.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(source) => return Err(io_error(&path, source)),
+    };
+
+    raw.lines()
+        .filter(|line| !line.trim().is_empty())
+        .map(|line| serde_json::from_str(line).map_err(TrainerError::from))
+        .collect()
+}
+
+fn restore_pusht_full_lewm_start(
+    plan: &crate::resume::ResumePlan,
+    root: &RootConfig,
+    config_hash: &str,
+    max_steps: u64,
+    seed: u64,
+    previous_losses: &[TrainLossPoint],
+) -> Result<PushtFullLewmTrainingStart, TrainerError> {
+    if plan.run_id != PUSHT_FULL_LEWM_RUN_ID {
+        return Err(TrainerError::ResumeCheckpointInvalid {
+            reason: format!(
+                "expected run_id {PUSHT_FULL_LEWM_RUN_ID:?}, found {:?}",
+                plan.run_id
+            ),
+        });
+    }
+    if plan.step > max_steps {
+        return Err(TrainerError::ResumeStepBeyondTarget {
+            checkpoint_step: plan.step,
+            max_steps,
+        });
+    }
+
+    let loaded = load_checkpoint(&plan.sidecar_path)?;
+    let sidecar = &loaded.sidecar;
+    if sidecar.schema_version != CHECKPOINT_SCHEMA_VERSION {
+        return Err(TrainerError::ResumeCheckpointInvalid {
+            reason: format!(
+                "unsupported sidecar schema_version {:?}, expected {CHECKPOINT_SCHEMA_VERSION:?}",
+                sidecar.schema_version
+            ),
+        });
+    }
+    if sidecar.config_hash != config_hash {
+        return Err(TrainerError::ResumeConfigHashMismatch {
+            checkpoint: sidecar.config_hash.clone(),
+            current: config_hash.to_owned(),
+        });
+    }
+    if sidecar.rng_state.global_seed != seed {
+        return Err(TrainerError::ResumeSeedMismatch {
+            checkpoint: sidecar.rng_state.global_seed,
+            current: seed,
+        });
+    }
+    if sidecar.rng_state.step_at_save != sidecar.step {
+        return Err(TrainerError::ResumeCheckpointInvalid {
+            reason: format!(
+                "rng_state.step_at_save {} does not match sidecar step {}",
+                sidecar.rng_state.step_at_save, sidecar.step
+            ),
+        });
+    }
+    if let Some(last_loss) = previous_losses.last() {
+        if last_loss.step != sidecar.step {
+            return Err(TrainerError::ResumeCheckpointInvalid {
+                reason: format!(
+                    "train_losses.jsonl ends at step {}, but latest checkpoint is step {}",
+                    last_loss.step, sidecar.step
+                ),
+            });
+        }
+    }
+
+    let record: PushtFullLewmRecord = serde_json::from_slice(&loaded.burn_record)?;
+    validate_pusht_full_lewm_record(&record, root, sidecar.step, max_steps)?;
+    let mut model = PushtFullLewmCore::new(&root.model, seed).map_err(full_lewm_error)?;
+    restore_pusht_full_lewm_model_params(&mut model, &record.params)?;
+    validate_full_lewm_safetensors(&model, &loaded.safetensors_bytes)?;
+    let rng_streams = restore_rng_streams(&plan.rng_state)?;
+
+    Ok(PushtFullLewmTrainingStart {
+        model,
+        optimizer: PushtFullLewmAdamWState {
+            step: record.adamw_step,
+            params: record.adamw_params,
+        },
+        rng_streams,
+        start_step: train_steps_as_u32(sidecar.step)?,
+        batch_size: train_batch_size(root)?,
+        samples_seen: record.samples_seen,
+        grad_explosion_events: metric_u64(
+            sidecar.metrics_last_step.get("train/grad_explosion_events"),
+        )
+        .unwrap_or(0),
+    })
+}
+
+fn validate_pusht_full_lewm_record(
+    record: &PushtFullLewmRecord,
+    root: &RootConfig,
+    sidecar_step: u64,
+    max_steps: u64,
+) -> Result<(), TrainerError> {
+    if record.kind != "lewm-rs-pusht-full-module-lewm-record" {
+        return Err(TrainerError::ResumeCheckpointInvalid {
+            reason: format!("unexpected record kind {:?}", record.kind),
+        });
+    }
+    if record.schema_version != "1.1.0" {
+        return Err(TrainerError::ResumeCheckpointInvalid {
+            reason: format!(
+                "record schema_version {:?} is not resumable; expected \"1.1.0\" with AdamW state",
+                record.schema_version
+            ),
+        });
+    }
+    if record.step != sidecar_step {
+        return Err(TrainerError::ResumeCheckpointInvalid {
+            reason: format!(
+                "record step {} does not match sidecar step {sidecar_step}",
+                record.step
+            ),
+        });
+    }
+    if record.scheduler_total_steps > max_steps {
+        return Err(TrainerError::ResumeCheckpointInvalid {
+            reason: format!(
+                "record scheduler_total_steps {} is greater than requested --max-steps {max_steps}",
+                record.scheduler_total_steps
+            ),
+        });
+    }
+    let expected_adamw_step =
+        i32::try_from(record.step).map_err(|_| TrainerError::ResumeCheckpointInvalid {
+            reason: format!("record step {} exceeds AdamW step range", record.step),
+        })?;
+    if record.adamw_step != expected_adamw_step {
+        return Err(TrainerError::ResumeCheckpointInvalid {
+            reason: format!(
+                "record adamw_step {} does not match optimizer step {}",
+                record.adamw_step, record.step
+            ),
+        });
+    }
+    let model = PushtFullLewmCore::new(&root.model, root.training.seed).map_err(full_lewm_error)?;
+    if record.params.len() != model.parameter_count() {
+        return Err(TrainerError::ResumeCheckpointInvalid {
+            reason: format!(
+                "record has {} model parameters, expected {}",
+                record.params.len(),
+                model.parameter_count()
+            ),
+        });
+    }
+    if record.adamw_params.len() != model.parameter_count() {
+        return Err(TrainerError::ResumeCheckpointInvalid {
+            reason: format!(
+                "record has {} AdamW parameter states, expected {}",
+                record.adamw_params.len(),
+                model.parameter_count()
+            ),
+        });
+    }
+    if record.params.iter().any(|value| !value.is_finite()) {
+        return Err(TrainerError::ResumeCheckpointInvalid {
+            reason: "record contains non-finite model parameters".to_owned(),
+        });
+    }
+    if record
+        .adamw_params
+        .iter()
+        .any(|state| !state.first_moment.is_finite() || !state.second_moment.is_finite())
+    {
+        return Err(TrainerError::ResumeCheckpointInvalid {
+            reason: "record contains non-finite AdamW moments".to_owned(),
+        });
+    }
+    Ok(())
+}
+
+fn restore_pusht_full_lewm_model_params(
+    model: &mut PushtFullLewmCore,
+    params: &[f64],
+) -> Result<(), TrainerError> {
+    if params.len() != model.parameter_count() {
+        return Err(TrainerError::ResumeCheckpointInvalid {
+            reason: format!(
+                "cannot restore {} parameters into model with {} parameters",
+                params.len(),
+                model.parameter_count()
+            ),
+        });
+    }
+    for (index, value) in params.iter().copied().enumerate() {
+        model.set_parameter(index, value);
+    }
+    Ok(())
+}
+
+fn validate_full_lewm_safetensors(
+    model: &PushtFullLewmCore,
+    bytes: &[u8],
+) -> Result<(), TrainerError> {
+    let tensors = SafeTensors::deserialize(bytes).map_err(CheckpointError::from)?;
+    for spec in model.parameter_specs() {
+        let tensor = tensors.tensor(&spec.name).map_err(CheckpointError::from)?;
+        if tensor.dtype() != Dtype::F32 || tensor.shape() != spec.shape.as_slice() {
+            return Err(TrainerError::ResumeCheckpointInvalid {
+                reason: format!(
+                    "safetensors mirror for {} has dtype {:?} shape {:?}, expected F32 {:?}",
+                    spec.name,
+                    tensor.dtype(),
+                    tensor.shape(),
+                    spec.shape
+                ),
+            });
+        }
+        let mirror_values = f32_values(tensor.data());
+        let expected_values = model
+            .parameter_values(spec)
+            .iter()
+            .copied()
+            .map(f32_from_f64)
+            .collect::<Vec<_>>();
+        if mirror_values != expected_values {
+            return Err(TrainerError::ResumeCheckpointInvalid {
+                reason: format!(
+                    "safetensors mirror for {} does not match the model record",
+                    spec.name
+                ),
+            });
+        }
+    }
+    Ok(())
+}
+
+fn fresh_pusht_full_lewm_rng_streams(seed: u64) -> Result<RestoredRngStreams, TrainerError> {
+    Ok(RestoredRngStreams {
+        data_shuffle: substream_rng(seed, DATA_SHUFFLE_STREAM)?,
+        sigreg_sketch: substream_rng(seed, SIGREG_SKETCH_STREAM)?,
+        dropout: substream_rng(seed, DROPOUT_STREAM)?,
+        cem: substream_rng(seed, CEM_STREAM)?,
+        model_init: substream_rng(seed, MODEL_INIT_STREAM)?,
+    })
+}
+
+fn train_batch_size(root: &RootConfig) -> Result<usize, TrainerError> {
+    let batch_size_u32 = train_batch_size_as_u32(root.training.batch_size)?;
+    usize::try_from(batch_size_u32).map_err(|_| TrainerError::InvalidTrainBatchSize {
+        batch_size: root.training.batch_size,
+    })
+}
+
+#[allow(clippy::too_many_lines)]
 fn run_pusht_full_lewm_training(
     source: &mut PushtTrainingSource,
     root: &RootConfig,
     max_steps: u64,
-    seed: u64,
+    start: PushtFullLewmTrainingStart,
 ) -> Result<PushtFullLewmOutcome, TrainerError> {
     if !root.loss.lambda_sigreg.is_finite() {
         return Err(TrainerError::Data {
@@ -1318,11 +1790,17 @@ fn run_pusht_full_lewm_training(
         });
     };
     let total_steps = train_steps_as_u32(max_steps)?;
-    let batch_size_u32 = train_batch_size_as_u32(root.training.batch_size)?;
-    let batch_size =
-        usize::try_from(batch_size_u32).map_err(|_| TrainerError::InvalidTrainBatchSize {
-            batch_size: root.training.batch_size,
+    if start.start_step > total_steps {
+        return Err(TrainerError::ResumeStepBeyondTarget {
+            checkpoint_step: u64::from(start.start_step),
+            max_steps,
+        });
+    }
+    let batch_size_u32 =
+        u32::try_from(start.batch_size).map_err(|_| TrainerError::InvalidTrainBatchSize {
+            batch_size: start.batch_size,
         })?;
+    let batch_size = start.batch_size;
     let schedule = CosineWarmup::from_parts(
         root.training.lr_peak,
         root.training.lr_min,
@@ -1333,21 +1811,28 @@ fn run_pusht_full_lewm_training(
         .with_beta1(root.training.betas.0)
         .with_beta2(root.training.betas.1)
         .with_weight_decay(root.training.weight_decay);
-    let mut model = PushtFullLewmCore::new(&root.model, seed).map_err(full_lewm_error)?;
-    let mut optimizer = PushtFullLewmAdamWState::new(model.parameter_count());
+    let mut model = start.model;
+    let mut optimizer = start.optimizer;
+    let mut rng_streams = start.rng_streams;
     let mut guard = NanGuard::new();
     let mut losses = Vec::with_capacity(usize::try_from(total_steps).unwrap_or_default());
-    let mut samples_seen = 0_u64;
-    let mut grad_explosion_events = 0_u64;
+    let mut samples_seen = start.samples_seen;
+    let mut grad_explosion_events = start.grad_explosion_events;
     let sigreg_weight = root.loss.lambda_sigreg.max(0.0);
 
-    for step in 1..=total_steps {
+    for step in (start.start_step.saturating_add(1))..=total_steps {
         let mut total_loss = 0.0;
         let mut pred_loss = 0.0;
         let mut sigreg_proxy_loss = 0.0;
         let mut sample_gradients = Vec::with_capacity(batch_size);
         for sample_offset in 0..batch_size {
-            let dataset_index = training_sample_index(step, sample_offset, batch_size);
+            let dataset_index = training_sample_index(
+                step,
+                sample_offset,
+                batch_size,
+                source.len(),
+                &mut rng_streams,
+            )?;
             let sample = source.get(dataset_index)?;
             let example = full_lewm_example_from_sample(&sample, dataset_config, &root.model)?;
             let (sample_loss, gradients) = model
@@ -1360,6 +1845,7 @@ fn run_pusht_full_lewm_training(
             sample_gradients.push(gradients);
             samples_seen = samples_seen.saturating_add(1);
         }
+        let _sigreg_rng_audit_word = rng_streams.sigreg_sketch.next_u64();
 
         let mut gradients = accumulate_scaled_gradients(&sample_gradients, batch_size_u32)?;
         let step_u64 = u64::from(step);
@@ -1401,6 +1887,7 @@ fn run_pusht_full_lewm_training(
         losses,
         model,
         optimizer,
+        rng_streams,
         step: max_steps,
         batch_size,
         samples_seen,
@@ -1459,7 +1946,7 @@ fn run_pusht_minimal_lewm_training(
         let mut sigreg_proxy_loss = 0.0;
         let mut sample_gradients = Vec::with_capacity(batch_size);
         for sample_offset in 0..batch_size {
-            let dataset_index = training_sample_index(step, sample_offset, batch_size);
+            let dataset_index = sequential_training_sample_index(step, sample_offset, batch_size);
             let sample = source.get(dataset_index)?;
             let example = minimal_lewm_example_from_sample(&sample, config.history_size)?;
             let (sample_loss, gradients) = loss_and_gradients(&model, example, sigreg_weight);
@@ -1532,7 +2019,27 @@ fn train_batch_size_as_u32(batch_size: usize) -> Result<u32, TrainerError> {
     u32::try_from(batch_size).map_err(|_| TrainerError::InvalidTrainBatchSize { batch_size })
 }
 
-fn training_sample_index(step: u32, sample_offset: usize, batch_size: usize) -> usize {
+fn training_sample_index(
+    step: u32,
+    sample_offset: usize,
+    batch_size: usize,
+    dataset_len: usize,
+    rng_streams: &mut RestoredRngStreams,
+) -> Result<usize, TrainerError> {
+    if dataset_len == 0 {
+        return Err(TrainerError::Data {
+            source: DataError::EmptyDataset("PushT training source has no samples".to_owned()),
+        });
+    }
+    let step_index = usize::try_from(step.saturating_sub(1)).unwrap_or_default();
+    let sequential_index = step_index
+        .saturating_mul(batch_size)
+        .saturating_add(sample_offset);
+    let shuffle_offset = usize::try_from(rng_streams.data_shuffle.next_u64()).unwrap_or_default();
+    Ok(sequential_index.wrapping_add(shuffle_offset) % dataset_len)
+}
+
+fn sequential_training_sample_index(step: u32, sample_offset: usize, batch_size: usize) -> usize {
     let step_index = usize::try_from(step.saturating_sub(1)).unwrap_or_default();
     step_index
         .saturating_mul(batch_size)
@@ -1914,6 +2421,7 @@ fn write_pusht_full_lewm_checkpoint(
     output_dir: &Path,
     config_hash: &str,
     seed: u64,
+    scheduler_total_steps: u64,
     outcome: &PushtFullLewmOutcome,
 ) -> Result<CheckpointPaths, TrainerError> {
     let parameters = outcome
@@ -1931,12 +2439,14 @@ fn write_pusht_full_lewm_checkpoint(
             .map_or(0.0, |point| point.sigreg_proxy_loss),
     };
     let record = PushtFullLewmRecord {
-        schema_version: "1.0.0",
-        kind: "lewm-rs-pusht-full-module-lewm-record",
+        schema_version: "1.1.0".to_owned(),
+        kind: "lewm-rs-pusht-full-module-lewm-record".to_owned(),
         step: outcome.step,
         params: outcome.model.flat_parameters().to_vec(),
         adamw_step: outcome.optimizer.step,
+        adamw_params: outcome.optimizer.params.clone(),
         samples_seen: outcome.samples_seen,
+        scheduler_total_steps,
     };
     let burn_record = serde_json::to_vec(&record)?;
     let request = CheckpointWriteRequest {
@@ -1947,15 +2457,7 @@ fn write_pusht_full_lewm_checkpoint(
         wall_time_s: 0.0,
         git_short_sha: option_env!("LEWM_GIT_SHA").unwrap_or("unknown"),
         config_hash,
-        rng_state: CheckpointRngState {
-            global_seed: seed,
-            step_at_save: outcome.step,
-            data_shuffle: "sequential-window-modulo-v1".to_owned(),
-            sigreg_sketch: "full-module-moment-proxy-v1".to_owned(),
-            dropout: "disabled-for-host-bounded-path".to_owned(),
-            cem: "disabled-for-train".to_owned(),
-            model_init: "pusht-full-module-deterministic-init-v1".to_owned(),
-        },
+        rng_state: checkpoint_rng_state(seed, outcome.step, &outcome.rng_streams),
         metrics_last_step: full_train_checkpoint_metrics(outcome),
         burn_record: &burn_record,
         parameters: &parameters,
@@ -1980,6 +2482,22 @@ fn full_lewm_parameter_tensor(
         spec.shape.clone(),
         values,
     )?)
+}
+
+fn checkpoint_rng_state(
+    seed: u64,
+    step: u64,
+    rng_streams: &RestoredRngStreams,
+) -> CheckpointRngState {
+    CheckpointRngState {
+        global_seed: seed,
+        step_at_save: step,
+        data_shuffle: encode_rng(&rng_streams.data_shuffle),
+        sigreg_sketch: encode_rng(&rng_streams.sigreg_sketch),
+        dropout: encode_rng(&rng_streams.dropout),
+        cem: encode_rng(&rng_streams.cem),
+        model_init: encode_rng(&rng_streams.model_init),
+    }
 }
 
 fn full_train_checkpoint_metrics(outcome: &PushtFullLewmOutcome) -> BTreeMap<String, f64> {
@@ -2019,6 +2537,22 @@ fn full_train_checkpoint_metrics(outcome: &PushtFullLewmOutcome) -> BTreeMap<Str
         smoke_step_as_f64(outcome.grad_explosion_events).unwrap_or(0.0),
     );
     metrics
+}
+
+fn metric_u64(value: Option<&f64>) -> Option<u64> {
+    let value = *value?;
+    if !value.is_finite() || value < 0.0 || value.fract() != 0.0 {
+        return None;
+    }
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    Some(value as u64)
+}
+
+fn f32_values(bytes: &[u8]) -> Vec<f32> {
+    bytes
+        .chunks_exact(4)
+        .map(|chunk| f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))
+        .collect()
 }
 
 #[allow(dead_code)]
@@ -2355,7 +2889,16 @@ mod tests {
         };
         config.root_path = missing_data;
 
-        let report = write_train_artifacts(dir.path(), &root, "abc123", None, 10, 7, "cpu")?;
+        let report = write_train_artifacts(TrainArtifactRequest {
+            output_dir: dir.path(),
+            root: &root,
+            config_hash: "abc123",
+            data_dir: None,
+            max_steps: 10,
+            seed: 7,
+            device: "cpu",
+            resume_if_present: false,
+        })?;
 
         assert_eq!(report.kind, "lewm-rs-train-report");
         assert_eq!(report.mode, "pusht-full-module-lewm");
@@ -2394,6 +2937,127 @@ mod tests {
                 .metrics_last_step
                 .contains_key("loss/sigreg_proxy")
         );
+        Ok(())
+    }
+
+    #[test]
+    fn pusht_train_resume_restores_checkpoint_and_continues()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let dir = TestDir::new("pusht-train-resume")?;
+        let missing_data = dir.path().join("missing-pusht");
+        let mut root = crate::config::RootConfig::default();
+        let crate::config::DatasetConfig::Pusht(config) = &mut root.dataset else {
+            return Err("expected PushT default dataset".into());
+        };
+        config.root_path = missing_data;
+
+        let first = write_train_artifacts(TrainArtifactRequest {
+            output_dir: dir.path(),
+            root: &root,
+            config_hash: "abc123",
+            data_dir: None,
+            max_steps: 3,
+            seed: 7,
+            device: "cpu",
+            resume_if_present: false,
+        })?;
+        let resumed = write_train_artifacts(TrainArtifactRequest {
+            output_dir: dir.path(),
+            root: &root,
+            config_hash: "abc123",
+            data_dir: None,
+            max_steps: 6,
+            seed: 7,
+            device: "cpu",
+            resume_if_present: true,
+        })?;
+
+        assert_eq!(first.checkpoint_step, 3);
+        assert_eq!(resumed.checkpoint_step, 6);
+        assert_eq!(resumed.losses.first().map(|point| point.step), Some(1));
+        assert_eq!(resumed.losses.last().map(|point| point.step), Some(6));
+        assert!(dir.path().join("step_0000006.json").is_file());
+        let loaded = crate::checkpoint::load_checkpoint(dir.path().join("step_0000006.json"))?;
+        let record: PushtFullLewmRecord = serde_json::from_slice(&loaded.burn_record)?;
+        assert_eq!(record.adamw_step, 6);
+        assert_eq!(record.adamw_params.len(), record.params.len());
+        Ok(())
+    }
+
+    #[test]
+    fn pusht_train_resume_rejects_config_mismatch() -> Result<(), Box<dyn std::error::Error>> {
+        let dir = TestDir::new("pusht-train-resume-config-mismatch")?;
+        let missing_data = dir.path().join("missing-pusht");
+        let mut root = crate::config::RootConfig::default();
+        let crate::config::DatasetConfig::Pusht(config) = &mut root.dataset else {
+            return Err("expected PushT default dataset".into());
+        };
+        config.root_path = missing_data;
+
+        let _first = write_train_artifacts(TrainArtifactRequest {
+            output_dir: dir.path(),
+            root: &root,
+            config_hash: "abc123",
+            data_dir: None,
+            max_steps: 3,
+            seed: 7,
+            device: "cpu",
+            resume_if_present: false,
+        })?;
+        let err = write_train_artifacts(TrainArtifactRequest {
+            output_dir: dir.path(),
+            root: &root,
+            config_hash: "def456",
+            data_dir: None,
+            max_steps: 6,
+            seed: 7,
+            device: "cpu",
+            resume_if_present: true,
+        })
+        .expect_err("resume with a different config hash must fail");
+
+        assert!(err.to_string().contains("resume config hash mismatch"));
+        Ok(())
+    }
+
+    #[test]
+    fn pusht_train_resume_rejects_corrupt_safetensors() -> Result<(), Box<dyn std::error::Error>> {
+        let dir = TestDir::new("pusht-train-resume-corrupt-safetensors")?;
+        let missing_data = dir.path().join("missing-pusht");
+        let mut root = crate::config::RootConfig::default();
+        let crate::config::DatasetConfig::Pusht(config) = &mut root.dataset else {
+            return Err("expected PushT default dataset".into());
+        };
+        config.root_path = missing_data;
+
+        let _first = write_train_artifacts(TrainArtifactRequest {
+            output_dir: dir.path(),
+            root: &root,
+            config_hash: "abc123",
+            data_dir: None,
+            max_steps: 3,
+            seed: 7,
+            device: "cpu",
+            resume_if_present: false,
+        })?;
+        fs::write(
+            dir.path().join("step_0000003.safetensors"),
+            b"not safetensors",
+        )?;
+
+        let err = write_train_artifacts(TrainArtifactRequest {
+            output_dir: dir.path(),
+            root: &root,
+            config_hash: "abc123",
+            data_dir: None,
+            max_steps: 6,
+            seed: 7,
+            device: "cpu",
+            resume_if_present: true,
+        })
+        .expect_err("resume with a corrupt safetensors mirror must fail");
+
+        assert!(err.to_string().contains("safetensors"));
         Ok(())
     }
 

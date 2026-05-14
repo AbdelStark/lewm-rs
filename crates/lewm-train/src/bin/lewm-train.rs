@@ -11,7 +11,9 @@ use std::{
 
 use clap::{Parser, Subcommand};
 use lewm_train::config::{EnvOverrides, canonical_toml, load_root};
-use lewm_train::trainer::{TrainerError, write_smoke_artifacts, write_train_artifacts};
+use lewm_train::trainer::{
+    TrainArtifactRequest, TrainerError, write_smoke_artifacts, write_train_artifacts,
+};
 use serde::Deserialize;
 
 #[cfg(feature = "cuda")]
@@ -245,21 +247,20 @@ fn run(cli: &Cli, mut writer: impl Write) -> Result<(), CliError> {
     }
 
     if let Some(Command::Train(args)) = cli.command.as_ref() {
-        if cli.resume_if_present {
-            return Err(TrainerError::TrainResumeUnsupported.into());
-        }
         let Some(max_steps) = cli.max_steps else {
             return Err(TrainerError::TrainRequiresMaxSteps.into());
         };
-        let report = write_train_artifacts(
-            &cli.output_dir,
-            &loaded.root,
-            &loaded.config_hash,
-            args.data_dir.as_deref(),
+        let seed = cli.seed.unwrap_or(loaded.root.training.seed);
+        let report = write_train_artifacts(TrainArtifactRequest {
+            output_dir: &cli.output_dir,
+            root: &loaded.root,
+            config_hash: &loaded.config_hash,
+            data_dir: args.data_dir.as_deref(),
             max_steps,
-            cli.seed.unwrap_or(loaded.root.training.seed),
-            &cli.device,
-        )?;
+            seed,
+            device: &cli.device,
+            resume_if_present: cli.resume_if_present,
+        })?;
         writeln!(
             writer,
             "train artifacts written to {}; mode={}; data_source={}; final_loss={:.8}; checkpoint_step={}; checkpoint_complete={}",
@@ -549,7 +550,7 @@ mod tests {
     }
 
     #[test]
-    fn cli_train_rejects_resume_if_present() -> TestResult {
+    fn cli_train_resumes_if_present() -> TestResult {
         let dir = tempfile::tempdir()?;
         let config_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("../..")
@@ -557,7 +558,21 @@ mod tests {
             .to_string_lossy()
             .into_owned();
         let output_dir = dir.path().to_string_lossy().into_owned();
-        let cli = Cli::try_parse_from([
+        let first = Cli::try_parse_from([
+            "lewm-train",
+            "--config",
+            config_path.as_str(),
+            "--output-dir",
+            output_dir.as_str(),
+            "--max-steps",
+            "3",
+            "train",
+        ])?;
+        let mut output = Vec::new();
+
+        run(&first, &mut output)?;
+
+        let resumed = Cli::try_parse_from([
             "lewm-train",
             "--config",
             config_path.as_str(),
@@ -565,18 +580,15 @@ mod tests {
             output_dir.as_str(),
             "--resume-if-present",
             "--max-steps",
-            "10",
+            "5",
             "train",
         ])?;
-        let mut output = Vec::new();
+        let mut resumed_output = Vec::new();
 
-        let error = run(&cli, &mut output).expect_err("resume should be rejected");
+        run(&resumed, &mut resumed_output)?;
 
-        assert!(
-            error
-                .to_string()
-                .contains("train --resume-if-present is not supported")
-        );
+        assert!(dir.path().join("step_0000005.json").is_file());
+        assert!(String::from_utf8(resumed_output)?.contains("checkpoint_step=5"));
         Ok(())
     }
 

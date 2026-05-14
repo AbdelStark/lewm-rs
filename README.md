@@ -108,8 +108,9 @@ gradient clipping, JSONL losses, checkpoint sidecar, `.mpk`, `.safetensors`,
 and parity JSON. It uses HDF5 PushT windows when a dataset path is provided, and
 otherwise writes an explicitly marked PushT-compatible fixture run for local
 plumbing checks. It is not the final Burn ViT parity stack and does not make
-PushT success-rate claims. Resume is intentionally rejected for this bounded
-mode.
+PushT success-rate claims. `--resume-if-present` restores the latest complete
+checkpoint for this mode and validates the sidecar, `.mpk`, `.safetensors`,
+config hash, seed, step, AdamW state, and RNG state before continuing.
 
 The public `quentinll/lewm-pusht` HDF5 stores pixels with the Blosc HDF5 filter;
 set `HDF5_PLUGIN_PATH` from the Python `hdf5plugin` package before reading that

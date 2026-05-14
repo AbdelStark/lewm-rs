@@ -61,6 +61,7 @@ JOB_SPECS = {
             "--config configs/pusht.toml",
             "--data-dir /tmp/data",
             "--output-dir /tmp/out",
+            "--resume-if-present",
             "--max-steps ${LEWM_MAX_STEPS:-1000}",
             "python python/upload_checkpoints.py",
             "--path-prefix train/pusht-full-module-lewm-$(date -u +%Y%m%dT%H%M%SZ)",
