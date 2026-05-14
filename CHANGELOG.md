@@ -57,6 +57,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   and RFC 0002 shape coverage.
 - Burn-backed `lewm-core::ada_ln::AdaLNZero` with zero-initialized
   modulation heads and RFC 0002 shape coverage.
+- Burn-backed `lewm-core::predictor::{ConditionalBlock, ArPredictor}` with
+  AdaLN-zero conditioning, causal attention, and RFC 0002 shape coverage.
 
 ### Changed
 
