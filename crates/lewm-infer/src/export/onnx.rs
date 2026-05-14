@@ -541,7 +541,10 @@ mod tests {
         );
         assert_eq!(
             spec.encoder.outputs[0].shape,
-            vec![AxisDim::dynamic("batch"), AxisDim::fixed(384)]
+            vec![
+                AxisDim::dynamic("batch"),
+                AxisDim::fixed(config.projector.output_dim)
+            ]
         );
         assert_eq!(
             spec.encoder.activation_lowerings.as_slice(),
@@ -579,7 +582,7 @@ mod tests {
             vec![
                 AxisDim::dynamic("batch"),
                 AxisDim::dynamic("history"),
-                AxisDim::fixed(384)
+                AxisDim::fixed(config.predictor.output_dim)
             ]
         );
         assert_eq!(

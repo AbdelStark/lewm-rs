@@ -171,14 +171,15 @@ In equations and code:
 - `T` — temporal dimension (frames in a window).
 - `H, W` — image height and width in pixels.
 - `C` — channel dimension; `3` for RGB.
-- `D` — embedding dimension; `384` for the small ViT.
+- `D` — embedding dimension; `192` for the locked PushT ViT-tiny reference.
 - `K` — number of random projections in SIGReg; `1024`.
 - `J` — number of frequency knots in SIGReg; `17`.
 - `t` — within-window time index; `t ∈ [0, T)`.
 - `λ` (`lambda`) — SIGReg loss weight; `1.0` default.
-- `A` — action dimension; `2` for PushT, `6` for SO-100.
-- `E_a` — action embedding dimension after `Embedder`; `64`.
-- `H_v` — encoder hidden dim; `384`.
+- `A` — raw action dimension; `2` for PushT, `6` for SO-100.
+- `A_p` — packed action dimension after frameskip; `10` for PushT.
+- `E_a` — action embedding dimension after `Embedder`; `192` for the locked PushT reference.
+- `H_v` — encoder hidden dim; `192` for the locked PushT reference.
 - `L_pred` — prediction loss (MSE).
 - `L_sigreg` — SIGReg loss.
 - `L` — total loss; `L_pred + λ · L_sigreg`.
