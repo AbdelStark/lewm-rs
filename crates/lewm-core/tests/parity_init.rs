@@ -39,7 +39,12 @@ fn parity_init_parameter_shape_audit() -> Result<(), Box<dyn std::error::Error>>
     assert_required_shape(&shapes, "action_encoder.smoother.weight", &[10, 10, 1])?;
     assert_required_shape(&shapes, "action_encoder.fc2.weight", &[768, 192])?;
     assert_required_shape(&shapes, "predictor.pos_embed", &[1, 3, 192])?;
+    assert_required_shape(&shapes, "predictor.blocks.0.attn.norm.gamma", &[192])?;
+    assert_required_shape(&shapes, "predictor.blocks.0.attn.norm.beta", &[192])?;
     assert_required_shape(&shapes, "predictor.blocks.0.attn.qkv.weight", &[192, 3072])?;
+    assert_absent(&shapes, "predictor.blocks.0.attn.qkv.bias");
+    assert_required_shape(&shapes, "predictor.blocks.0.mlp.norm.gamma", &[192])?;
+    assert_required_shape(&shapes, "predictor.blocks.0.mlp.norm.beta", &[192])?;
     assert_required_shape(
         &shapes,
         "predictor.blocks.5.adaln.linear.weight",
@@ -126,4 +131,11 @@ fn assert_required_shape(
     assert_eq!(found.dtype, "float", "{name} dtype");
     assert_eq!(found.shape, expected, "{name} shape");
     Ok(())
+}
+
+fn assert_absent(shapes: &BTreeMap<String, ParameterShape>, name: &str) {
+    assert!(
+        !shapes.contains_key(name),
+        "{name} should not exist in the upstream predictor contract"
+    );
 }
