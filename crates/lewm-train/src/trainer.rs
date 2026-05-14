@@ -9,11 +9,16 @@ use crate::checkpoint::{
     CheckpointError, CheckpointPaths, CheckpointRngState, CheckpointWriteRequest, ParameterTensor,
     ParityProbe, save_checkpoint,
 };
+use crate::config::{DatasetConfig, DatasetSplit, RootConfig, TrainingConfig};
 use crate::optim::OptimConfig;
 use crate::schedule::CosineWarmup;
 use crate::step::{
     DEFAULT_MAX_GRAD_NORM, NanGuard, NanGuardDecision, StepError, accumulate_scaled_gradients,
     clip_global_norm, grad_explosion_artifact, scale_loss_for_accumulation,
+};
+use lewm_data::{
+    DataError, PushtConfig as DataPushtConfig, PushtDataset, Sample as PushtSample,
+    SampleMeta as PushtSampleMeta, Split as DataSplit,
 };
 use serde::{Deserialize, Serialize};
 
@@ -29,6 +34,10 @@ pub const DEFAULT_EVAL_EVERY_N_EPOCHS: u64 = 5;
 const SMOKE_LR_PEAK: f64 = 0.05;
 const SMOKE_LR_MIN: f64 = 0.01;
 const SMOKE_MAX_BATCH_SIZE: u64 = 1_024;
+const PUSHT_ACTION_DIM: usize = 2;
+const PUSHT_PROBE_PARAM_COUNT: usize = 6;
+const PUSHT_FIXTURE_FRAME_SIZE: usize = 16;
+const PUSHT_FIXTURE_SAMPLE_COUNT: usize = 128;
 
 /// Error returned by trainer state-machine helpers.
 #[derive(Debug)]
@@ -54,6 +63,11 @@ pub enum TrainerError {
     Step {
         /// Original step error.
         source: StepError,
+    },
+    /// Dataset loading or sampling failed.
+    Data {
+        /// Original data error.
+        source: DataError,
     },
     /// State transition is not allowed by RFC 0005.
     InvalidTransition {
@@ -98,6 +112,35 @@ pub enum TrainerError {
         /// Guard reason.
         reason: String,
     },
+    /// `train` currently requires a bounded max-step run.
+    TrainRequiresMaxSteps,
+    /// The selected config is not the supported `PushT` training path.
+    UnsupportedTrainDataset {
+        /// Dataset kind from the root config.
+        kind: String,
+    },
+    /// A caller-provided training data path is missing.
+    MissingTrainDataPath {
+        /// Missing data root or shard.
+        path: PathBuf,
+    },
+    /// Train command received an invalid step count.
+    InvalidTrainSteps {
+        /// Requested training steps.
+        steps: u64,
+    },
+    /// Train command received an invalid batch size.
+    InvalidTrainBatchSize {
+        /// Requested training batch size.
+        batch_size: usize,
+    },
+    /// The train guard rejected a `PushT` probe step.
+    TrainGuardRejected {
+        /// Rejected optimizer step.
+        step: u64,
+        /// Guard reason.
+        reason: String,
+    },
 }
 
 impl fmt::Display for TrainerError {
@@ -113,6 +156,7 @@ impl fmt::Display for TrainerError {
             Self::Json { source } => write!(formatter, "trainer JSON error: {source}"),
             Self::Checkpoint { source } => write!(formatter, "trainer checkpoint error: {source}"),
             Self::Step { source } => write!(formatter, "trainer step error: {source}"),
+            Self::Data { source } => write!(formatter, "trainer data error: {source}"),
             Self::InvalidTransition { from, to } => {
                 write!(formatter, "invalid trainer transition: {from:?} -> {to:?}")
             },
@@ -142,6 +186,32 @@ impl fmt::Display for TrainerError {
             Self::SmokeGuardRejected { step, reason } => {
                 write!(formatter, "smoke guard rejected step {step}: {reason}")
             },
+            Self::TrainRequiresMaxSteps => formatter
+                .write_str("lewm-train train requires --max-steps until full training lands"),
+            Self::UnsupportedTrainDataset { kind } => {
+                write!(formatter, "unsupported train dataset kind: {kind}")
+            },
+            Self::MissingTrainDataPath { path } => {
+                write!(
+                    formatter,
+                    "training data path does not exist: {}",
+                    path.display()
+                )
+            },
+            Self::InvalidTrainSteps { steps } => {
+                write!(
+                    formatter,
+                    "train max-steps must be greater than zero, found {steps}"
+                )
+            },
+            Self::InvalidTrainBatchSize { batch_size } => write!(
+                formatter,
+                "train batch size must be in 1..={}, found {batch_size}",
+                u32::MAX
+            ),
+            Self::TrainGuardRejected { step, reason } => {
+                write!(formatter, "train guard rejected step {step}: {reason}")
+            },
         }
     }
 }
@@ -153,6 +223,7 @@ impl std::error::Error for TrainerError {
             Self::Json { source } => Some(source),
             Self::Checkpoint { source } => Some(source),
             Self::Step { source } => Some(source),
+            Self::Data { source } => Some(source),
             Self::InvalidTransition { .. }
             | Self::EmptyTransitionId
             | Self::InsufficientSmokePoints { .. }
@@ -160,7 +231,13 @@ impl std::error::Error for TrainerError {
             | Self::SmokeStepOutOfRange { .. }
             | Self::InvalidSmokeSteps { .. }
             | Self::InvalidSmokeBatchSize { .. }
-            | Self::SmokeGuardRejected { .. } => None,
+            | Self::SmokeGuardRejected { .. }
+            | Self::TrainRequiresMaxSteps
+            | Self::UnsupportedTrainDataset { .. }
+            | Self::MissingTrainDataPath { .. }
+            | Self::InvalidTrainSteps { .. }
+            | Self::InvalidTrainBatchSize { .. }
+            | Self::TrainGuardRejected { .. } => None,
         }
     }
 }
@@ -180,6 +257,12 @@ impl From<CheckpointError> for TrainerError {
 impl From<StepError> for TrainerError {
     fn from(source: StepError) -> Self {
         Self::Step { source }
+    }
+}
+
+impl From<DataError> for TrainerError {
+    fn from(source: DataError) -> Self {
+        Self::Data { source }
     }
 }
 
@@ -402,6 +485,70 @@ pub struct SmokeRunReport {
     pub mode: String,
     /// Deterministic loss observations.
     pub losses: Vec<SmokeLossPoint>,
+}
+
+/// Train loss observation written by the bounded `PushT` train path.
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
+pub struct TrainLossPoint {
+    /// Optimizer step.
+    pub step: u64,
+    /// Mean training loss at the step.
+    pub loss: f64,
+    /// Pre-clip global gradient norm.
+    pub grad_norm_pre: f64,
+    /// Post-clip global gradient norm.
+    pub grad_norm_post: f64,
+    /// Learning rate used for the parameter update.
+    pub learning_rate: f64,
+    /// Cumulative samples consumed by the run.
+    pub samples_seen: u64,
+}
+
+/// Report written by the bounded `PushT` train command.
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+pub struct TrainRunReport {
+    /// Report schema version.
+    pub schema_version: String,
+    /// Artifact kind.
+    pub kind: String,
+    /// Hash of the canonical loaded config.
+    pub config_hash: String,
+    /// Output directory used for this run.
+    pub output_dir: String,
+    /// Optional caller-provided dataset directory.
+    pub data_dir: Option<String>,
+    /// Resolved dataset path or fixture descriptor.
+    pub data_source: String,
+    /// Number of physical dataset windows, or fixture samples.
+    pub dataset_windows: usize,
+    /// Requested max training steps.
+    pub max_steps: u64,
+    /// Completed training steps.
+    pub steps_completed: u64,
+    /// Effective per-step batch size.
+    pub batch_size: usize,
+    /// Run seed.
+    pub seed: u64,
+    /// Requested device string.
+    pub device: String,
+    /// First recorded loss.
+    pub initial_loss: f64,
+    /// Last recorded loss.
+    pub final_loss: f64,
+    /// Whether the final loss is lower than the first recorded loss.
+    pub loss_decreased: bool,
+    /// Optimizer step saved as a checkpoint.
+    pub checkpoint_step: u64,
+    /// Whether the train checkpoint contains all required files.
+    pub checkpoint_complete: bool,
+    /// Train checkpoint files written beside the report.
+    pub checkpoint_files: Vec<String>,
+    /// Number of gradient-explosion events observed by the guard.
+    pub grad_explosion_events: u64,
+    /// Explicitly scopes the bounded path while the full JEPA loop is pending.
+    pub mode: String,
+    /// Deterministic loss observations.
+    pub losses: Vec<TrainLossPoint>,
 }
 
 /// Return whether `from -> to` is an RFC 0005 success transition.
@@ -908,6 +1055,626 @@ fn f32_from_f64(value: f64) -> f32 {
     value as f32
 }
 
+/// Write bounded `PushT` training artifacts for local/container/HF validation.
+///
+/// This is a real data-plane train path for a tiny action probe: it consumes
+/// `PushT` windows when the dataset exists and falls back to an explicit
+/// `PushT`-compatible fixture when the default local path is absent. It does
+/// not claim to train the full JEPA objective.
+///
+/// # Errors
+///
+/// Returns an error if the config is not `PushT`, max steps are invalid, a
+/// caller-provided data directory is missing, dataset reads fail, a train step
+/// guard rejects the update, or artifact/checkpoint writes fail.
+pub fn write_train_artifacts(
+    output_dir: impl AsRef<Path>,
+    root: &RootConfig,
+    config_hash: &str,
+    data_dir: Option<&Path>,
+    max_steps: u64,
+    seed: u64,
+    device: &str,
+) -> Result<TrainRunReport, TrainerError> {
+    let output_dir = output_dir.as_ref();
+    fs::create_dir_all(output_dir).map_err(|source| io_error(output_dir, source))?;
+
+    let mut source = open_pusht_training_source(root, data_dir)?;
+    let outcome = run_pusht_probe_training(&mut source, &root.training, max_steps)?;
+    let paths = write_pusht_probe_checkpoint(output_dir, config_hash, seed, &outcome)?;
+    let losses = outcome.losses.clone();
+    let report = TrainRunReport {
+        schema_version: "1.0.0".to_owned(),
+        kind: "lewm-rs-train-report".to_owned(),
+        config_hash: config_hash.to_owned(),
+        output_dir: output_dir.display().to_string(),
+        data_dir: data_dir.map(|path| path.display().to_string()),
+        data_source: source.description(),
+        dataset_windows: source.len(),
+        max_steps,
+        steps_completed: outcome.step,
+        batch_size: outcome.batch_size,
+        seed,
+        device: device.to_owned(),
+        initial_loss: first_train_loss(&losses),
+        final_loss: last_train_loss(&losses),
+        loss_decreased: last_train_loss(&losses) < first_train_loss(&losses),
+        checkpoint_step: outcome.step,
+        checkpoint_complete: paths.is_complete(),
+        checkpoint_files: checkpoint_file_names(&paths),
+        grad_explosion_events: outcome.grad_explosion_events,
+        mode: "pusht-action-probe".to_owned(),
+        losses,
+    };
+
+    let report_path = output_dir.join("train_report.json");
+    fs::write(&report_path, serde_json::to_vec_pretty(&report)?)
+        .map_err(|source| io_error(&report_path, source))?;
+
+    let losses_path = output_dir.join("train_losses.jsonl");
+    let mut losses_jsonl = String::new();
+    for point in &report.losses {
+        losses_jsonl.push_str(&serde_json::to_string(point)?);
+        losses_jsonl.push('\n');
+    }
+    fs::write(&losses_path, losses_jsonl).map_err(|source| io_error(&losses_path, source))?;
+
+    Ok(report)
+}
+
+#[derive(Debug)]
+enum PushtTrainingSource {
+    Hdf5 {
+        dataset: Box<PushtDataset>,
+        path: PathBuf,
+    },
+    Fixture {
+        samples: Vec<PushtSample>,
+        descriptor: String,
+    },
+}
+
+impl PushtTrainingSource {
+    fn len(&self) -> usize {
+        match self {
+            Self::Hdf5 { dataset, .. } => dataset.len(),
+            Self::Fixture { samples, .. } => samples.len(),
+        }
+    }
+
+    fn description(&self) -> String {
+        match self {
+            Self::Hdf5 { path, .. } => format!("pusht-hdf5:{}", path.display()),
+            Self::Fixture { descriptor, .. } => descriptor.clone(),
+        }
+    }
+
+    fn get(&self, index: usize) -> Result<PushtSample, TrainerError> {
+        match self {
+            Self::Hdf5 { dataset, .. } => dataset.get(index).map_err(TrainerError::from),
+            Self::Fixture { samples, .. } => {
+                let sample =
+                    samples
+                        .get(index % samples.len())
+                        .ok_or_else(|| TrainerError::Data {
+                            source: DataError::EmptyDataset(
+                                "PushT-compatible fixture has no samples".to_owned(),
+                            ),
+                        })?;
+                Ok(sample.clone())
+            },
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct PushtProbeModel {
+    params: [f64; PUSHT_PROBE_PARAM_COUNT],
+}
+
+impl PushtProbeModel {
+    const fn initial() -> Self {
+        Self {
+            params: [0.0; PUSHT_PROBE_PARAM_COUNT],
+        }
+    }
+
+    fn predict(self, features: PushtProbeFeatures) -> [f64; PUSHT_ACTION_DIM] {
+        [
+            self.params[0]
+                + (self.params[2] * features.pixel_mean)
+                + (self.params[4] * features.time_fraction),
+            self.params[1]
+                + (self.params[3] * features.pixel_mean)
+                + (self.params[5] * features.time_fraction),
+        ]
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct PushtProbeFeatures {
+    pixel_mean: f64,
+    time_fraction: f64,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct PushtProbeTarget {
+    action_mean: [f64; PUSHT_ACTION_DIM],
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct PushtProbeExample {
+    features: PushtProbeFeatures,
+    target: PushtProbeTarget,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+struct PushtProbeAdamWState {
+    step: i32,
+    params: [ScalarAdamWParamState; PUSHT_PROBE_PARAM_COUNT],
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct PushtProbeOutcome {
+    losses: Vec<TrainLossPoint>,
+    model: PushtProbeModel,
+    optimizer: PushtProbeAdamWState,
+    step: u64,
+    batch_size: usize,
+    samples_seen: u64,
+    grad_explosion_events: u64,
+}
+
+#[derive(Clone, Copy, Debug, Serialize)]
+struct PushtProbeRecord {
+    schema_version: &'static str,
+    kind: &'static str,
+    step: u64,
+    params: [f64; PUSHT_PROBE_PARAM_COUNT],
+    adamw_step: i32,
+    samples_seen: u64,
+}
+
+fn open_pusht_training_source(
+    root: &RootConfig,
+    data_dir: Option<&Path>,
+) -> Result<PushtTrainingSource, TrainerError> {
+    let DatasetConfig::Pusht(config) = &root.dataset else {
+        return Err(TrainerError::UnsupportedTrainDataset {
+            kind: dataset_kind_name(&root.dataset).to_owned(),
+        });
+    };
+    let path = data_dir.map_or_else(|| config.root_path.clone(), Path::to_path_buf);
+
+    if path.exists() {
+        let dataset_config = DataPushtConfig {
+            root_path: path.clone(),
+            split: data_split(config.split),
+            horizon: config.horizon,
+            history_size: config.history_size,
+            seed: Some(config.seed),
+            validate_schema: true,
+            stats_path: None,
+        };
+        let dataset = PushtDataset::new(dataset_config)?;
+        return Ok(PushtTrainingSource::Hdf5 {
+            dataset: Box::new(dataset),
+            path,
+        });
+    }
+
+    if data_dir.is_some() {
+        return Err(TrainerError::MissingTrainDataPath { path });
+    }
+
+    Ok(PushtTrainingSource::Fixture {
+        samples: pusht_fixture_samples(config.horizon)?,
+        descriptor: format!(
+            "pusht-compatible-fixture:{PUSHT_FIXTURE_SAMPLE_COUNT}-samples:{PUSHT_FIXTURE_FRAME_SIZE}x{PUSHT_FIXTURE_FRAME_SIZE}"
+        ),
+    })
+}
+
+fn run_pusht_probe_training(
+    source: &mut PushtTrainingSource,
+    config: &TrainingConfig,
+    max_steps: u64,
+) -> Result<PushtProbeOutcome, TrainerError> {
+    let total_steps = train_steps_as_u32(max_steps)?;
+    let batch_size_u32 = train_batch_size_as_u32(config.batch_size)?;
+    let batch_size =
+        usize::try_from(batch_size_u32).map_err(|_| TrainerError::InvalidTrainBatchSize {
+            batch_size: config.batch_size,
+        })?;
+    let schedule = CosineWarmup::from_parts(
+        config.lr_peak,
+        config.lr_min,
+        config.warmup_steps,
+        total_steps.max(config.warmup_steps.saturating_add(1)),
+    );
+    let optim_config = OptimConfig::new()
+        .with_beta1(config.betas.0)
+        .with_beta2(config.betas.1)
+        .with_weight_decay(config.weight_decay);
+    let mut model = PushtProbeModel::initial();
+    let mut optimizer = PushtProbeAdamWState::default();
+    let mut guard = NanGuard::new();
+    let mut losses = Vec::with_capacity(usize::try_from(total_steps).unwrap_or_default());
+    let mut samples_seen = 0_u64;
+    let mut grad_explosion_events = 0_u64;
+
+    for step in 1..=total_steps {
+        let mut total_loss = 0.0;
+        let mut sample_gradients = Vec::with_capacity(batch_size);
+        for sample_offset in 0..batch_size {
+            let dataset_index = training_sample_index(step, sample_offset, batch_size);
+            let sample = source.get(dataset_index)?;
+            let example = probe_example_from_sample(&sample)?;
+            let (sample_loss, gradients) = probe_loss_and_gradients(model, example);
+            total_loss += scale_loss_for_accumulation(sample_loss, batch_size_u32)?;
+            sample_gradients.push(gradients.to_vec());
+            samples_seen = samples_seen.saturating_add(1);
+        }
+
+        let mut gradients = accumulate_scaled_gradients(&sample_gradients, batch_size_u32)?;
+        let step_u64 = u64::from(step);
+        match guard.observe(step_u64, total_loss, &gradients) {
+            NanGuardDecision::Apply => {},
+            NanGuardDecision::Skip { artifact } | NanGuardDecision::Abort { artifact } => {
+                return Err(TrainerError::TrainGuardRejected {
+                    step: step_u64,
+                    reason: artifact.reason,
+                });
+            },
+        }
+
+        let clip = clip_global_norm(&mut gradients, config.grad_clip_norm)?;
+        if grad_explosion_artifact(step_u64, clip.grad_norm_pre).is_some() {
+            grad_explosion_events += 1;
+        }
+        let learning_rate = schedule.lr(step);
+        apply_probe_adamw(
+            &mut model,
+            &gradients,
+            &mut optimizer,
+            learning_rate,
+            &optim_config,
+        );
+        losses.push(TrainLossPoint {
+            step: step_u64,
+            loss: total_loss,
+            grad_norm_pre: clip.grad_norm_pre,
+            grad_norm_post: clip.grad_norm_post,
+            learning_rate,
+            samples_seen,
+        });
+    }
+
+    Ok(PushtProbeOutcome {
+        losses,
+        model,
+        optimizer,
+        step: max_steps,
+        batch_size,
+        samples_seen,
+        grad_explosion_events,
+    })
+}
+
+fn train_steps_as_u32(steps: u64) -> Result<u32, TrainerError> {
+    if steps == 0 {
+        return Err(TrainerError::InvalidTrainSteps { steps });
+    }
+    u32::try_from(steps).map_err(|_| TrainerError::InvalidTrainSteps { steps })
+}
+
+fn train_batch_size_as_u32(batch_size: usize) -> Result<u32, TrainerError> {
+    if batch_size == 0 {
+        return Err(TrainerError::InvalidTrainBatchSize { batch_size });
+    }
+    u32::try_from(batch_size).map_err(|_| TrainerError::InvalidTrainBatchSize { batch_size })
+}
+
+fn training_sample_index(step: u32, sample_offset: usize, batch_size: usize) -> usize {
+    let step_index = usize::try_from(step.saturating_sub(1)).unwrap_or_default();
+    step_index
+        .saturating_mul(batch_size)
+        .saturating_add(sample_offset)
+}
+
+fn probe_example_from_sample(sample: &PushtSample) -> Result<PushtProbeExample, TrainerError> {
+    let action_values = sample.actions.len();
+    let expected_action_values = sample
+        .action_shape
+        .0
+        .checked_mul(PUSHT_ACTION_DIM)
+        .ok_or_else(|| TrainerError::Data {
+            source: DataError::InvalidTransform("PushT action shape overflow".to_owned()),
+        })?;
+    if sample.action_shape.1 != PUSHT_ACTION_DIM || action_values != expected_action_values {
+        return Err(TrainerError::Data {
+            source: DataError::InvalidTransform(format!(
+                "PushT probe expects action shape (T, {PUSHT_ACTION_DIM}), found {:?} with {action_values} values",
+                sample.action_shape
+            )),
+        });
+    }
+
+    Ok(PushtProbeExample {
+        features: PushtProbeFeatures {
+            pixel_mean: sample_pixel_mean(sample)?,
+            time_fraction: f64::from(sample.meta.start_frame) / 1_000.0,
+        },
+        target: PushtProbeTarget {
+            action_mean: sample_action_mean(sample)?,
+        },
+    })
+}
+
+fn sample_pixel_mean(sample: &PushtSample) -> Result<f64, TrainerError> {
+    if sample.frames_t.is_empty() {
+        return Err(TrainerError::Data {
+            source: DataError::InvalidTransform("PushT frame buffer is empty".to_owned()),
+        });
+    }
+    let total = sample
+        .frames_t
+        .iter()
+        .map(|value| f64::from(*value))
+        .sum::<f64>();
+    Ok((total / usize_to_f64(sample.frames_t.len())? / 255.0 * 2.0) - 1.0)
+}
+
+fn sample_action_mean(sample: &PushtSample) -> Result<[f64; PUSHT_ACTION_DIM], TrainerError> {
+    let time = sample.action_shape.0;
+    if time == 0 {
+        return Err(TrainerError::Data {
+            source: DataError::InvalidTransform("PushT action time is zero".to_owned()),
+        });
+    }
+    let mut sums = [0.0; PUSHT_ACTION_DIM];
+    for chunk in sample.actions.chunks_exact(PUSHT_ACTION_DIM) {
+        for (dim, value) in chunk.iter().copied().enumerate() {
+            if !value.is_finite() {
+                return Err(TrainerError::Data {
+                    source: DataError::InvalidTransform(
+                        "PushT action value must be finite".to_owned(),
+                    ),
+                });
+            }
+            sums[dim] += f64::from(value);
+        }
+    }
+    let denominator = usize_to_f64(time)?;
+    Ok([sums[0] / denominator, sums[1] / denominator])
+}
+
+fn probe_loss_and_gradients(
+    model: PushtProbeModel,
+    example: PushtProbeExample,
+) -> (f64, [f64; PUSHT_PROBE_PARAM_COUNT]) {
+    let prediction = model.predict(example.features);
+    let mut loss = 0.0;
+    let mut gradients = [0.0; PUSHT_PROBE_PARAM_COUNT];
+
+    for dim in 0..PUSHT_ACTION_DIM {
+        let residual = prediction[dim] - example.target.action_mean[dim];
+        loss += residual * residual / 2.0;
+        let gradient = residual;
+        gradients[dim] = gradient;
+        gradients[dim + 2] = gradient * example.features.pixel_mean;
+        gradients[dim + 4] = gradient * example.features.time_fraction;
+    }
+
+    (loss, gradients)
+}
+
+fn apply_probe_adamw(
+    model: &mut PushtProbeModel,
+    gradients: &[f64],
+    optimizer: &mut PushtProbeAdamWState,
+    learning_rate: f64,
+    config: &OptimConfig,
+) {
+    optimizer.step += 1;
+    for (param_index, param) in model.params.iter_mut().enumerate() {
+        let apply_weight_decay = param_index >= 2;
+        *param = adamw_update_scalar(
+            *param,
+            gradients[param_index],
+            &mut optimizer.params[param_index],
+            optimizer.step,
+            learning_rate,
+            config,
+            apply_weight_decay,
+        );
+    }
+}
+
+fn write_pusht_probe_checkpoint(
+    output_dir: &Path,
+    config_hash: &str,
+    seed: u64,
+    outcome: &PushtProbeOutcome,
+) -> Result<CheckpointPaths, TrainerError> {
+    let parameters = vec![
+        ParameterTensor::f32(
+            "pusht_probe.bias",
+            vec![PUSHT_ACTION_DIM],
+            vec![
+                f32_from_f64(outcome.model.params[0]),
+                f32_from_f64(outcome.model.params[1]),
+            ],
+        )?,
+        ParameterTensor::f32(
+            "pusht_probe.pixel_weight",
+            vec![PUSHT_ACTION_DIM],
+            vec![
+                f32_from_f64(outcome.model.params[2]),
+                f32_from_f64(outcome.model.params[3]),
+            ],
+        )?,
+        ParameterTensor::f32(
+            "pusht_probe.time_weight",
+            vec![PUSHT_ACTION_DIM],
+            vec![
+                f32_from_f64(outcome.model.params[4]),
+                f32_from_f64(outcome.model.params[5]),
+            ],
+        )?,
+    ];
+    let parity = ParityProbe {
+        encoder_cls_l_inf: 0.0,
+        predictor_l_inf: 0.0,
+        sigreg_value: last_train_loss(&outcome.losses),
+    };
+    let record = PushtProbeRecord {
+        schema_version: "1.0.0",
+        kind: "lewm-rs-pusht-action-probe-record",
+        step: outcome.step,
+        params: outcome.model.params,
+        adamw_step: outcome.optimizer.step,
+        samples_seen: outcome.samples_seen,
+    };
+    let burn_record = serde_json::to_vec(&record)?;
+    let request = CheckpointWriteRequest {
+        output_dir,
+        run_id: "pusht-action-probe-v1",
+        step: outcome.step,
+        epoch: 0,
+        wall_time_s: 0.0,
+        git_short_sha: option_env!("LEWM_GIT_SHA").unwrap_or("unknown"),
+        config_hash,
+        rng_state: CheckpointRngState {
+            global_seed: seed,
+            step_at_save: outcome.step,
+            data_shuffle: "sequential-window-modulo-v1".to_owned(),
+            sigreg_sketch: "disabled-for-action-probe".to_owned(),
+            dropout: "disabled-for-action-probe".to_owned(),
+            cem: "disabled-for-action-probe".to_owned(),
+            model_init: "pusht-action-probe-zero-init".to_owned(),
+        },
+        metrics_last_step: train_checkpoint_metrics(outcome),
+        burn_record: &burn_record,
+        parameters: &parameters,
+        parity: &parity,
+    };
+
+    save_checkpoint(&request).map_err(TrainerError::from)
+}
+
+fn train_checkpoint_metrics(outcome: &PushtProbeOutcome) -> BTreeMap<String, f64> {
+    let mut metrics = BTreeMap::new();
+    metrics.insert("loss/train".to_owned(), last_train_loss(&outcome.losses));
+    metrics.insert(
+        "optim/grad_norm_pre".to_owned(),
+        outcome
+            .losses
+            .last()
+            .map_or(0.0, |point| point.grad_norm_pre),
+    );
+    metrics.insert(
+        "optim/grad_norm_post".to_owned(),
+        outcome
+            .losses
+            .last()
+            .map_or(0.0, |point| point.grad_norm_post),
+    );
+    metrics.insert(
+        "train/samples_seen".to_owned(),
+        smoke_step_as_f64(outcome.samples_seen).unwrap_or(0.0),
+    );
+    metrics.insert(
+        "train/grad_explosion_events".to_owned(),
+        smoke_step_as_f64(outcome.grad_explosion_events).unwrap_or(0.0),
+    );
+    metrics
+}
+
+fn pusht_fixture_samples(horizon: usize) -> Result<Vec<PushtSample>, TrainerError> {
+    (0..PUSHT_FIXTURE_SAMPLE_COUNT)
+        .map(|index| pusht_fixture_sample(index, horizon))
+        .collect()
+}
+
+fn pusht_fixture_sample(index: usize, horizon: usize) -> Result<PushtSample, TrainerError> {
+    let pixel_count = horizon
+        .checked_mul(PUSHT_FIXTURE_FRAME_SIZE)
+        .and_then(|value| value.checked_mul(PUSHT_FIXTURE_FRAME_SIZE))
+        .and_then(|value| value.checked_mul(3))
+        .ok_or_else(|| TrainerError::Data {
+            source: DataError::InvalidTransform("PushT fixture pixel shape overflow".to_owned()),
+        })?;
+    let index_u32 = u32::try_from(index).map_err(|_| TrainerError::Data {
+        source: DataError::InvalidTransform("PushT fixture index overflow".to_owned()),
+    })?;
+    let mut frames_t = Vec::with_capacity(pixel_count);
+    for pixel_index in 0..pixel_count {
+        let pixel_u32 = u32::try_from(pixel_index % 251).map_err(|_| TrainerError::Data {
+            source: DataError::InvalidTransform("PushT fixture pixel index overflow".to_owned()),
+        })?;
+        let value = ((index_u32.saturating_mul(17)) + pixel_u32) % 255;
+        frames_t.push(u8::try_from(value).map_err(|_| TrainerError::Data {
+            source: DataError::InvalidTransform("PushT fixture pixel value overflow".to_owned()),
+        })?);
+    }
+
+    let feature = (f64::from(index_u32 % 31) - 15.0) / 15.0;
+    let mut actions = Vec::with_capacity(horizon.saturating_mul(PUSHT_ACTION_DIM));
+    for timestep in 0..horizon {
+        let time_fraction = usize_to_f64(timestep)? / usize_to_f64(horizon)?;
+        actions.push(f32_from_f64((0.6 * feature) + (0.2 * time_fraction)));
+        actions.push(f32_from_f64((-0.4 * feature) + (0.1 * time_fraction)));
+    }
+
+    Ok(PushtSample {
+        frames_t,
+        frame_shape: (
+            horizon,
+            PUSHT_FIXTURE_FRAME_SIZE,
+            PUSHT_FIXTURE_FRAME_SIZE,
+            3,
+        ),
+        actions,
+        action_shape: (horizon, PUSHT_ACTION_DIM),
+        meta: PushtSampleMeta {
+            episode_id: index_u32,
+            start_frame: 0,
+            shard: 0,
+        },
+    })
+}
+
+fn data_split(split: DatasetSplit) -> DataSplit {
+    match split {
+        DatasetSplit::Train => DataSplit::Train,
+        DatasetSplit::Eval => DataSplit::Eval,
+    }
+}
+
+fn dataset_kind_name(dataset: &DatasetConfig) -> &'static str {
+    match dataset {
+        DatasetConfig::Pusht(_) => "pusht",
+        DatasetConfig::So100(_) => "so100",
+    }
+}
+
+fn first_train_loss(points: &[TrainLossPoint]) -> f64 {
+    points.first().map_or(0.0, |point| point.loss)
+}
+
+fn last_train_loss(points: &[TrainLossPoint]) -> f64 {
+    points.last().map_or(0.0, |point| point.loss)
+}
+
+fn usize_to_f64(value: usize) -> Result<f64, TrainerError> {
+    u32::try_from(value)
+        .map(f64::from)
+        .map_err(|_| TrainerError::Data {
+            source: DataError::InvalidTransform(format!("{value} does not fit u32")),
+        })
+}
+
 /// Return whether mini-eval should run at `epoch`.
 pub const fn should_run_eval(epoch: u64, eval_every_n_epochs: u64) -> bool {
     eval_every_n_epochs > 0 && epoch > 0 && epoch % eval_every_n_epochs == 0
@@ -1035,6 +1802,33 @@ mod tests {
         assert!(dir.path().join("smoke_losses.jsonl").is_file());
         let loaded = crate::checkpoint::load_checkpoint(dir.path().join("step_0000050.json"))?;
         assert_eq!(loaded.sidecar.step, SMOKE_STEPS);
+        assert_eq!(loaded.sidecar.rng_state.global_seed, 7);
+        Ok(())
+    }
+
+    #[test]
+    fn pusht_train_fixture_artifacts_are_written() -> Result<(), Box<dyn std::error::Error>> {
+        let dir = TestDir::new("pusht-train-artifacts")?;
+        let missing_data = dir.path().join("missing-pusht");
+        let mut root = crate::config::RootConfig::default();
+        let crate::config::DatasetConfig::Pusht(config) = &mut root.dataset else {
+            return Err("expected PushT default dataset".into());
+        };
+        config.root_path = missing_data;
+
+        let report = write_train_artifacts(dir.path(), &root, "abc123", None, 10, 7, "cpu")?;
+
+        assert_eq!(report.kind, "lewm-rs-train-report");
+        assert_eq!(report.mode, "pusht-action-probe");
+        assert!(report.data_source.starts_with("pusht-compatible-fixture"));
+        assert_eq!(report.steps_completed, 10);
+        assert_eq!(report.checkpoint_step, 10);
+        assert!(report.checkpoint_complete);
+        assert_eq!(report.checkpoint_files.len(), 4);
+        assert!(dir.path().join("train_report.json").is_file());
+        assert!(dir.path().join("train_losses.jsonl").is_file());
+        let loaded = crate::checkpoint::load_checkpoint(dir.path().join("step_0000010.json"))?;
+        assert_eq!(loaded.sidecar.step, 10);
         assert_eq!(loaded.sidecar.rng_state.global_seed, 7);
         Ok(())
     }

@@ -1,5 +1,5 @@
-hardware: a10g-large
-timeout: 2h
+hardware: l4x1
+timeout: 45m
 namespace: abdelstark
 image: ghcr.io/abdelstark/lewm-rs:latest
 env:
@@ -14,12 +14,14 @@ command: |
     set -euo pipefail
     hf download quentinll/lewm-pusht pusht_expert_train.h5.zst --repo-type dataset --local-dir /tmp/data &&
     zstd -f -d /tmp/data/pusht_expert_train.h5.zst -o /tmp/data/pusht_expert_train.h5 &&
+    export HDF5_PLUGIN_PATH=$(python -c 'import hdf5plugin; print(hdf5plugin.PLUGIN_PATH)') &&
     lewm-train train \
       --config configs/pusht.toml \
       --data-dir /tmp/data \
       --output-dir /tmp/out \
-      --max-steps 7500 &&
+      --max-steps 10 &&
     python python/upload_checkpoints.py \
       --src /tmp/out \
-      --dst abdelstark/lewm-rs-pusht
+      --dst abdelstark/lewm-rs-pusht \
+      --path-prefix train/pusht-short-$(date -u +%Y%m%dT%H%M%SZ)
   "

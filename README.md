@@ -94,6 +94,22 @@ HF_TOKEN=dummy python3 python/upload_checkpoints.py --src /tmp/lewm-smoke --dst 
 scripts/launch_hf_job.py jobs/smoke_pusht.yaml
 ```
 
+## Short PushT train
+
+The bounded `train --max-steps` path is a real PushT data-plane train run for a
+small action probe. It uses HDF5 PushT windows when a dataset path is provided,
+and otherwise writes an explicitly marked PushT-compatible fixture run for local
+plumbing checks. It is not the full JEPA objective.
+
+The public `quentinll/lewm-pusht` HDF5 stores pixels with the Blosc HDF5 filter;
+set `HDF5_PLUGIN_PATH` from the Python `hdf5plugin` package before reading that
+file outside the container.
+
+```sh
+cargo run -p lewm-train -- --config configs/pusht.toml --device cpu --output-dir /tmp/lewm-train-pusht --max-steps 10 train
+scripts/launch_hf_job.py jobs/short_pusht.yaml
+```
+
 ## Reproducing
 
 - Clone the repo and use the pinned Rust toolchain in `rust-toolchain.toml`.

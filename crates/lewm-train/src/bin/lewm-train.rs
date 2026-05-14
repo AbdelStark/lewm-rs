@@ -11,7 +11,7 @@ use std::{
 
 use clap::{Parser, Subcommand};
 use lewm_train::config::{EnvOverrides, canonical_toml, load_root};
-use lewm_train::trainer::{TrainerError, write_smoke_artifacts};
+use lewm_train::trainer::{TrainerError, write_smoke_artifacts, write_train_artifacts};
 use serde::Deserialize;
 
 #[cfg(feature = "cuda")]
@@ -244,7 +244,33 @@ fn run(cli: &Cli, mut writer: impl Write) -> Result<(), CliError> {
         return Ok(());
     }
 
-    if matches!(cli.command.as_ref(), None | Some(Command::Train(_))) {
+    if let Some(Command::Train(args)) = cli.command.as_ref() {
+        let Some(max_steps) = cli.max_steps else {
+            return Err(TrainerError::TrainRequiresMaxSteps.into());
+        };
+        let report = write_train_artifacts(
+            &cli.output_dir,
+            &loaded.root,
+            &loaded.config_hash,
+            args.data_dir.as_deref(),
+            max_steps,
+            cli.seed.unwrap_or(loaded.root.training.seed),
+            &cli.device,
+        )?;
+        writeln!(
+            writer,
+            "train artifacts written to {}; mode={}; data_source={}; final_loss={:.8}; checkpoint_step={}; checkpoint_complete={}",
+            cli.output_dir.display(),
+            report.mode,
+            report.data_source,
+            report.final_loss,
+            report.checkpoint_step,
+            report.checkpoint_complete
+        )?;
+        return Ok(());
+    }
+
+    if cli.command.is_none() {
         return Err(CliError(
             "lewm-train currently supports --dry-run only; the training loop is not implemented"
                 .to_string(),
@@ -484,6 +510,38 @@ mod tests {
         assert!(dir.path().join("smoke_report.json").is_file());
         assert!(dir.path().join("smoke_losses.jsonl").is_file());
         assert!(String::from_utf8(output)?.contains("smoke artifacts written"));
+        Ok(())
+    }
+
+    #[test]
+    fn cli_train_writes_uploadable_pusht_probe_artifacts() -> TestResult {
+        let dir = tempfile::tempdir()?;
+        let config_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .join("configs/pusht.toml")
+            .to_string_lossy()
+            .into_owned();
+        let output_dir = dir.path().to_string_lossy().into_owned();
+        let cli = Cli::try_parse_from([
+            "lewm-train",
+            "--config",
+            config_path.as_str(),
+            "--output-dir",
+            output_dir.as_str(),
+            "--device",
+            "cpu",
+            "--max-steps",
+            "10",
+            "train",
+        ])?;
+        let mut output = Vec::new();
+
+        run(&cli, &mut output)?;
+
+        assert!(dir.path().join("train_report.json").is_file());
+        assert!(dir.path().join("train_losses.jsonl").is_file());
+        assert!(dir.path().join("step_0000010.json").is_file());
+        assert!(String::from_utf8(output)?.contains("train artifacts written"));
         Ok(())
     }
 

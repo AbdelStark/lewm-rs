@@ -12,6 +12,10 @@ use crate::DataError;
 
 const RGB_CHANNELS: usize = 3;
 const PUSHT_ACTION_DIM: usize = 2;
+const EPISODE_DATASET_CANDIDATES: &[&str] = &["episode_index", "episode_idx"];
+const TIMESTEP_DATASET_CANDIDATES: &[&str] = &["timestep", "step_idx"];
+const PIXEL_DATASET_CANDIDATES: &[&str] = &["observation/pixels", "pixels"];
+const ACTION_DATASET_CANDIDATES: &[&str] = &["action"];
 const EVAL_SPLIT_BUCKETS: u64 = 20;
 const EVAL_BUCKET: u64 = 0;
 const SPLIT_KEY: [u8; 32] = [
@@ -192,6 +196,8 @@ impl PushtDataset {
 struct HdfShard {
     file: hdf5::File,
     shard_id: u16,
+    pixel_path: String,
+    action_path: String,
     pixel_shape: [usize; 4],
     action_shape: [usize; 2],
 }
@@ -211,6 +217,8 @@ impl HdfShard {
         let shard = Self {
             file,
             shard_id,
+            pixel_path: schema.pixel_path,
+            action_path: schema.action_path,
             pixel_shape: schema.pixel_shape,
             action_shape: schema.action_shape,
         };
@@ -224,16 +232,20 @@ impl HdfShard {
 
         let pixels = self
             .file
-            .dataset("observation/pixels")
-            .map_err(|source| DataError::hdf5("open observation/pixels", source))?
+            .dataset(&self.pixel_path)
+            .map_err(|source| DataError::hdf5(format!("open {}", self.pixel_path), source))?
             .read_slice::<u8, _, Ix4>(s![start..end, .., .., ..])
-            .map_err(|source| DataError::hdf5("read observation/pixels window", source))?;
+            .map_err(|source| {
+                DataError::hdf5(format!("read {} window", self.pixel_path), source)
+            })?;
         let actions = self
             .file
-            .dataset("action")
-            .map_err(|source| DataError::hdf5("open action", source))?
+            .dataset(&self.action_path)
+            .map_err(|source| DataError::hdf5(format!("open {}", self.action_path), source))?
             .read_slice::<f32, _, Ix2>(s![start..end, ..])
-            .map_err(|source| DataError::hdf5("read action window", source))?;
+            .map_err(|source| {
+                DataError::hdf5(format!("read {} window", self.action_path), source)
+            })?;
 
         Ok(Sample {
             frames_t: pixels.iter().copied().collect(),
@@ -256,30 +268,32 @@ impl HdfShard {
 
 #[derive(Debug)]
 struct ShardSchema {
-    episode_index: Vec<i32>,
-    timestep: Vec<i32>,
+    episode_index: Vec<i64>,
+    timestep: Vec<i64>,
+    pixel_path: String,
+    action_path: String,
     pixel_shape: [usize; 4],
     action_shape: [usize; 2],
 }
 
 impl ShardSchema {
     fn read(path: &Path, file: &hdf5::File, validate_schema: bool) -> Result<Self, DataError> {
-        let episode_ds = dataset(file, "episode_index")?;
-        let timestep_ds = dataset(file, "timestep")?;
-        let pixels_ds = dataset(file, "observation/pixels")?;
-        let action_ds = dataset(file, "action")?;
+        let (episode_ds, episode_path) = dataset_any(file, EPISODE_DATASET_CANDIDATES)?;
+        let (timestep_ds, timestep_path) = dataset_any(file, TIMESTEP_DATASET_CANDIDATES)?;
+        let (pixels_ds, pixel_path) = dataset_any(file, PIXEL_DATASET_CANDIDATES)?;
+        let (action_ds, action_path) = dataset_any(file, ACTION_DATASET_CANDIDATES)?;
 
         if validate_schema {
-            require_dtype::<i32>(&episode_ds, "episode_index")?;
-            require_dtype::<i32>(&timestep_ds, "timestep")?;
-            require_dtype::<u8>(&pixels_ds, "observation/pixels")?;
-            require_dtype::<f32>(&action_ds, "action")?;
+            require_index_dtype(&episode_ds, &episode_path)?;
+            require_index_dtype(&timestep_ds, &timestep_path)?;
+            require_dtype::<u8>(&pixels_ds, &pixel_path)?;
+            require_dtype::<f32>(&action_ds, &action_path)?;
         }
 
         let timestep_shape = timestep_ds.shape();
         let episode_shape = episode_ds.shape();
-        let pixel_shape = vec_to_array::<4>(pixels_ds.shape(), "observation/pixels")?;
-        let action_shape = vec_to_array::<2>(action_ds.shape(), "action")?;
+        let pixel_shape = vec_to_array::<4>(pixels_ds.shape(), &pixel_path)?;
+        let action_shape = vec_to_array::<2>(action_ds.shape(), &action_path)?;
 
         if timestep_shape.len() != 1 {
             return Err(DataError::schema(
@@ -297,14 +311,14 @@ impl ShardSchema {
         }
         if pixel_shape[3] != RGB_CHANNELS {
             return Err(DataError::schema(
-                "observation/pixels",
+                &pixel_path,
                 "last dimension 3 RGB channels",
                 format!("shape {pixel_shape:?}"),
             ));
         }
         if action_shape[1] != PUSHT_ACTION_DIM {
             return Err(DataError::schema(
-                "action",
+                &action_path,
                 "shape (N, 2)",
                 format!("shape {action_shape:?}"),
             ));
@@ -312,7 +326,7 @@ impl ShardSchema {
         if timestep_shape[0] != pixel_shape[0] || timestep_shape[0] != action_shape[0] {
             return Err(DataError::schema(
                 path.display().to_string(),
-                "matching N across timestep, observation/pixels, and action",
+                format!("matching N across {timestep_path}, {pixel_path}, and {action_path}"),
                 format!(
                     "timestep={timestep_shape:?}, pixels={pixel_shape:?}, action={action_shape:?}"
                 ),
@@ -320,12 +334,10 @@ impl ShardSchema {
         }
 
         Ok(Self {
-            episode_index: episode_ds
-                .read_raw()
-                .map_err(|source| DataError::hdf5("read episode_index", source))?,
-            timestep: timestep_ds
-                .read_raw()
-                .map_err(|source| DataError::hdf5("read timestep", source))?,
+            episode_index: read_index_dataset(&episode_ds, &episode_path)?,
+            timestep: read_index_dataset(&timestep_ds, &timestep_path)?,
+            pixel_path,
+            action_path,
             pixel_shape,
             action_shape,
         })
@@ -401,9 +413,18 @@ fn is_hdf5_path(path: &Path) -> bool {
         .is_some_and(|ext| matches!(ext, "h5" | "hdf5"))
 }
 
-fn dataset(file: &hdf5::File, name: &str) -> Result<hdf5::Dataset, DataError> {
-    file.dataset(name)
-        .map_err(|source| DataError::hdf5(format!("open {name}"), source))
+fn dataset_any(file: &hdf5::File, names: &[&str]) -> Result<(hdf5::Dataset, String), DataError> {
+    for name in names {
+        if let Ok(dataset) = file.dataset(name) {
+            return Ok((dataset, (*name).to_owned()));
+        }
+    }
+
+    Err(DataError::schema(
+        names.join("|"),
+        "one of the supported PushT dataset paths",
+        "missing",
+    ))
 }
 
 fn require_dtype<T: hdf5::H5Type>(dataset: &hdf5::Dataset, path: &str) -> Result<(), DataError> {
@@ -419,6 +440,44 @@ fn require_dtype<T: hdf5::H5Type>(dataset: &hdf5::Dataset, path: &str) -> Result
             "different HDF5 dtype",
         ))
     }
+}
+
+fn require_index_dtype(dataset: &hdf5::Dataset, path: &str) -> Result<(), DataError> {
+    let dtype = dataset
+        .dtype()
+        .map_err(|source| DataError::hdf5(format!("read dtype {path}"), source))?;
+    if dtype.is::<i32>() || dtype.is::<i64>() {
+        Ok(())
+    } else {
+        Err(DataError::schema(
+            path,
+            "int32 or int64",
+            "different HDF5 dtype",
+        ))
+    }
+}
+
+fn read_index_dataset(dataset: &hdf5::Dataset, path: &str) -> Result<Vec<i64>, DataError> {
+    let dtype = dataset
+        .dtype()
+        .map_err(|source| DataError::hdf5(format!("read dtype {path}"), source))?;
+    if dtype.is::<i32>() {
+        let values = dataset
+            .read_raw::<i32>()
+            .map_err(|source| DataError::hdf5(format!("read {path}"), source))?;
+        return Ok(values.into_iter().map(i64::from).collect());
+    }
+    if dtype.is::<i64>() {
+        return dataset
+            .read_raw::<i64>()
+            .map_err(|source| DataError::hdf5(format!("read {path}"), source));
+    }
+
+    Err(DataError::schema(
+        path,
+        "int32 or int64",
+        "different HDF5 dtype",
+    ))
 }
 
 fn vec_to_array<const N: usize>(shape: Vec<usize>, path: &str) -> Result<[usize; N], DataError> {
@@ -606,6 +665,25 @@ mod tests {
     }
 
     #[test]
+    fn pusht_public_lewm_schema_aliases_open() -> Result<(), Box<dyn std::error::Error>> {
+        let dir = tempfile::tempdir()?;
+        let train = episode_for_split(Split::Train, 150);
+        write_public_schema_fixture(&dir.path().join("pusht_000.h5"), &[(train, 3)])?;
+
+        let dataset = PushtDataset::new(PushtConfig::new(dir.path(), 2))?;
+        let sample = dataset.get(0)?;
+
+        assert_eq!(dataset.len(), 2);
+        assert_eq!(sample.frame_shape, (2, 4, 4, 3));
+        assert_eq!(sample.frames_t.len(), 2 * 4 * 4 * 3);
+        assert_eq!(sample.action_shape, (2, 2));
+        assert_eq!(sample.actions, vec![0.0, 0.25, 1.0, 1.25]);
+        assert_eq!(sample.meta.episode_id, train);
+        assert_eq!(sample.meta.start_frame, 0);
+        Ok(())
+    }
+
+    #[test]
     fn pusht_no_episode_crossing() -> Result<(), Box<dyn std::error::Error>> {
         let dir = tempfile::tempdir()?;
         let train_a = episode_for_split(Split::Train, 200);
@@ -717,6 +795,50 @@ mod tests {
             .create("timestep")?;
         observation
             .new_dataset_builder()
+            .with_data(&pixels)
+            .create("pixels")?;
+        file.new_dataset_builder()
+            .with_data(&actions)
+            .create("action")?;
+
+        Ok(())
+    }
+
+    fn write_public_schema_fixture(
+        path: &Path,
+        episodes: &[(u32, usize)],
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let rows = episodes.iter().map(|(_, len)| *len).sum::<usize>();
+        let file = hdf5::File::create(path)?;
+
+        let mut episode_idx = Vec::with_capacity(rows);
+        let mut step_idx = Vec::with_capacity(rows);
+        let mut row = 0usize;
+        for (episode_id, len) in episodes {
+            for step in 0..*len {
+                episode_idx.push(i64::from(*episode_id));
+                step_idx.push(i64::try_from(step)?);
+                row += 1;
+            }
+        }
+        debug_assert_eq!(row, rows);
+
+        let pixels = Array4::from_shape_fn((rows, 4, 4, 3), |(r, y, x, c)| {
+            u8::try_from((r + y + x + c) % 251).unwrap_or(0)
+        });
+        let actions = Array2::from_shape_fn((rows, 2), |(r, c)| {
+            let row = u16::try_from(r).map(f32::from).unwrap_or(f32::INFINITY);
+            let col = u16::try_from(c).map(f32::from).unwrap_or(f32::INFINITY);
+            row + (col * 0.25)
+        });
+
+        file.new_dataset_builder()
+            .with_data(&Array1::<i64>::from_vec(episode_idx))
+            .create("episode_idx")?;
+        file.new_dataset_builder()
+            .with_data(&Array1::<i64>::from_vec(step_idx))
+            .create("step_idx")?;
+        file.new_dataset_builder()
             .with_data(&pixels)
             .create("pixels")?;
         file.new_dataset_builder()

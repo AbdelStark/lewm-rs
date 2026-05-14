@@ -35,16 +35,18 @@ JOB_SPECS = {
         ],
     },
     "short_pusht.yaml": {
-        "hardware": "a10g-large",
-        "timeout": "2h",
+        "hardware": "l4x1",
+        "timeout": "45m",
         "command_tokens": [
             "hf download quentinll/lewm-pusht pusht_expert_train.h5.zst",
             "zstd -f -d /tmp/data/pusht_expert_train.h5.zst -o /tmp/data/pusht_expert_train.h5",
+            "export HDF5_PLUGIN_PATH=$(python -c 'import hdf5plugin; print(hdf5plugin.PLUGIN_PATH)')",
             "lewm-train train",
             "--config configs/pusht.toml",
             "--data-dir /tmp/data",
-            "--max-steps 7500",
+            "--max-steps 10",
             "python python/upload_checkpoints.py",
+            "--path-prefix train/pusht-short-$(date -u +%Y%m%dT%H%M%SZ)",
         ],
     },
     "train_pusht.yaml": {

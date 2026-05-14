@@ -33,6 +33,7 @@ LABEL org.opencontainers.image.source="https://github.com/AbdelStark/lewm-rs" \
       org.opencontainers.image.licenses="MIT"
 
 ENV HF_HOME=/tmp/hf \
+    HDF5_PLUGIN_PATH=/usr/local/lib/python3.11/dist-packages/hdf5plugin/plugins \
     RUST_LOG=lewm=info,burn=info \
     PYTHONUNBUFFERED=1
 
@@ -45,7 +46,9 @@ RUN apt-get update \
         python3-pip \
         tar \
         zstd \
-    && python3 -m pip install --break-system-packages --no-cache-dir "huggingface_hub==${HF_CLI_VERSION}" \
+    && python3 -m pip install --break-system-packages --no-cache-dir \
+        "huggingface_hub==${HF_CLI_VERSION}" \
+        "hdf5plugin==6.0.0" \
     && ln -sf /usr/bin/python3 /usr/local/bin/python \
     && rm -rf /var/lib/apt/lists/*
 
