@@ -17,6 +17,7 @@ pub mod embedder;
 pub mod errors;
 pub mod init;
 pub mod losses;
+pub mod mlp;
 pub mod rng;
 pub mod tensor_ops;
 pub mod vit;
@@ -33,6 +34,7 @@ pub use crate::losses::{
     CollapseProbeResult, CollapseThresholds, CollapseTrip, prediction_loss, run_collapse_probe,
     run_collapse_probe_with_thresholds,
 };
+pub use crate::mlp::Mlp;
 pub use crate::rng::{
     CEM_STREAM, DATA_SHUFFLE_STREAM, DROPOUT_STREAM, MISC_STREAM, MODEL_INIT_STREAM,
     RFC_0013_STREAMS, RNG_STATE_BYTES, RngState, SIGREG_SKETCH_STREAM, deserialize_rng,

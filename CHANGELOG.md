@@ -53,6 +53,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - Burn-backed `lewm-core::vit` encoder modules with RFC 0002 shape coverage.
 - Burn-backed `lewm-core::embedder` action encoder with preserved Conv1d-k1
   smoothing and shape coverage.
+- Burn-backed `lewm-core::mlp` projector heads with feature-axis normalization
+  and RFC 0002 shape coverage.
 
 ### Changed
 
