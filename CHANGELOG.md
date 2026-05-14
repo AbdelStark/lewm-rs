@@ -76,6 +76,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   `lewm-reference-record` for emitting a deterministic Safetensors mirror,
   load-checked Burn `NamedMpk` record, and Safetensors-vs-record drift check
   from the locked PushT reference checkpoint.
+- `lewm_core::export` Safetensors export helpers for deterministic `Jepa`
+  parameter mirrors, including BatchNorm running state and integer counters.
 
 ### Changed
 

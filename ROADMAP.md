@@ -20,6 +20,7 @@ the next vertical slices needed to finish the project.
 | PushT reference architecture | Locked | `tests/fixtures/reference_model.meta.json`; [#190](https://github.com/AbdelStark/lewm-rs/issues/190) |
 | PushT reference conversion artifacts | Implemented for weight artifacts | `python/param_name_map.py` locks the 303 source tensor names; `python/convert_reference.py convert` writes 255 destination tensors to Safetensors plus a Burn `NamedMpk` record; `python/verify_conversion.py` checks Safetensors-vs-record drift |
 | Core prediction loss | Implemented as MSRV-compatible kernel | `lewm_core::prediction_loss`; first slice of [#32](https://github.com/AbdelStark/lewm-rs/issues/32) |
+| Core Safetensors export | Implemented | `lewm_core::export::to_safetensors` writes deterministic `Jepa` parameter mirrors with BatchNorm state |
 | Artifact contract | Implemented for smoke and bounded PushT train | run report, losses JSONL, checkpoint sidecar, `.mpk`, `.safetensors`, parity JSON |
 | Optional observability | Implemented as optional infra | `infra/otel/`; CI and smoke runs do not require OTLP |
 | SO-100 preparation | Partially implemented | decode/stats/config/job scaffolds exist; full hosted run evidence is pending |
