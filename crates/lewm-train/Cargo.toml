@@ -15,6 +15,10 @@ path = "src/lib.rs"
 name = "lewm-train"
 path = "src/bin/lewm-train.rs"
 
+[[bin]]
+name = "lewm-reference-record"
+path = "src/bin/lewm-reference-record.rs"
+
 [features]
 default = ["cuda"]
 cuda = []
@@ -24,6 +28,8 @@ slow-tests = []
 
 [dependencies]
 blake3 = { workspace = true }
+burn-core = { workspace = true, features = ["std"] }
+burn-ndarray = { workspace = true }
 clap = { workspace = true }
 lewm-core = { workspace = true }
 lewm-data = { workspace = true }

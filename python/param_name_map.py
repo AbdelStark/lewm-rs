@@ -443,4 +443,12 @@ def _mlp_rules(prefix: str) -> tuple[ParamRule, ...]:
 
 
 def _as_array(value: Any) -> np.ndarray:
+    return to_numpy_array(value)
+
+
+def to_numpy_array(value: Any) -> np.ndarray:
+    """Return a CPU NumPy view/copy for PyTorch or NumPy-compatible tensors."""
+
+    if hasattr(value, "detach") and hasattr(value, "cpu") and hasattr(value, "numpy"):
+        value = value.detach().cpu().numpy()
     return np.asarray(value)

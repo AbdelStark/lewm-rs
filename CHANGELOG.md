@@ -72,6 +72,10 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   state dict and Burn record conversion preflight.
 - `python/convert_reference.py audit` for validating the downloaded PushT
   reference checkpoint keys against the locked conversion map.
+- `python/convert_reference.py convert`, `python/verify_conversion.py`, and
+  `lewm-reference-record` for emitting a deterministic Safetensors mirror,
+  load-checked Burn `NamedMpk` record, and Safetensors-vs-record drift check
+  from the locked PushT reference checkpoint.
 
 ### Changed
 
