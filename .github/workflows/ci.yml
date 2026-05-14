@@ -10,7 +10,7 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
-  RUST_TOOLCHAIN: "1.85.0"
+  RUST_TOOLCHAIN: "1.89.0"
 
 jobs:
   fmt:
@@ -169,8 +169,9 @@ jobs:
 
       - name: Run cargo-audit
         # hdf5-metno depends on paste; cargo-deny still blocks direct workspace unmaintained deps.
-        # Tract 0.22.1 pulls Liquid/time; the patched time release requires Rust 1.88 while this repo is pinned to 1.85.
-        run: cargo audit --deny warnings --ignore RUSTSEC-2024-0436 --ignore RUSTSEC-2026-0009
+        # Tract 0.22.1 pins the vulnerable time dependency; keep the audit ignore scoped until tract can upgrade.
+        # Burn 0.20.1 pulls bincode 2.0.1; ADR 0002 tracks the date-bounded waiver.
+        run: cargo audit --deny warnings --ignore RUSTSEC-2024-0436 --ignore RUSTSEC-2026-0009 --ignore RUSTSEC-2025-0141
 
   secrets:
     name: secrets

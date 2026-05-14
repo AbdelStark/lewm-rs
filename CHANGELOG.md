@@ -48,11 +48,15 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - Added `lewm-train` cosine warmup learning-rate schedule.
 - Added `lewm-train` AdamW RFC defaults and decay/no-decay parameter
   partitioning.
+- Direct `lewm-core` Burn `0.20.1` dependency and compile smoke for the
+  Rust `1.89.0` parity implementation path.
 
 ### Changed
 
 - Expanded GitHub issue templates, the pull request traceability checklist, and
   CODEOWNERS mappings for crate-level review routing.
+- Bumped the pinned Rust toolchain, CI toolchain, and training image builder to
+  Rust `1.89.0` to satisfy the Burn `0.20.1` MSRV.
 
 ### Deprecated
 
@@ -64,6 +68,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 - Added a gitleaks-backed secret scan wrapper and CI gate for
   `TST-0016-SECRETS-001`.
+- Documented ADR 0002's date-bounded `cargo audit` waiver for Burn's transitive
+  `RUSTSEC-2025-0141` `bincode` dependency.
 
 ## [0.1.0] - TBD
 

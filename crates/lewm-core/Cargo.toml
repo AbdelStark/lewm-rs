@@ -18,6 +18,7 @@ slow-tests = []
 
 [dependencies]
 blake3 = { workspace = true }
+burn = { workspace = true }
 libm = { workspace = true }
 rand = { workspace = true }
 rand_chacha = { workspace = true }
@@ -27,6 +28,7 @@ thiserror = { workspace = true }
 validator = { workspace = true }
 
 [dev-dependencies]
+burn-ndarray = { workspace = true }
 criterion = { workspace = true }
 insta = { workspace = true }
 proptest = { workspace = true }

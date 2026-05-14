@@ -1579,15 +1579,15 @@ fn restore_pusht_full_lewm_start(
             ),
         });
     }
-    if let Some(last_loss) = previous_losses.last() {
-        if last_loss.step != sidecar.step {
-            return Err(TrainerError::ResumeCheckpointInvalid {
-                reason: format!(
-                    "train_losses.jsonl ends at step {}, but latest checkpoint is step {}",
-                    last_loss.step, sidecar.step
-                ),
-            });
-        }
+    if let Some(last_loss) = previous_losses.last()
+        && last_loss.step != sidecar.step
+    {
+        return Err(TrainerError::ResumeCheckpointInvalid {
+            reason: format!(
+                "train_losses.jsonl ends at step {}, but latest checkpoint is step {}",
+                last_loss.step, sidecar.step
+            ),
+        });
     }
 
     let record: PushtFullLewmRecord = serde_json::from_slice(&loaded.burn_record)?;

@@ -17,7 +17,7 @@ edition = "2024"
 license = "MIT"
 authors = ["Abdel <abdel@starkware.co>"]
 repository = "https://github.com/AbdelStark/lewm-rs"
-rust-version = "1.85"
+rust-version = "1.89"
 
 [workspace.dependencies]
 # Internal crates

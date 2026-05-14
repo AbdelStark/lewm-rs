@@ -649,7 +649,7 @@ mod tests {
         }
         let diff_0 = final_latent[0] - z_goal[0];
         let diff_1 = final_latent[1] - z_goal[1];
-        (diff_0 * diff_0 + diff_1 * diff_1) / 2.0
+        f32::midpoint(diff_0 * diff_0, diff_1 * diff_1)
     }
 
     fn assert_close_slice(left: &[f32], right: &[f32], tolerance: f32) {

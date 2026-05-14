@@ -11,7 +11,7 @@ permissions:
   id-token: write
 
 env:
-  RUST_TOOLCHAIN: "1.85.0"
+  RUST_TOOLCHAIN: "1.89.0"
   REPRO_PROFILE: release-lto
   REPRO_TARGET: x86_64-unknown-linux-musl
 

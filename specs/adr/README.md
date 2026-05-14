@@ -94,6 +94,7 @@ An ADR moves to **Implemented** automatically when the cited PR merges into `mai
 | # | Title | Status | Tracks |
 |---|-------|--------|--------|
 | [0001](0001-pusht-reference-architecture.md) | PushT reference architecture source of truth | Implemented | RFC 0002, RFC 0008, RFC 0018 |
+| [0002](0002-burn-msrv-and-audit-waiver.md) | Burn compiler floor and audit waiver | Implemented | RFC 0001, RFC 0011, RFC 0016 |
 
 ---
 

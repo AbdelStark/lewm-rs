@@ -205,7 +205,7 @@ def validate_image_contract(failures: list[str]) -> None:
     else:
         text = dockerfile.read_text(encoding="utf-8")
         for token in (
-            "FROM rust:1.85.0-bookworm AS builder",
+            "FROM rust:1.89.0-bookworm AS builder",
             "cargo build --locked --release -p lewm-train",
             "huggingface_hub==",
             'org.opencontainers.image.source="https://github.com/AbdelStark/lewm-rs"',

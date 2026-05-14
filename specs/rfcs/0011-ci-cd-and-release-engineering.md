@@ -74,14 +74,14 @@ strategy:
   fail-fast: false
   matrix:
     os: [ubuntu-22.04]
-    rust: [1.85.0]   # pinned per RFC 0001
+    rust: [1.89.0]   # pinned per RFC 0001
     feature_set:
       - default
       - cpu-only
       - parity-fixtures
     include:
       - os: macos-14-arm
-        rust: 1.85.0
+        rust: 1.89.0
         feature_set: cpu-only
 ```
 
@@ -93,7 +93,7 @@ strategy:
 4. `test` — `cargo test --workspace --features ${feature_set} -- --skip "_slow_"`.
 5. `parity` — only on `parity-fixtures` build; runs `parity_*` tests. Requires the parity fixture and dumps; fetched from the `abdelstark/lewm-rs-parity-dumps` HF dataset using a CI secret token.
 6. `deny` — `cargo deny check`.
-7. `audit` — `cargo audit --deny warnings`.
+7. `audit` — `cargo audit --deny warnings` with only ADR-backed scoped ignores.
 8. `layers` — `python scripts/check_layers.py`.
 9. `specs` — `python scripts/check_specs.py` (frontmatter, link integrity, traceability).
 10. `docs-build` — `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps`.
@@ -204,7 +204,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libssl-dev libhdf5-dev libstdc++-12-dev \
  && rm -rf /var/lib/apt/lists/*
 
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.85.0 --profile minimal
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.89.0 --profile minimal
 ENV PATH="/root/.cargo/bin:${PATH}"
 
 WORKDIR /src

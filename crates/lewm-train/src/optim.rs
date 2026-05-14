@@ -168,8 +168,8 @@ pub fn uses_weight_decay(param_name: &str) -> bool {
     let segments = normalized.split('.').collect::<Vec<_>>();
 
     if has_terminal_segment(&normalized, "bias")
-        || segments.iter().any(|segment| *segment == "cls_token")
-        || segments.iter().any(|segment| *segment == "pos_embed")
+        || segments.contains(&"cls_token")
+        || segments.contains(&"pos_embed")
         || segments.iter().any(|segment| is_norm_segment(segment))
     {
         return false;

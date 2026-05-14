@@ -33,8 +33,9 @@ check: fmt lint
 	$(PYTHON) python/cost_ledger.py check --path reports/cost.md --cap-usd 200
 	cargo deny check
 	# hdf5-metno depends on paste; cargo-deny still blocks direct workspace unmaintained deps.
-	# Tract 0.22.1 pulls Liquid/time; the patched time release requires Rust 1.88 while this repo is pinned to 1.85.
-	cargo audit --db "$(CARGO_AUDIT_DB)" --deny warnings --ignore RUSTSEC-2024-0436 --ignore RUSTSEC-2026-0009
+	# Tract 0.22.1 pins the vulnerable time dependency; keep the audit ignore scoped until tract can upgrade.
+	# Burn 0.20.1 pulls bincode 2.0.1; ADR 0002 tracks the date-bounded waiver.
+	cargo audit --db "$(CARGO_AUDIT_DB)" --deny warnings --ignore RUSTSEC-2024-0436 --ignore RUSTSEC-2026-0009 --ignore RUSTSEC-2025-0141
 
 accept: check test docs
 	@if [ -d python ] && [ -f python/Makefile ]; then \
