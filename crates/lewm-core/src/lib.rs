@@ -12,6 +12,7 @@
 //! The public module surface is added by the phase-specific implementation
 //! issues after the workspace scaffold lands.
 
+pub mod ada_ln;
 pub mod config;
 pub mod embedder;
 pub mod errors;
@@ -22,6 +23,7 @@ pub mod rng;
 pub mod tensor_ops;
 pub mod vit;
 
+pub use crate::ada_ln::{AdaLNZero, AdaLNZeroOutputs};
 pub use crate::config::{
     EmbedderConfig, GeluVariant, JepaConfig, MlpConfig, NormVariant, PredictorConfig, VitConfig,
     VitSize,
