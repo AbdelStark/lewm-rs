@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 import hashlib
+import json
+import struct
 import sys
 from pathlib import Path
+
+import numpy as np
 
 
 PYTHON_DIR = Path(__file__).resolve().parents[1]
@@ -84,3 +88,61 @@ def test_sha256_file_streams_file_contents(tmp_path: Path) -> None:
     path.write_bytes(payload)
 
     assert convert.sha256_file(path) == hashlib.sha256(payload).hexdigest()
+
+
+def test_write_safetensors_emits_deterministic_header_and_payload(tmp_path: Path) -> None:
+    path = tmp_path / "reference.safetensors"
+    tensors = {
+        "z_float": np.array([[1.0, 2.0], [3.0, 4.0]], dtype=np.float64),
+        "a_int": np.array(7, dtype=np.int64),
+    }
+
+    infos = convert.write_safetensors(path, tensors)
+    raw = path.read_bytes()
+    header_len = struct.unpack("<Q", raw[:8])[0]
+    header = json.loads(raw[8 : 8 + header_len])
+
+    assert infos == {
+        "a_int": {"dtype": "I64", "shape": [1], "element_count": 1},
+        "z_float": {"dtype": "F32", "shape": [2, 2], "element_count": 4},
+    }
+    assert header["__metadata__"]["producer"] == "lewm-rs python/convert_reference.py"
+    assert header["a_int"]["dtype"] == "I64"
+    assert header["z_float"]["dtype"] == "F32"
+    assert header["z_float"]["shape"] == [2, 2]
+    assert header["z_float"]["data_offsets"] == [8, 24]
+
+
+def test_build_conversion_meta_links_rules_and_artifacts() -> None:
+    rule = pnm.ParamRule.single(
+        "encoder.layernorm.weight",
+        "encoder.norm.gamma",
+        pnm.Transform.IDENTITY,
+    )
+    audit = convert.audit_state_dict_keys(state_dict_with_expected_keys(), weights_sha256="abc")
+    tensor_infos = {
+        rule.destination: {
+            "dtype": "F32",
+            "shape": [192],
+            "element_count": 192,
+        }
+    }
+
+    meta = convert.build_conversion_meta(
+        reference_meta=convert.load_reference_meta(),
+        audit=audit,
+        config_path=Path("/tmp/reference/config.json"),
+        safetensors_out=Path("/tmp/reference/reference.safetensors"),
+        safetensors_sha256="safe123",
+        burn_record_out=Path("/tmp/reference/reference.mpk"),
+        burn_record_sha256="mpk123",
+        tensor_infos=tensor_infos,
+        helper_command=["cargo", "run"],
+    )
+
+    assert meta["schema_version"] == "1.0"
+    assert meta["artifacts"]["safetensors_sha256"] == "safe123"
+    assert meta["artifacts"]["burn_record_sha256"] == "mpk123"
+    assert meta["conversion"]["destination_tensor_count"] == 1
+    assert meta["conversion"]["transform_counts"] == {"identity": 1}
+    assert meta["tensors"]["encoder.norm.gamma"]["sources"] == ["encoder.layernorm.weight"]
