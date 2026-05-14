@@ -17,6 +17,7 @@ the next vertical slices needed to finish the project.
 | HF Jobs short PushT run | Completed | `https://huggingface.co/jobs/abdelstark/6a05cf0ee48bea4538b9ccd6` |
 | HF artifact upload | Completed for minimal short run | `abdelstark/lewm-rs-pusht/train/pusht-minimal-lewm-short-20260514T133423Z/` |
 | PushT train command | Real bounded data-plane path exists | `lewm-train --config configs/pusht.toml --device cpu --output-dir /tmp/lewm-train-pusht --max-steps 10 train` |
+| PushT reference architecture | Locked | `tests/fixtures/reference_model.meta.json`; [#190](https://github.com/AbdelStark/lewm-rs/issues/190) |
 | Artifact contract | Implemented for smoke and minimal PushT train | run report, losses JSONL, checkpoint sidecar, `.mpk`, `.safetensors`, parity JSON |
 | Optional observability | Implemented as optional infra | `infra/otel/`; CI and smoke runs do not require OTLP |
 | SO-100 preparation | Partially implemented | decode/stats/config/job scaffolds exist; full hosted run evidence is pending |
@@ -56,7 +57,7 @@ with linked evidence:
 
 | Priority | Issue | Work | Acceptance |
 |----------|-------|------|------------|
-| P0 | [#190](https://github.com/AbdelStark/lewm-rs/issues/190) | Lock final LeWM architecture and parity source of truth | Final module dimensions and parity fixture contract are documented; RFC 0002 open question is resolved |
+| Done | [#190](https://github.com/AbdelStark/lewm-rs/issues/190) | Lock final LeWM architecture and parity source of truth | Final module dimensions and parity fixture contract are documented; RFC 0002 open question is resolved |
 | P0 | [#191](https://github.com/AbdelStark/lewm-rs/issues/191) | Replace minimal PushT core with full module-backed LeWM training | Short CPU train can run the full path and preserve the artifact contract |
 | P0 | [#192](https://github.com/AbdelStark/lewm-rs/issues/192) | Implement robust checkpoint restore and resume | Full training can stop and resume with model, optimizer, scheduler, RNG, and step state restored |
 | P1 | [#193](https://github.com/AbdelStark/lewm-rs/issues/193) | Run full PushT training, planning eval, and publish artifacts | HF run, planning success report, model card, uploaded checkpoints, and cost ledger are linked |
@@ -87,6 +88,7 @@ creating a second tracker.
 
 ## Next Logical Step
 
-Start with [#190](https://github.com/AbdelStark/lewm-rs/issues/190). The
-project should not spend more hosted GPU time until the final architecture,
-reference parity source, and minimal-vs-full training boundary are locked.
+Start [#191](https://github.com/AbdelStark/lewm-rs/issues/191): replace the
+minimal PushT core with the full module-backed LeWM training path. Hosted GPU
+time should still wait until the full path has a local CPU smoke and restore
+contract.

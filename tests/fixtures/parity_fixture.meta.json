@@ -5,10 +5,10 @@
     "shape": [
       4,
       4,
-      2
+      10
     ]
   },
-  "fixture_hash": "814acdb57fd6e48be5de5b075fbeb920181b99ac5bdcde551be15d75997afb22",
+  "fixture_hash": "adde63f7c623f025acba32e31ed17f4605c426def1146438b507b0ac3a730400",
   "fixture_hash_algorithm": "blake3",
   "fixture_path": "tests/fixtures/parity_fixture.npz",
   "fixture_seed": 0,
@@ -16,10 +16,10 @@
     "cuda_version": null,
     "framework": "torch",
     "numpy_version": "2.4.4",
-    "python_version": "3.12.12",
-    "torch_version": "2.11.0"
+    "python_version": "3.13.11",
+    "torch_version": "2.12.0"
   },
-  "git_short_sha": "0feeee7",
+  "git_short_sha": "73c6124",
   "pixels": {
     "dtype": "float32",
     "normalization": "(x - 0.5) / 0.5",

@@ -2,11 +2,11 @@
 rfc: "0002"
 title: "lewm-core — model architecture, modules, forward semantics"
 status: Accepted
-version: 1.0.0
+version: 1.1.0
 authors: ["Abdel"]
 reviewers: []
 created: 2026-05-12
-updated: 2026-05-12
+updated: 2026-05-14
 supersedes: []
 superseded_by: null
 tracks_prd: ["§4.1", "§5.2", "§5.3", "§14"]
@@ -16,7 +16,7 @@ related: ["0003", "0008", "0013"]
 
 # RFC 0002 — `lewm-core`: model architecture, modules, forward semantics
 
-> **Status:** Accepted · **Version:** 1.0.0
+> **Status:** Accepted · **Version:** 1.1.0
 >
 > Specifies every module of `lewm-core` to a level of detail sufficient for byte-exact reproduction of the upstream LeWM model in Rust. Covers the ViT encoder, the action `Embedder`, the projector/pred_proj MLPs, the `ConditionalBlock` and `ArPredictor` with AdaLN-zero conditioning, the top-level `Jepa` wrapper, the rollout and cost functions, and the initialization recipes. Numerical contracts (tolerances, parity tests) are in [RFC 0008](0008-reference-parity-testing.md); loss math is in [RFC 0003](0003-sigreg-and-loss-functions.md).
 
@@ -105,29 +105,29 @@ pub use crate::vit::{EncoderBlock, PatchEmbed, Vit};
 #### 4.2.1 Configuration
 
 ```rust
-/// Vision Transformer configuration. Defaults match HF `transformers` ViT-Small.
+/// Vision Transformer configuration. Defaults match `quentinll/lewm-pusht`.
 #[derive(burn::config::Config, Debug, Clone, Eq, PartialEq)]
 pub struct VitConfig {
     /// Square image side length in pixels (must equal `patch_size · grid_size`).
     #[config(default = "224")]
     pub image_size: usize,
     /// Patch side length in pixels.
-    #[config(default = "16")]
+    #[config(default = "14")]
     pub patch_size: usize,
     /// Input channel count.
     #[config(default = "3")]
     pub num_channels: usize,
     /// Embedding dimension `D`.
-    #[config(default = "384")]
+    #[config(default = "192")]
     pub hidden_size: usize,
     /// Number of transformer blocks.
     #[config(default = "12")]
     pub num_hidden_layers: usize,
-    /// Number of attention heads (`hidden_size % num_heads == 0`).
-    #[config(default = "6")]
+    /// Number of encoder attention heads (`hidden_size % num_heads == 0`).
+    #[config(default = "3")]
     pub num_attention_heads: usize,
-    /// FFN inner dim; HF ViT uses `mlp_ratio · hidden_size`. Here equals `1536`.
-    #[config(default = "1536")]
+    /// FFN inner dim; HF ViT uses `mlp_ratio · hidden_size`. Here equals `768`.
+    #[config(default = "768")]
     pub intermediate_size: usize,
     /// Activation function: GELU with tanh approximation (HF default `gelu`, our default `gelu_tanh`).
     #[config(default = "GeluVariant::TanhApprox")]
@@ -189,7 +189,7 @@ x = transpose(x, 1, 2)             # (B, num_patches, hidden)
 return x
 ```
 
-`num_patches = (image_size / patch_size) ** 2`. For LeWM defaults: `(224/16)**2 = 196`.
+`num_patches = (image_size / patch_size) ** 2`. For LeWM defaults: `(224/14)**2 = 256`.
 
 #### 4.2.3 Position embeddings
 
@@ -381,13 +381,14 @@ return ViTOutput { last_hidden_state: x }
 ```rust
 #[derive(burn::config::Config, Debug, Clone, Eq, PartialEq)]
 pub struct EmbedderConfig {
-    /// Per-step action dimensionality (2 for PushT, 6 for SO-100).
+    /// Packed per-step action dimensionality (10 for PushT: raw 2-D actions × frameskip 5;
+    /// 6 for SO-100).
     pub input_dim: usize,
     /// Intermediate dim after the Conv1d-k1 (functionally a Linear).
-    #[config(default = "16")]
+    #[config(default = "10")]
     pub smoothed_dim: usize,
     /// Output embedding dim used by the predictor.
-    #[config(default = "64")]
+    #[config(default = "192")]
     pub emb_dim: usize,
     /// Inner MLP scale (FFN width = emb_dim * mlp_scale).
     #[config(default = "4")]
@@ -439,9 +440,9 @@ return x
 ```rust
 #[derive(burn::config::Config, Debug, Clone, Eq, PartialEq)]
 pub struct MlpConfig {
-    pub input_dim:  usize,    // default 384
-    pub hidden_dim: usize,    // default 1536
-    pub output_dim: usize,    // default 384
+    pub input_dim:  usize,    // default 192
+    pub hidden_dim: usize,    // default 2048
+    pub output_dim: usize,    // default 192
     #[config(default = "NormVariant::BatchNorm1d")]
     pub norm:       NormVariant,
 }
@@ -575,28 +576,29 @@ return x
 #[derive(burn::config::Config, Debug, Clone, Eq, PartialEq)]
 pub struct PredictorConfig {
     /// Max sequence length supported by the learned positional embedding.
-    #[config(default = "16")]
+    #[config(default = "3")]
     pub num_frames: usize,
     /// Number of `ConditionalBlock`s.
     #[config(default = "6")]
     pub depth: usize,
     /// Number of attention heads per block.
-    #[config(default = "6")]
+    #[config(default = "16")]
     pub heads: usize,
     /// FFN inner dim in each `ConditionalBlock`.
-    #[config(default = "1536")]
+    #[config(default = "2048")]
     pub mlp_dim: usize,
-    /// Per-head dim. heads * dim_head must equal hidden_dim.
+    /// Per-head dim. `heads * dim_head` is the attention inner width and may
+    /// exceed `hidden_dim`; the upstream PushT checkpoint uses 1024 for 192-D tokens.
     #[config(default = "64")]
     pub dim_head: usize,
     /// Token dim (input/output of the predictor, equal to the encoder/projector dim).
-    #[config(default = "384")]
+    #[config(default = "192")]
     pub hidden_dim: usize,
     /// Action embedding dim (input to AdaLN-zero).
-    #[config(default = "64")]
+    #[config(default = "192")]
     pub action_emb_dim: usize,
     /// Sequence dropout (applied post pos-emb).
-    #[config(default = "0.0")]
+    #[config(default = "0.1")]
     pub dropout: f64,
     /// Embedding dropout (applied directly after pos add).
     #[config(default = "0.0")]
@@ -906,7 +908,7 @@ Pure numerical code. No security surface beyond the supply-chain considerations 
 
 | ID | Name | Type | What it covers |
 |----|------|------|----------------|
-| TST-0002-ENC-001 | `vit_small_forward_shape` | unit | ViT-Small encoder tensor shape contract |
+| TST-0002-ENC-001 | `vit_tiny_forward_shape` | unit | ViT-Tiny encoder tensor shape contract |
 | TST-0002-ENC-002 | `cls_extraction_matches_hf_semantics` | unit | CLS token extraction before projection |
 | TST-0002-EMB-001 | `action_embedder_shape_and_k1_conv` | unit | Conv1d-k1 action embedder graph and output shape |
 | TST-0002-PRED-001 | `conditional_block_adaln_zero_identity` | unit | AdaLN-zero identity invariant at initialization |
@@ -950,38 +952,26 @@ None at this revision.
 
 ## 14. Appendix — parameter count audit
 
-For the LeWM defaults the parameter count is:
+The open ViT-Small-versus-Tiny question is resolved by the published
+`quentinll/lewm-pusht` `config.json` and `weights.pt` at revision
+`22b330c28c27ead4bfd1888615af1340e3fe9052`.
 
-```
-ViT-Small encoder:
-  patch_embed: 16*16*3*384 + 384                       =      294,912 +       384 =       295,296
-  cls_token:                                                                          384
-  pos_embed:  (196+1)*384                                                          75,648
-  per block:
-    norm1: 2*384                                          =                            768
-    attn.qkv: 384*3*384 + 3*384                           =     442,368 +     1,152 =       443,520
-    attn.proj: 384*384 + 384                              =     147,456 +       384 =       147,840
-    norm2: 2*384                                          =                            768
-    mlp.fc1: 384*1536 + 1536                              =     589,824 +     1,536 =       591,360
-    mlp.fc2: 1536*384 + 384                               =     589,824 +       384 =       590,208
-    block subtotal                                                                  1,774,464
-  12 blocks                                                                        21,293,568
-  final norm: 2*384                                                                       768
+Locked source metadata is committed in
+`tests/fixtures/reference_model.meta.json`:
 
-Hold on — that's already ~21.6M for the encoder alone, above the 15M target. Let's re-audit.
-```
+- encoder: ViT-Tiny, `patch_size=14`, `hidden_size=192`, `depth=12`,
+  `heads=3`, `intermediate_size=768`, `pos_embed=(1,257,192)`.
+- action encoder: raw PushT action dim `2`, `frameskip=5`,
+  packed `input_dim=10`, `smoothed_dim=10`, `emb_dim=192`.
+- predictor: `num_frames=3`, `depth=6`, `heads=16`, `dim_head=64`,
+  attention inner width `1024`, `mlp_dim=2048`, dropout `0.1`.
+- projector and pred_proj: `input=192`, `hidden=2048`, `output=192`,
+  `BatchNorm1d`.
+- checkpoint metadata: 303 state-dict tensors and 18,042,672 state-dict
+  scalar values including BatchNorm buffers.
 
-Re-audit: the target "15M total" in PRD §5.2 includes the *encoder plus predictor plus heads*. A more careful counting shows the encoder is ~21M parameters at ViT-Small specs. The PRD's "14.8M to 15.2M" cited the **paper's** number which appears to be a ViT-Tiny variant (`hidden=192, depth=12, heads=3`) — **the PRD must be reconciled here**.
-
-**Open question OQ-2002-1:** Verify whether the published LeWM PushT checkpoint uses ViT-Tiny (`hidden=192, depth=12, heads=3, ~5.5M`) or ViT-Small (`hidden=384, depth=12, heads=6, ~22M`). The PRD lists `hidden=384, depth=12, heads=6` (ViT-Small), but the parameter target `15M` corresponds neither directly. **Decision pending Phase 1 weight inspection**: `python/convert_reference.py` will report the exact parameter count and dimensions, and the result is recorded in `reports/parity.md` and reflected in the next revision of this RFC.
-
-**Resolution path:**
-
-1. Phase 0 task: pull `quentinll/lewm-pusht` config and inspect `hidden_size`.
-2. If `hidden=384`, the PRD's "15M" is a paper-summary approximation and the configs §5.2 are correct.
-3. If `hidden=192`, update `VitConfig` defaults and the param-count audit here.
-
-The parity tests in [RFC 0008](0008-reference-parity-testing.md) catch this discrepancy automatically: they load the actual checkpoint and the shape mismatch fails fast.
+This resolves OQ-2002-1: the final v1 PushT implementation targets the
+published ViT-Tiny checkpoint, not the older ViT-Small draft.
 
 ---
 
@@ -989,6 +979,7 @@ The parity tests in [RFC 0008](0008-reference-parity-testing.md) catch this disc
 
 | Version | Date | Author | Change |
 |---------|------|--------|--------|
+| 1.1.0 | 2026-05-14 | Abdel | Resolved OQ-2002-1 from the published PushT checkpoint; locked ViT-Tiny/reference metadata. |
 | 1.0.0 | 2026-05-12 | Abdel | Initial accepted version. |
 
 *End of RFC 0002.*

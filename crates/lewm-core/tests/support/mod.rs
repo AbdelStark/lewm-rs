@@ -11,6 +11,10 @@ const FIXTURE_META_PATH: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/../../tests/fixtures/parity_fixture.meta.json"
 );
+const REFERENCE_MODEL_META_PATH: &str = concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../tests/fixtures/reference_model.meta.json"
+);
 
 pub(crate) struct ParityFixture {
     pub(crate) pixels: NpyF32,
@@ -66,6 +70,16 @@ pub(crate) fn load_fixture_meta() -> Result<serde_json::Value, FixtureError> {
     })?;
     serde_json::from_str(&raw)
         .map_err(|err| FixtureError(format!("invalid parity fixture metadata JSON: {err}")))
+}
+
+pub(crate) fn load_reference_model_meta() -> Result<serde_json::Value, FixtureError> {
+    let raw = fs::read_to_string(Path::new(REFERENCE_MODEL_META_PATH)).map_err(|err| {
+        FixtureError(format!(
+            "failed to read reference model metadata at {REFERENCE_MODEL_META_PATH}: {err}"
+        ))
+    })?;
+    serde_json::from_str(&raw)
+        .map_err(|err| FixtureError(format!("invalid reference model metadata JSON: {err}")))
 }
 
 fn read_npz(bytes: &[u8]) -> Result<HashMap<String, Vec<u8>>, FixtureError> {

@@ -1,6 +1,6 @@
 # `lewm-rs` — Master Technical Specification
 
-> **Status:** Accepted · **Version:** 1.0.0 · **Date:** 2026-05-12 · **Custodian:** Abdel
+> **Status:** Accepted · **Version:** 1.1.0 · **Date:** 2026-05-14 · **Custodian:** Abdel
 >
 > This document is the master technical specification for `lewm-rs`. It defines the cross-cutting architecture, contracts, requirements, and conformance criteria. Subsystem detail lives in the RFCs (`specs/rfcs/`); each subsystem clause here is paired with a forward link to its RFC.
 >
@@ -148,15 +148,15 @@ Functional requirements describe **what** `lewm-rs` does. Each `FR-NNN` is trace
 
 ### 2.1 Model and loss
 
-- **FR-001 — ViT encoder.** The system **MUST** implement the HF `transformers` ViT-Small architecture with `patch_size=16`, `image_size=224`, `hidden=384`, `depth=12`, `heads=6`, no mask token. Forward path takes `(B, C, 224, 224)` and returns `last_hidden_state` of shape `(B, 197, 384)`. — RFC 0002 §4; PRD §5.2.
+- **FR-001 — ViT encoder.** The system **MUST** implement the published `quentinll/lewm-pusht` ViT-Tiny architecture with `patch_size=14`, `image_size=224`, `hidden=192`, `depth=12`, `heads=3`, no mask token. Forward path takes `(B, C, 224, 224)` and returns `last_hidden_state` of shape `(B, 257, 192)`. — RFC 0002 §4; PRD §5.2.
 
 - **FR-002 — CLS extraction.** The system **MUST** expose `cls(hidden) -> Tensor<B, 2>` returning the CLS row of `last_hidden_state` (i.e., index 0 on the second axis). — RFC 0002 §4.3.
 
-- **FR-003 — Action encoder.** The system **MUST** implement `Embedder` with shape-preserving `Conv1d(kernel=1)` followed by `Linear → SiLU → Linear`. Input `(B, T, A)`, output `(B, T, E_a=64)`. — RFC 0002 §4.5; PRD §4.1.
+- **FR-003 — Action encoder.** The system **MUST** implement `Embedder` with shape-preserving `Conv1d(kernel=1)` followed by `Linear → SiLU → Linear`. PushT input is packed from raw 2-D actions with `frameskip=5`, so input shape is `(B, T, A=10)` and output is `(B, T, E_a=192)`. SO-100 uses `A=6` with the same `E_a=192`. — RFC 0002 §4.5; PRD §4.1.
 
-- **FR-004 — ARPredictor.** The system **MUST** implement an autoregressive predictor with `depth=6`, `heads=6`, `dim_head=64`, `mlp_dim=1536`, causal SDPA, AdaLN-zero conditioning on action embeddings, learned positional embedding, and zero-initialized final adaLN linear. — RFC 0002 §4.6; PRD §4.1.
+- **FR-004 — ARPredictor.** The system **MUST** implement an autoregressive predictor with `num_frames=3`, `depth=6`, `heads=16`, `dim_head=64`, attention inner width `1024`, `mlp_dim=2048`, causal SDPA, AdaLN-zero conditioning on action embeddings, learned positional embedding, and zero-initialized final adaLN linear. — RFC 0002 §4.6; PRD §4.1.
 
-- **FR-005 — Projector and pred_proj MLPs.** The system **MUST** implement two two-layer MLPs (`input=384`, `hidden=1536`, `output=384`) using BatchNorm1d and GELU. — RFC 0002 §4.7; PRD §5.2.
+- **FR-005 — Projector and pred_proj MLPs.** The system **MUST** implement two two-layer MLPs (`input=192`, `hidden=2048`, `output=192`) using BatchNorm1d and GELU. — RFC 0002 §4.7; PRD §5.2.
 
 - **FR-006 — JEPA wrapper.** The system **MUST** expose `encode`, `predict`, `rollout`, `criterion`, and `get_cost` on the top-level `Jepa` module, with semantics matching `jepa.py::JEPA`. — RFC 0002 §4.8.
 
@@ -465,14 +465,14 @@ Throughout `lewm-rs`, tensor shapes follow these conventions verbatim:
 
 | Symbol | Meaning | Concrete |
 |--------|---------|----------|
-| pixels | `(B, T, C, H, W)` | `(B, 8, 3, 224, 224)` |
-| pixels_flat | `(B·T, C, H, W)` | `(B·8, 3, 224, 224)` |
-| hidden | `(B·T, P+1, D)` | `(B·8, 197, 384)` |
-| cls | `(B·T, D)` | `(B·8, 384)` |
-| cls_seq | `(B, T, D)` | `(B, 8, 384)` |
-| action | `(B, T, A)` | `(B, 8, 2)` PushT, `(B, 8, 6)` SO-100 |
-| action_emb | `(B, T, E_a)` | `(B, 8, 64)` |
-| pred | `(B, T−h, D)` | `(B, 5, 384)` with `h=3, T=8` |
+| pixels | `(B, T, C, H, W)` | `(B, 4, 3, 224, 224)` |
+| pixels_flat | `(B·T, C, H, W)` | `(B·4, 3, 224, 224)` |
+| hidden | `(B·T, P+1, D)` | `(B·4, 257, 192)` |
+| cls | `(B·T, D)` | `(B·4, 192)` |
+| cls_seq | `(B, T, D)` | `(B, 4, 192)` |
+| action | `(B, T, A)` | `(B, 4, 10)` PushT, `(B, 4, 6)` SO-100 |
+| action_emb | `(B, T, E_a)` | `(B, 4, 192)` |
+| pred | `(B, 1, D)` | `(B, 1, 192)` with `h=3, T=4` |
 | target | `(B, T−h, D)` | same |
 
 Every public function signature in `lewm-core` **MUST** state both rank and meaning in its rustdoc. Internal helpers **SHOULD** likewise.
@@ -778,6 +778,7 @@ CI fails the release job if any of the above is missing.
 
 | Version | Date | Author | Change |
 |---------|------|--------|--------|
+| 1.1.0 | 2026-05-14 | Abdel | Locked PushT architecture to published ViT-Tiny checkpoint metadata. |
 | 1.0.0 | 2026-05-12 | Abdel | Initial accepted version, locked for execution. |
 
 ---

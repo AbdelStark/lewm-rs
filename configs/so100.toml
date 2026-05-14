@@ -8,17 +8,17 @@ stats_path = "/data/so100/stats.safetensors"
 
 [model]
 history_size = 3
-horizon = 8
+horizon = 4
 
 [model.encoder]
-size = "small"
+size = "tiny"
 image_size = 224
-patch_size = 16
+patch_size = 14
 num_channels = 3
-hidden_size = 384
+hidden_size = 192
 num_hidden_layers = 12
-num_attention_heads = 6
-intermediate_size = 1536
+num_attention_heads = 3
+intermediate_size = 768
 hidden_act = "gelu_tanh"
 attention_probs_dropout_prob = 0.0
 hidden_dropout_prob = 0.0
@@ -30,33 +30,33 @@ pretrained = false
 
 [model.action_encoder]
 input_dim = 6
-smoothed_dim = 16
-emb_dim = 64
+smoothed_dim = 10
+emb_dim = 192
 mlp_scale = 4
 
 [model.predictor]
-num_frames = 16
+num_frames = 3
 depth = 6
-heads = 6
-mlp_dim = 1536
+heads = 16
+mlp_dim = 2048
 dim_head = 64
-input_dim = 384
-hidden_dim = 384
-output_dim = 384
-action_emb_dim = 64
-dropout = 0.0
+input_dim = 192
+hidden_dim = 192
+output_dim = 192
+action_emb_dim = 192
+dropout = 0.1
 emb_dropout = 0.0
 
 [model.projector]
-input_dim = 384
-hidden_dim = 1536
-output_dim = 384
+input_dim = 192
+hidden_dim = 2048
+output_dim = 192
 norm = "batch_norm_1d"
 
 [model.pred_proj]
-input_dim = 384
-hidden_dim = 1536
-output_dim = 384
+input_dim = 192
+hidden_dim = 2048
+output_dim = 192
 norm = "batch_norm_1d"
 
 [loss]
@@ -67,7 +67,7 @@ sigreg_t_max = 3.0
 
 [training]
 history_size = 3
-horizon = 8
+horizon = 4
 batch_size = 64
 grad_accum_steps = 2
 optimizer = "adamw"

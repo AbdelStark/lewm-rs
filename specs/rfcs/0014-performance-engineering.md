@@ -125,14 +125,14 @@ For the spec set's purposes, the **floor** is **45 samples/sec** (per NFR-010 as
 Components at peak (BF16-mixed, F32 master weights, AdamW state):
 
 ```
-Master weights (F32):          15M × 4 bytes      =  60 MB
-AdamW m, v   (F32):            15M × 8 bytes      = 120 MB
+Master weights (F32):          ~18M × 4 bytes     =  72 MB
+AdamW m, v   (F32):            ~18M × 8 bytes     = 144 MB
 Activations  (BF16, batch 64):
-    encoder × 12 blocks ≈ 64 × 8 × 197 × 384 × 2 × 12  ≈ 0.93 GB
-    predictor × 6 blocks ≈ 64 × 8 × 384 × 2 × 6      ≈ 2.36 MB (much smaller)
+    encoder × 12 blocks ≈ 64 × 4 × 257 × 192 × 2 × 12  ≈ 0.30 GB
+    predictor × 6 blocks ≈ 64 × 4 × 192 × 2 × 6      ≈ 0.59 MB (much smaller)
     SIGReg projections  K×N×4 bytes ≈ 1024 × 512 × 4   = 2 MB
     grad checkpoint buffers ≈ 2× the above           ≈ 1.9 GB
-CEM (eval only, n_cand=1000): 1000 × 8 × 384 × 4 ≈ 12 MB
+CEM (eval only, n_cand=1000): 1000 × 4 × 192 × 4 ≈ 3 MB
 Total worst case (eval+train concurrent): ≈ 5 GB activations + parameters
 ```
 
@@ -214,7 +214,7 @@ The benches that map onto the perf contract:
 |-------|--------|-------|-------------|
 | `forward_encoder` (GPU, batch=64) | wall_ms per call | ≤ 60 ms | NFR-010 |
 | `forward_predictor` (GPU, batch=64) | wall_ms per call | ≤ 15 ms | NFR-010 |
-| `sigreg` (GPU, B=64, T=8, D=384) | wall_ms per call | ≤ 10 ms | NFR-010 |
+| `sigreg` (GPU, B=64, T=4, D=192) | wall_ms per call | ≤ 10 ms | NFR-010 |
 | `prefetcher` (CPU, B=64, T=8) | batches_per_sec | ≥ 60 | RFC0004-026 |
 | `cost_bench` (laptop CPU, full plan) | wall_ms per plan | ≤ 1000 | NFR-013 |
 | `cost_bench` (CPU XL) | wall_ms per plan | ≤ 300 | NFR-013 |

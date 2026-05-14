@@ -18,7 +18,7 @@ This is not a toy port. The deliverable is a reference Rust implementation of Le
 
 ## 1. Why
 
-LeWM is the cleanest JEPA world model published to date. Two loss terms, one hyperparameter, 15M parameters, single-GPU trainable. That elegance makes it the right target for the first serious Rust port of a modern world model. Three reasons it matters to ship this:
+LeWM is the cleanest JEPA world model published to date. Two loss terms, one hyperparameter, roughly 15M trainable parameters in the paper framing, and 18,042,672 published PushT checkpoint state-dict values including buffers. That elegance makes it the right target for the first serious Rust port of a modern world model. Three reasons it matters to ship this:
 
 **Engineering.** Rust + Burn + Tract gives a single-language path from data loader to training to deployment, no Python at runtime, statically linked binaries, deterministic builds, zero pip-resolver pain on the edge. Almost no production-grade Rust ML reference exists for vision-based RL world models. Filling that gap is a credible artifact.
 
@@ -104,7 +104,7 @@ PushT is ~50x larger and is the right vehicle for the parity and stack-validatio
 
 **Burn 0.20.1.** CUDA backend with Fusion enabled by default, Autodiff wrapper, BF16/F32, gradient accumulation, Safetensors and PyTorch import. Has Linear, GELU, Dropout, LayerNorm, MultiHeadAttention, AdamW, gradient clipping, learning rate schedulers, TUI training dashboard.
 
-**Tract 0.22.1.** CPU only, 85 percent of ONNX backends pass, ViT-class models proven to run. Slower than ORT by ~2x historically but adequate for sub-second cost computation on a 15M model.
+**Tract 0.22.1.** CPU only, 85 percent of ONNX backends pass, ViT-class models proven to run. Slower than ORT by ~2x historically but adequate for sub-second cost computation on the published ViT-Tiny LeWM checkpoint.
 
 **HF Jobs.** Per-minute billing, A10G-large 24 GB at 1.50 USD/hr, L4 24 GB at 0.80 USD/hr, A100 80 GB at 2.50 USD/hr. Free during build. Default 30 minute timeout, must be raised.
 
@@ -202,43 +202,45 @@ lewm-rs/
 
 ### 5.2 Model specification, locked
 
-These values are reproduced verbatim from the upstream config.json convention. They are the contract the Rust implementation must match.
+These values are reproduced from `quentinll/lewm-pusht` revision
+`22b330c28c27ead4bfd1888615af1340e3fe9052` and the upstream training config.
+They are the contract the full Rust implementation must match.
 
 ```toml
 [encoder]                            # HF transformers ViT
-size = "small"                       # patch=16, hidden=384, depth=12, heads=6
-patch_size = 16
+size = "tiny"                        # patch=14, hidden=192, depth=12, heads=3
+patch_size = 14
 image_size = 224
 use_mask_token = false
 pretrained = false                    # train from scratch end-to-end
 
 [action_encoder]                     # Embedder
-input_dim = 2                        # 2 for PushT, 6 for SO-100
-smoothed_dim = 16
-emb_dim = 64
+input_dim = 10                       # PushT raw action dim 2 packed by frameskip 5
+smoothed_dim = 10
+emb_dim = 192
 mlp_scale = 4
 
 [predictor]                          # ARPredictor
-num_frames = 16
+num_frames = 3
 depth = 6
-heads = 6
-mlp_dim = 1536
-input_dim = 384
-hidden_dim = 384
-output_dim = 384
+heads = 16
+mlp_dim = 2048
+input_dim = 192
+hidden_dim = 192
+output_dim = 192
 dim_head = 64
-dropout = 0.0
+dropout = 0.1
 emb_dropout = 0.0
 
 [projector]                          # MLP, BatchNorm1d
-input_dim = 384
-hidden_dim = 1536
-output_dim = 384
+input_dim = 192
+hidden_dim = 2048
+output_dim = 192
 
 [pred_proj]                          # MLP, BatchNorm1d
-input_dim = 384
-hidden_dim = 1536
-output_dim = 384
+input_dim = 192
+hidden_dim = 2048
+output_dim = 192
 
 [loss]
 lambda_sigreg = 1.0                  # tuned via ml-intern, expected near 1.0
@@ -247,7 +249,7 @@ sigreg_num_proj = 1024
 
 [training]
 history_size = 3
-horizon = 8                          # T per sample for rollout target
+horizon = 4                          # history_size + one prediction target
 batch_size = 64
 grad_accum_steps = 2                 # effective batch 128
 optimizer = "adamw"

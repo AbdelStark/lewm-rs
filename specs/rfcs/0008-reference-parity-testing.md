@@ -2,11 +2,11 @@
 rfc: "0008"
 title: "Reference parity testing and weight import"
 status: Accepted
-version: 1.0.0
+version: 1.1.0
 authors: ["Abdel"]
 reviewers: []
 created: 2026-05-12
-updated: 2026-05-12
+updated: 2026-05-14
 supersedes: []
 superseded_by: null
 tracks_prd: ["§4.4 risk 3", "§6.4 Stage L1", "§10 acceptance"]
@@ -16,7 +16,7 @@ related: ["0005", "0007", "0011", "0013"]
 
 # RFC 0008 — Reference parity testing and weight import
 
-> **Status:** Accepted · **Version:** 1.0.0
+> **Status:** Accepted · **Version:** 1.1.0
 >
 > The single highest-value local check before any cloud spend is parity: load `quentinll/lewm-pusht` weights into `lewm-core`, run the forward, and assert the output matches the PyTorch reference to a fixed tolerance. This RFC pins the harness end-to-end: how weights are converted, what fixture inputs are used, what tolerances apply, and how parity probes are wired into the per-epoch training loop and into CI.
 
@@ -154,7 +154,7 @@ The parity fixture is a single batch of deterministic inputs, stored under `test
 
 ```
 pixels:        (B=4, T=4, C=3, H=224, W=224) F32   in [0, 1] post-imagenet-norm
-actions:       (B=4, T=4, A=2)                F32
+actions:       (B=4, T=4, A=10)               F32   packed PushT action dim
 seed:          int32 = 0
 git_short_sha: str   = "<sha at fixture generation>"
 ```
@@ -166,7 +166,7 @@ git_short_sha: str   = "<sha at fixture generation>"
 torch.manual_seed(0)
 pixels = torch.rand(4, 4, 3, 224, 224)              # uniform in [0, 1]
 pixels = (pixels - 0.5) / 0.5                       # ImageNet-ViT normalize
-actions = torch.randn(4, 4, 2) * 0.5                # mild scale
+actions = torch.randn(4, 4, 10) * 0.5               # mild scale; raw 2-D actions packed by frameskip=5
 np.savez("tests/fixtures/parity_fixture.npz",
     pixels=pixels.numpy(), actions=actions.numpy(), seed=0)
 ```
@@ -261,7 +261,7 @@ fn encoder_cls_within_1e_4() {
     let out = model.encode(pixels);                                 // (B, T, D)
     let expected_cls = dumps.encoder_cls;                           // (B*T, D)
 
-    let diff = (out.reshape([16, 384]) - expected_cls).abs().max().into_scalar();
+    let diff = (out.reshape([16, 192]) - expected_cls).abs().max().into_scalar();
     assert!(diff < 1e-4, "encoder CLS L_inf = {}", diff);
 }
 ```
@@ -425,7 +425,7 @@ The reference checkpoint is publicly hosted on HF and not sensitive. Dumps are n
 ## 13. Acceptance criteria
 
 - [ ] `python/convert_reference.py` and `python/verify_conversion.py` exist and pass.
-- [ ] `tests/fixtures/parity_fixture.npz` committed via LFS.
+- [ ] `tests/fixtures/parity_fixture.npz` and `tests/fixtures/reference_model.meta.json` are committed.
 - [ ] `abdelstark/lewm-rs-parity-dumps` HF dataset created and populated.
 - [ ] All `parity_*` tests pass at the tolerances in §5.3.
 - [ ] CI workflow `parity.yml` exists and runs on every PR.
@@ -454,6 +454,7 @@ OQ-2008-1 — Should we also dump intermediate gradients for backward-parity tes
 
 | Version | Date | Author | Change |
 |---------|------|--------|--------|
+| 1.1.0 | 2026-05-14 | Abdel | Refreshed fixture action shape to packed PushT actions and added source-model metadata contract. |
 | 1.0.0 | 2026-05-12 | Abdel | Initial accepted version. |
 
 *End of RFC 0008.*

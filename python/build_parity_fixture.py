@@ -19,7 +19,7 @@ DEFAULT_FIXTURE = Path("tests/fixtures/parity_fixture.npz")
 DEFAULT_META = Path("tests/fixtures/parity_fixture.meta.json")
 DEFAULT_SEED = 0
 PIXELS_SHAPE = (4, 4, 3, 224, 224)
-ACTIONS_SHAPE = (4, 4, 2)
+ACTIONS_SHAPE = (4, 4, 10)
 
 
 def parse_args() -> argparse.Namespace:

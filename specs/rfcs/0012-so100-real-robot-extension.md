@@ -318,8 +318,8 @@ stats_path = "/data/so100/stats.safetensors"
 
 [model.action_encoder]
 input_dim = 6
-smoothed_dim = 16
-emb_dim = 64
+smoothed_dim = 10
+emb_dim = 192
 mlp_scale = 4
 
 [model.predictor]
@@ -336,7 +336,7 @@ lambda_sigreg = 1.0
 
 [training]
 history_size = 3
-horizon = 8
+horizon = 4
 batch_size = 64
 grad_accum_steps = 2
 optimizer = "adamw"

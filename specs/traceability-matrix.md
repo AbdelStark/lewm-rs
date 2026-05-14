@@ -1,6 +1,6 @@
 # Traceability Matrix — `lewm-rs`
 
-**Status:** Accepted · **Version:** 1.0.0 · **Last updated:** 2026-05-12 · **CI-checked:** yes
+**Status:** Accepted · **Version:** 1.1.0 · **Last updated:** 2026-05-14 · **CI-checked:** yes
 
 This matrix is the single authoritative crosswalk between **PRD acceptance criteria**, **functional/non-functional requirements**, **RFCs**, and **test IDs**.
 
@@ -41,7 +41,7 @@ When you add or modify a requirement, RFC, or test, you **MUST** update this fil
 
 | Req ID | Statement (short) | RFC | Tests |
 |---|---|---|---|
-| FR-001 | ViT-Small encoder | 0002 | `TST-0002-ENC-001` |
+| FR-001 | ViT-Tiny encoder | 0002 | `TST-0002-ENC-001` |
 | FR-002 | CLS extraction | 0002 | `TST-0002-ENC-002` |
 | FR-003 | Action `Embedder` | 0002 | `TST-0002-EMB-001` |
 | FR-004 | `ArPredictor` AdaLN-zero | 0002 | `TST-0002-PRED-001..003` |

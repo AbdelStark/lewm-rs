@@ -221,27 +221,37 @@ impl RootConfig {
             errors.push("training.betas must satisfy 0.0 <= beta1 < beta2 < 1.0".to_string());
         }
 
-        let Some(available_eval_horizon) = self
-            .model
-            .predictor
-            .num_frames
-            .checked_sub(self.training.history_size)
-        else {
+        if self.training.history_size > self.model.predictor.num_frames {
             errors.push(
                 "training.history_size must not exceed model.predictor.num_frames".to_string(),
-            );
-            return errors;
-        };
-
-        if self.eval.horizon_plan() > available_eval_horizon {
-            errors.push(
-                "eval.horizon_plan must be less than or equal to model.predictor.num_frames - training.history_size"
-                    .to_string(),
             );
         }
 
         if let DatasetConfig::So100(dataset) = &self.dataset {
             errors.extend(self.so100_contract_errors(dataset));
+        }
+
+        if let DatasetConfig::Pusht(dataset) = &self.dataset {
+            errors.extend(self.pusht_contract_errors(dataset));
+        }
+
+        errors
+    }
+
+    fn pusht_contract_errors(&self, dataset: &PushtDatasetConfig) -> Vec<String> {
+        let mut errors = Vec::new();
+
+        match dataset.raw_action_dim.checked_mul(dataset.frameskip) {
+            Some(value) if self.model.action_encoder.input_dim != value => {
+                errors.push(format!(
+                    "PushT requires model.action_encoder.input_dim raw_action_dim * frameskip = {value}, found {}",
+                    self.model.action_encoder.input_dim
+                ));
+            },
+            Some(_) => {},
+            None => errors.push(
+                "PushT dataset.raw_action_dim * dataset.frameskip overflowed usize".to_string(),
+            ),
         }
 
         errors
@@ -353,6 +363,12 @@ pub struct PushtDatasetConfig {
     /// Historical context size.
     #[validate(range(min = 1, max = 100))]
     pub history_size: usize,
+    /// Raw per-step action dimensionality before upstream frame-skip packing.
+    #[validate(range(min = 1, max = 64))]
+    pub raw_action_dim: usize,
+    /// Upstream frame-skip multiplier used to pack raw actions for the model.
+    #[validate(range(min = 1, max = 64))]
+    pub frameskip: usize,
     /// Deterministic data seed.
     pub seed: u64,
 }
@@ -362,8 +378,10 @@ impl Default for PushtDatasetConfig {
         Self {
             root_path: PathBuf::from("/data/lewm-pusht"),
             split: DatasetSplit::Train,
-            horizon: 8,
+            horizon: 4,
             history_size: 3,
+            raw_action_dim: 2,
+            frameskip: 5,
             seed: 0,
         }
     }
@@ -404,7 +422,7 @@ impl Default for So100DatasetConfig {
             camera_view: CameraView::Top,
             stats_path: PathBuf::from("/data/so100/stats.safetensors"),
             split: DatasetSplit::Train,
-            horizon: 8,
+            horizon: 4,
             history_size: 3,
             action_dim: SO100_ACTION_DIM,
             seed: 0,
@@ -530,7 +548,7 @@ impl Default for TrainingConfig {
     fn default() -> Self {
         Self {
             history_size: 3,
-            horizon: 8,
+            horizon: 4,
             batch_size: 64,
             grad_accum_steps: 2,
             optimizer: OptimizerKind::Adamw,
@@ -574,13 +592,6 @@ impl Default for EvalConfig {
 }
 
 impl EvalConfig {
-    fn horizon_plan(&self) -> usize {
-        match self {
-            Self::PushtSimulated(config) => config.horizon_plan,
-            Self::So100Latent(config) => config.horizon_plan,
-        }
-    }
-
     fn validate_ranges(&self) -> Result<(), validator::ValidationErrors> {
         match self {
             Self::PushtSimulated(config) => config.validate(),
@@ -1166,15 +1177,15 @@ lr_peak = 1.0
             r#"
 schema_version = "1.0.0"
 
-[eval]
-horizon_plan = 64
+[training]
+history_size = 4
 "#,
             &EnvOverrides::default(),
             &[],
         )
         .expect_err("cross-field validation must fail");
 
-        assert!(err.to_string().contains("eval.horizon_plan"));
+        assert!(err.to_string().contains("training.history_size"));
         assert!(err.to_string().contains("model.predictor.num_frames"));
     }
 
@@ -1342,8 +1353,11 @@ schema_version = "9.9.9"
         let DatasetConfig::Pusht(dataset) = loaded.root.dataset else {
             return Err("expected PushT dataset config".into());
         };
-        assert_eq!(dataset.horizon, 8);
+        assert_eq!(dataset.horizon, 4);
         assert_eq!(dataset.history_size, 3);
+        assert_eq!(dataset.raw_action_dim, 2);
+        assert_eq!(dataset.frameskip, 5);
+        assert_eq!(loaded.root.model.action_encoder.input_dim, 10);
 
         Ok(())
     }

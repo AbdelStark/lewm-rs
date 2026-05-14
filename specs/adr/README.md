@@ -93,7 +93,7 @@ An ADR moves to **Implemented** automatically when the cited PR merges into `mai
 
 | # | Title | Status | Tracks |
 |---|-------|--------|--------|
-| — | *(no ADRs accepted yet)* | — | — |
+| [0001](0001-pusht-reference-architecture.md) | PushT reference architecture source of truth | Implemented | RFC 0002, RFC 0008, RFC 0018 |
 
 ---
 

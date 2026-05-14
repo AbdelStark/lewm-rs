@@ -2,11 +2,11 @@
 rfc: "0018"
 title: "Configuration system, TOML schema, layered overrides"
 status: Accepted
-version: 1.0.0
+version: 1.1.0
 authors: ["Abdel"]
 reviewers: []
 created: 2026-05-12
-updated: 2026-05-12
+updated: 2026-05-14
 supersedes: []
 superseded_by: null
 tracks_prd: ["§5.2"]
@@ -16,7 +16,7 @@ related: ["0002", "0005", "0017"]
 
 # RFC 0018 — Configuration system, TOML schema, layered overrides
 
-> **Status:** Accepted · **Version:** 1.0.0
+> **Status:** Accepted · **Version:** 1.1.0
 >
 > Configs are where ML projects most often die from typos. This RFC pins the configuration schema, the layered-override semantics, the validation rules, and the deny-unknown-fields invariant that makes typos hard to commit.
 
@@ -222,19 +222,25 @@ schema_version = "1.0.0"
 kind = "pusht"
 root_path = "/data/lewm-pusht"
 split = "train"
-horizon = 8
+horizon = 4
 history_size = 3
+raw_action_dim = 2
+frameskip = 5
 seed = 0
 
+[model]
+history_size = 3
+horizon = 4
+
 [model.encoder]
-size = "small"
+size = "tiny"
 image_size = 224
-patch_size = 16
+patch_size = 14
 num_channels = 3
-hidden_size = 384
+hidden_size = 192
 num_hidden_layers = 12
-num_attention_heads = 6
-intermediate_size = 1536
+num_attention_heads = 3
+intermediate_size = 768
 hidden_act = "gelu_tanh"
 attention_probs_dropout_prob = 0.0
 hidden_dropout_prob = 0.0
@@ -243,39 +249,35 @@ use_cls_token = true
 interpolate_pos_encoding = false
 
 [model.action_encoder]
-input_dim = 2
-smoothed_dim = 16
-emb_dim = 64
+input_dim = 10
+smoothed_dim = 10
+emb_dim = 192
 mlp_scale = 4
 
 [model.predictor]
-num_frames = 16
+num_frames = 3
 depth = 6
-heads = 6
-mlp_dim = 1536
+heads = 16
+mlp_dim = 2048
 dim_head = 64
-hidden_dim = 384
-action_emb_dim = 64
-dropout = 0.0
+input_dim = 192
+hidden_dim = 192
+output_dim = 192
+action_emb_dim = 192
+dropout = 0.1
 emb_dropout = 0.0
 
 [model.projector]
-input_dim = 384
-hidden_dim = 1536
-output_dim = 384
+input_dim = 192
+hidden_dim = 2048
+output_dim = 192
 norm = "batch_norm_1d"
 
 [model.pred_proj]
-input_dim = 384
-hidden_dim = 1536
-output_dim = 384
+input_dim = 192
+hidden_dim = 2048
+output_dim = 192
 norm = "batch_norm_1d"
-
-[model.history_size]
-value = 3
-
-[model.horizon]
-value = 8
 
 [loss]
 lambda_sigreg = 1.0
@@ -285,7 +287,7 @@ sigreg_t_max = 3.0
 
 [training]
 history_size = 3
-horizon = 8
+horizon = 4
 batch_size = 64
 grad_accum_steps = 2
 optimizer = "adamw"
@@ -509,6 +511,7 @@ OQ-2018-1 — Whether to generate a JSON Schema for editor integration. Defer to
 
 | Version | Date | Author | Change |
 |---------|------|--------|--------|
+| 1.1.0 | 2026-05-14 | Abdel | Updated canonical config example for the published PushT ViT-Tiny reference. |
 | 1.0.0 | 2026-05-12 | Abdel | Initial accepted version. |
 
 *End of RFC 0018.*

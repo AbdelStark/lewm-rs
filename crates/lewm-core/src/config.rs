@@ -10,10 +10,10 @@ use validator::Validate;
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum VitSize {
-    /// ViT-Tiny, accepted only for parsing upstream metadata.
-    Tiny,
-    /// ViT-Small, the locked lewm-rs v1 model size.
+    /// ViT-Tiny, the locked `quentinll/lewm-pusht` reference encoder size.
     #[default]
+    Tiny,
+    /// ViT-Small, accepted only for parsing older draft metadata.
     Small,
     /// ViT-Base, accepted only for parsing upstream metadata.
     Base,
@@ -50,7 +50,7 @@ pub enum NormVariant {
 #[serde(default, deny_unknown_fields)]
 #[allow(clippy::struct_excessive_bools)]
 pub struct VitConfig {
-    /// Upstream size family. The locked v1 value is `small`.
+    /// Upstream size family. The locked `PushT` reference value is `tiny`.
     pub size: VitSize,
     /// Square image side length in pixels.
     #[validate(range(min = 16, max = 4096))]
@@ -100,14 +100,14 @@ pub struct VitConfig {
 impl Default for VitConfig {
     fn default() -> Self {
         Self {
-            size: VitSize::Small,
+            size: VitSize::Tiny,
             image_size: 224,
-            patch_size: 16,
+            patch_size: 14,
             num_channels: 3,
-            hidden_size: 384,
+            hidden_size: 192,
             num_hidden_layers: 12,
-            num_attention_heads: 6,
-            intermediate_size: 1536,
+            num_attention_heads: 3,
+            intermediate_size: 768,
             hidden_act: GeluVariant::TanhApprox,
             attention_probs_dropout_prob: 0.0,
             hidden_dropout_prob: 0.0,
@@ -207,9 +207,9 @@ pub struct EmbedderConfig {
 impl Default for EmbedderConfig {
     fn default() -> Self {
         Self {
-            input_dim: 2,
-            smoothed_dim: 16,
-            emb_dim: 64,
+            input_dim: 10,
+            smoothed_dim: 10,
+            emb_dim: 192,
             mlp_scale: 4,
         }
     }
@@ -242,9 +242,9 @@ pub struct MlpConfig {
 impl Default for MlpConfig {
     fn default() -> Self {
         Self {
-            input_dim: 384,
-            hidden_dim: 1536,
-            output_dim: 384,
+            input_dim: 192,
+            hidden_dim: 2048,
+            output_dim: 192,
             norm: NormVariant::BatchNorm1d,
         }
     }
@@ -299,16 +299,16 @@ pub struct PredictorConfig {
 impl Default for PredictorConfig {
     fn default() -> Self {
         Self {
-            num_frames: 16,
+            num_frames: 3,
             depth: 6,
-            heads: 6,
-            mlp_dim: 1536,
+            heads: 16,
+            mlp_dim: 2048,
             dim_head: 64,
-            input_dim: 384,
-            hidden_dim: 384,
-            output_dim: 384,
-            action_emb_dim: 64,
-            dropout: 0.0,
+            input_dim: 192,
+            hidden_dim: 192,
+            output_dim: 192,
+            action_emb_dim: 192,
+            dropout: 0.1,
             emb_dropout: 0.0,
         }
     }
@@ -320,14 +320,17 @@ impl PredictorConfig {
         Self::default()
     }
 
+    /// Attention projection width used by the upstream custom attention module.
+    pub fn attention_inner_dim(&self) -> Option<usize> {
+        self.heads.checked_mul(self.dim_head)
+    }
+
     /// Cross-field shape validation that Serde/validator ranges cannot express.
     pub fn shape_errors(&self) -> Vec<String> {
         let mut errors = Vec::new();
 
-        if self.heads.saturating_mul(self.dim_head) != self.hidden_dim {
-            errors.push(
-                "predictor.heads * predictor.dim_head must equal predictor.hidden_dim".to_owned(),
-            );
+        if self.attention_inner_dim().is_none() {
+            errors.push("predictor.heads * predictor.dim_head overflowed usize".to_owned());
         }
 
         if self.input_dim != self.hidden_dim {
@@ -393,7 +396,7 @@ impl Default for JepaConfig {
             projector: MlpConfig::default(),
             pred_proj: MlpConfig::default(),
             history_size: 3,
-            horizon: 8,
+            horizon: 4,
         }
     }
 }
@@ -434,8 +437,9 @@ impl JepaConfig {
             errors.push("history_size must be less than or equal to horizon".to_owned());
         }
 
-        if self.horizon > self.predictor.num_frames {
-            errors.push("horizon must be less than or equal to predictor.num_frames".to_owned());
+        if self.history_size > self.predictor.num_frames {
+            errors
+                .push("history_size must be less than or equal to predictor.num_frames".to_owned());
         }
 
         errors
@@ -465,22 +469,23 @@ mod tests {
     fn defaults_match_locked_pusht_model_contract() {
         let config = JepaConfig::default();
 
-        assert_eq!(config.encoder.size, VitSize::Small);
+        assert_eq!(config.encoder.size, VitSize::Tiny);
         assert_eq!(config.encoder.image_size, 224);
-        assert_eq!(config.encoder.patch_size, 16);
-        assert_eq!(config.encoder.hidden_size, 384);
+        assert_eq!(config.encoder.patch_size, 14);
+        assert_eq!(config.encoder.hidden_size, 192);
         assert_eq!(config.encoder.num_hidden_layers, 12);
-        assert_eq!(config.encoder.num_attention_heads, 6);
-        assert_eq!(config.encoder.intermediate_size, 1536);
-        assert_eq!(config.action_encoder.input_dim, 2);
-        assert_eq!(config.action_encoder.emb_dim, 64);
-        assert_eq!(config.predictor.hidden_dim, 384);
-        assert_eq!(config.predictor.heads * config.predictor.dim_head, 384);
+        assert_eq!(config.encoder.num_attention_heads, 3);
+        assert_eq!(config.encoder.intermediate_size, 768);
+        assert_eq!(config.action_encoder.input_dim, 10);
+        assert_eq!(config.action_encoder.emb_dim, 192);
+        assert_eq!(config.predictor.hidden_dim, 192);
+        assert_eq!(config.predictor.attention_inner_dim(), Some(1024));
+        assert_eq!(config.predictor.num_frames, 3);
         assert_eq!(config.projector.norm, NormVariant::BatchNorm1d);
-        assert_eq!(config.pred_proj.output_dim, 384);
+        assert_eq!(config.pred_proj.output_dim, 192);
         assert_eq!(config.history_size, 3);
-        assert_eq!(config.horizon, 8);
-        assert_eq!(config.encoder.num_patches(), Some(196));
+        assert_eq!(config.horizon, 4);
+        assert_eq!(config.encoder.num_patches(), Some(256));
 
         config.validate().expect("default ranges should validate");
         config
@@ -492,17 +497,17 @@ mod tests {
     fn model_config_round_trips_through_toml() {
         let fixture = r#"
 history_size = 3
-horizon = 8
+horizon = 4
 
 [encoder]
-size = "small"
+size = "tiny"
 image_size = 224
-patch_size = 16
+patch_size = 14
 num_channels = 3
-hidden_size = 384
+hidden_size = 192
 num_hidden_layers = 12
-num_attention_heads = 6
-intermediate_size = 1536
+num_attention_heads = 3
+intermediate_size = 768
 hidden_act = "gelu_tanh"
 attention_probs_dropout_prob = 0.0
 hidden_dropout_prob = 0.0
@@ -511,32 +516,32 @@ use_cls_token = true
 interpolate_pos_encoding = false
 
 [action_encoder]
-input_dim = 2
-smoothed_dim = 16
-emb_dim = 64
+input_dim = 10
+smoothed_dim = 10
+emb_dim = 192
 mlp_scale = 4
 
 [predictor]
-num_frames = 16
+num_frames = 3
 depth = 6
-heads = 6
-mlp_dim = 1536
+heads = 16
+mlp_dim = 2048
 dim_head = 64
-hidden_dim = 384
-action_emb_dim = 64
-dropout = 0.0
+hidden_dim = 192
+action_emb_dim = 192
+dropout = 0.1
 emb_dropout = 0.0
 
 [projector]
-input_dim = 384
-hidden_dim = 1536
-output_dim = 384
+input_dim = 192
+hidden_dim = 2048
+output_dim = 192
 norm = "batch_norm_1d"
 
 [pred_proj]
-input_dim = 384
-hidden_dim = 1536
-output_dim = 384
+input_dim = 192
+hidden_dim = 2048
+output_dim = 192
 norm = "batch_norm_1d"
 "#;
 
@@ -575,7 +580,7 @@ wieght_decay = 0.05
         assert!(invalid_range.validate().is_err());
 
         let mut invalid_shape = JepaConfig::default();
-        invalid_shape.predictor.heads = 7;
+        invalid_shape.predictor.input_dim = 128;
         invalid_shape
             .validate()
             .expect("individual ranges remain valid");
@@ -586,7 +591,7 @@ wieght_decay = 0.05
         assert!(
             errors
                 .iter()
-                .any(|error| error.contains("heads * predictor.dim_head"))
+                .any(|error| error.contains("predictor.input_dim"))
         );
     }
 
@@ -594,16 +599,16 @@ wieght_decay = 0.05
     fn upstream_aliases_parse_without_weakening_serialized_schema() {
         let parsed: VitConfig = toml::from_str(
             r"
-hidden_dim = 384
+hidden_dim = 192
 depth = 12
-heads = 6
+heads = 3
 ",
         )
         .expect("upstream aliases should parse");
 
-        assert_eq!(parsed.hidden_size, 384);
+        assert_eq!(parsed.hidden_size, 192);
         assert_eq!(parsed.num_hidden_layers, 12);
-        assert_eq!(parsed.num_attention_heads, 6);
+        assert_eq!(parsed.num_attention_heads, 3);
 
         let serialized = toml::to_string_pretty(&parsed).expect("aliases should serialize");
         assert!(serialized.contains("hidden_size"));

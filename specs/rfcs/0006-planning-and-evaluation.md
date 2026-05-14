@@ -412,7 +412,7 @@ eval.rpc_step
 
 ### 9.3 Capacity
 
-- GPU memory: the CEM `n_cand × horizon_plan × M` action tensor is small; the cost dominates by the `rollout` forward, which is `n_cand` parallel rollouts. At `n_cand=1000`, batch size for the predictor is 1000; this is the highest GPU memory pressure of the entire project. Roughly **14 GB** on A10G-large at `horizon_plan=5, D=384`.
+- GPU memory: the CEM `n_cand × horizon_plan × M` action tensor is small; the cost dominates by the `rollout` forward, which is `n_cand` parallel rollouts. At `n_cand=1000`, batch size for the predictor is 1000; this is the highest GPU memory pressure of the entire project. The locked PushT checkpoint uses `D=192`, reducing this estimate from the earlier `D=384` draft.
 
 **RFC0006-015 [MUST]** — If GPU memory exceeds 18 GB during eval, automatically **chunk** the `n_cand` candidates into chunks of 250 and concatenate the costs. This is a runtime fallback, transparent to the user.
 

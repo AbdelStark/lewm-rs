@@ -1,0 +1,74 @@
+{
+  "schema_version": "1.0",
+  "source_model": {
+    "repo_id": "quentinll/lewm-pusht",
+    "repo_type": "model",
+    "revision": "22b330c28c27ead4bfd1888615af1340e3fe9052",
+    "config_file": "config.json",
+    "config_sha256": "2564086e961e7b5c7c04dffc451091115b389a590645ff19653c64fd0bc16e09",
+    "weights_file": "weights.pt",
+    "weights_sha256": "48938400ae3464c9680731287f583a9cb516f55a8ec64ea13a91be47fb15b607",
+    "state_dict_tensor_count": 303,
+    "state_dict_value_count": 18042672
+  },
+  "upstream_code": {
+    "repo": "https://github.com/lucas-maes/le-wm",
+    "revision": "bf04d3e8c3752ac24f3692fbc5f4cf50209fa765",
+    "train_config": "config/train/lewm.yaml",
+    "data_config": "config/train/data/pusht.yaml",
+    "module_source": "module.py",
+    "jepa_source": "jepa.py"
+  },
+  "locked_architecture": {
+    "encoder": {
+      "size": "tiny",
+      "image_size": 224,
+      "patch_size": 14,
+      "num_channels": 3,
+      "hidden_size": 192,
+      "num_hidden_layers": 12,
+      "num_attention_heads": 3,
+      "intermediate_size": 768,
+      "use_mask_token": false,
+      "pretrained": false
+    },
+    "action_encoder": {
+      "raw_action_dim": 2,
+      "frameskip": 5,
+      "input_dim": 10,
+      "smoothed_dim": 10,
+      "emb_dim": 192,
+      "mlp_scale": 4
+    },
+    "predictor": {
+      "num_frames": 3,
+      "input_dim": 192,
+      "hidden_dim": 192,
+      "output_dim": 192,
+      "depth": 6,
+      "heads": 16,
+      "dim_head": 64,
+      "attention_inner_dim": 1024,
+      "mlp_dim": 2048,
+      "dropout": 0.1,
+      "emb_dropout": 0.0
+    },
+    "projector": {
+      "input_dim": 192,
+      "hidden_dim": 2048,
+      "output_dim": 192,
+      "norm": "batch_norm_1d"
+    },
+    "pred_proj": {
+      "input_dim": 192,
+      "hidden_dim": 2048,
+      "output_dim": 192,
+      "norm": "batch_norm_1d"
+    }
+  },
+  "generated_by": {
+    "command": "hf download quentinll/lewm-pusht config.json weights.pt --local-dir /tmp/lewm-rs-reference-model",
+    "inspected_at_utc": "2026-05-14T14:05:59Z",
+    "notes": "Only hashes and shape metadata are committed. The 72 MB weights.pt file stays outside the repo."
+  }
+}

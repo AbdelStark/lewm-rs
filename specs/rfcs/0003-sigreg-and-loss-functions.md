@@ -406,7 +406,7 @@ The `JepaLosses` type is owned by `jepa.rs`.
 
 ### 7.2 Reference dumps
 
-`python/dump_sigreg_reference.py` runs upstream SIGReg on a fixed input (`B=4, T=4, D=384` with a fixed seed) and dumps `{P, Y, c, s, residual, L_sigreg}` to `tests/fixtures/sigreg_reference.npz`. The Rust test compares each intermediate.
+`python/dump_sigreg_reference.py` runs upstream SIGReg on a fixed input (`B=4, T=4, D=192` with a fixed seed) and dumps `{P, Y, c, s, residual, L_sigreg}` to `tests/fixtures/sigreg_reference.npz`. The Rust test compares each intermediate.
 
 ### 7.3 Property-based tests
 
@@ -444,7 +444,7 @@ matmul: (N x D) x (D x K)   = O(N · D · K)
 trig:   (N · K · J)          = O(N · K · J)
 ```
 
-For `B=64, T=8 → N=512`, `D=384`, `K=1024`, `J=17`: matmul is `2e8` ops, trig is `9e6` ops. Negligible compared to ViT forward (`O(layers · seq · D²) ≈ 12 · 197 · 384² ≈ 3.5e8` per sample). SIGReg adds ~5 % to step time on A10G.
+For `B=64, T=4 → N=256`, `D=192`, `K=1024`, `J=17`: matmul is roughly `1e8` ops, trig is `4.5e6` ops. Negligible compared to ViT forward. SIGReg remains a small fraction of step time on A10G.
 
 ---
 

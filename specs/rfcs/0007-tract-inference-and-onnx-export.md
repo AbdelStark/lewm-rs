@@ -51,7 +51,7 @@ JEPA inference on a CPU is exactly the kind of "verifiable robotics" target the 
 
 ## 2. Conventions
 
-- "Encoder graph" = the ViT + projector, taking `(B=1, 3, 224, 224) F32` to `(1, D=384) F32`.
+- "Encoder graph" = the ViT + projector, taking `(B=1, 3, 224, 224) F32` to `(1, D=192) F32`.
 - "Predictor graph" = `Embedder + ArPredictor + pred_proj`, taking `(B, H, D) F32` and `(B, H, A) F32` to `(B, H, D) F32`.
 - We export **two separate** graphs (encoder and predictor), not a fused JEPA graph. The reason: CEM batches the predictor `n_cand` times but encodes start/goal only once.
 
@@ -98,7 +98,7 @@ Burn provides ONNX export via `burn-import`'s `onnx::ToOnnx` trait (or `burn::ex
 let device = burn_ndarray::NdArrayDevice::default();
 let jepa: Jepa<Backend> = load_burn_record("step_0014400.mpk", &device)?;
 let dummy_pixels = Tensor::random([1, 3, 224, 224], Distribution::Default, &device);
-let dummy_history = Tensor::random([16, 3, 384], Distribution::Default, &device);
+let dummy_history = Tensor::random([16, 3, 192], Distribution::Default, &device);
 let dummy_actions = Tensor::random([16, 3, 2], Distribution::Default, &device);
 
 // Encoder graph
