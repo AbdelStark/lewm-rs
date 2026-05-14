@@ -62,6 +62,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - Burn-backed `lewm-core::losses::SigReg` with RFC 0003 constants,
   deterministic sketch sampling, fixed-projection parity entry point, and
   gradient/RNG coverage.
+- Burn tensor `lewm-core::losses::prediction_loss` with shape, value, and
+  bidirectional-gradient coverage.
 
 ### Changed
 
