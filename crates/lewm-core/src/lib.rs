@@ -16,6 +16,7 @@ pub mod ada_ln;
 pub mod config;
 pub mod embedder;
 pub mod errors;
+pub mod export;
 pub mod init;
 pub mod jepa;
 pub mod losses;
