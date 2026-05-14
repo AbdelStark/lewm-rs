@@ -35,7 +35,23 @@ const SMOKE_LR_PEAK: f64 = 0.05;
 const SMOKE_LR_MIN: f64 = 0.01;
 const SMOKE_MAX_BATCH_SIZE: u64 = 1_024;
 const PUSHT_ACTION_DIM: usize = 2;
-const PUSHT_PROBE_PARAM_COUNT: usize = 6;
+const PUSHT_TINY_JEPA_DIM: usize = 4;
+const PUSHT_TINY_JEPA_PARAM_GROUPS: usize = 14;
+const PUSHT_TINY_JEPA_PARAM_COUNT: usize = PUSHT_TINY_JEPA_DIM * PUSHT_TINY_JEPA_PARAM_GROUPS;
+const PUSHT_ENCODER_BIAS: usize = 0;
+const PUSHT_ENCODER_PIXEL: usize = 1;
+const PUSHT_ENCODER_ENERGY: usize = 2;
+const PUSHT_ENCODER_TIME: usize = 3;
+const PUSHT_ACTION_BIAS: usize = 4;
+const PUSHT_ACTION_X: usize = 5;
+const PUSHT_ACTION_Y: usize = 6;
+const PUSHT_PREDICTOR_BIAS: usize = 7;
+const PUSHT_PREDICTOR_LATENT: usize = 8;
+const PUSHT_PREDICTOR_ACTION: usize = 9;
+const PUSHT_PROJECTOR_BIAS: usize = 10;
+const PUSHT_PROJECTOR_SCALE: usize = 11;
+const PUSHT_PRED_PROJ_BIAS: usize = 12;
+const PUSHT_PRED_PROJ_SCALE: usize = 13;
 const PUSHT_FIXTURE_FRAME_SIZE: usize = 16;
 const PUSHT_FIXTURE_SAMPLE_COUNT: usize = 128;
 
@@ -134,13 +150,15 @@ pub enum TrainerError {
         /// Requested training batch size.
         batch_size: usize,
     },
-    /// The train guard rejected a `PushT` probe step.
+    /// The train guard rejected a `PushT` tiny-JEPA step.
     TrainGuardRejected {
         /// Rejected optimizer step.
         step: u64,
         /// Guard reason.
         reason: String,
     },
+    /// The bounded `PushT` model path does not yet restore checkpoints.
+    TrainResumeUnsupported,
 }
 
 impl fmt::Display for TrainerError {
@@ -212,6 +230,9 @@ impl fmt::Display for TrainerError {
             Self::TrainGuardRejected { step, reason } => {
                 write!(formatter, "train guard rejected step {step}: {reason}")
             },
+            Self::TrainResumeUnsupported => formatter.write_str(
+                "lewm-train train --resume-if-present is not supported for pusht-tiny-jepa yet; start a fresh output directory",
+            ),
         }
     }
 }
@@ -237,7 +258,8 @@ impl std::error::Error for TrainerError {
             | Self::MissingTrainDataPath { .. }
             | Self::InvalidTrainSteps { .. }
             | Self::InvalidTrainBatchSize { .. }
-            | Self::TrainGuardRejected { .. } => None,
+            | Self::TrainGuardRejected { .. }
+            | Self::TrainResumeUnsupported => None,
         }
     }
 }
@@ -494,6 +516,10 @@ pub struct TrainLossPoint {
     pub step: u64,
     /// Mean training loss at the step.
     pub loss: f64,
+    /// Mean latent prediction loss at the step.
+    pub pred_loss: f64,
+    /// Mean latent scale regularization loss at the step.
+    pub sigreg_proxy_loss: f64,
     /// Pre-clip global gradient norm.
     pub grad_norm_pre: f64,
     /// Post-clip global gradient norm.
@@ -1057,10 +1083,10 @@ fn f32_from_f64(value: f64) -> f32 {
 
 /// Write bounded `PushT` training artifacts for local/container/HF validation.
 ///
-/// This is a real data-plane train path for a tiny action probe: it consumes
-/// `PushT` windows when the dataset exists and falls back to an explicit
-/// `PushT`-compatible fixture when the default local path is absent. It does
-/// not claim to train the full JEPA objective.
+/// This is a real data-plane train path for a tiny JEPA-style latent dynamics
+/// objective: it consumes `PushT` windows when the dataset exists and falls
+/// back to an explicit `PushT`-compatible fixture when the default local path is
+/// absent. It does not claim to train the full Burn `ViT` `LeWM` stack.
 ///
 /// # Errors
 ///
@@ -1080,8 +1106,13 @@ pub fn write_train_artifacts(
     fs::create_dir_all(output_dir).map_err(|source| io_error(output_dir, source))?;
 
     let mut source = open_pusht_training_source(root, data_dir)?;
-    let outcome = run_pusht_probe_training(&mut source, &root.training, max_steps)?;
-    let paths = write_pusht_probe_checkpoint(output_dir, config_hash, seed, &outcome)?;
+    let outcome = run_pusht_tiny_jepa_training(
+        &mut source,
+        &root.training,
+        root.loss.lambda_sigreg,
+        max_steps,
+    )?;
+    let paths = write_pusht_tiny_jepa_checkpoint(output_dir, config_hash, seed, &outcome)?;
     let losses = outcome.losses.clone();
     let report = TrainRunReport {
         schema_version: "1.0.0".to_owned(),
@@ -1103,7 +1134,7 @@ pub fn write_train_artifacts(
         checkpoint_complete: paths.is_complete(),
         checkpoint_files: checkpoint_file_names(&paths),
         grad_explosion_events: outcome.grad_explosion_events,
-        mode: "pusht-action-probe".to_owned(),
+        mode: "pusht-tiny-jepa".to_owned(),
         losses,
     };
 
@@ -1168,71 +1199,144 @@ impl PushtTrainingSource {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-struct PushtProbeModel {
-    params: [f64; PUSHT_PROBE_PARAM_COUNT],
+struct PushtTinyJepaModel {
+    params: [f64; PUSHT_TINY_JEPA_PARAM_COUNT],
 }
 
-impl PushtProbeModel {
-    const fn initial() -> Self {
-        Self {
-            params: [0.0; PUSHT_PROBE_PARAM_COUNT],
+impl PushtTinyJepaModel {
+    fn initial() -> Self {
+        let mut params = [0.0; PUSHT_TINY_JEPA_PARAM_COUNT];
+        let encoder_pixel = [0.08, -0.09, 0.10, -0.11];
+        let encoder_energy = [0.04, 0.03, 0.02, 0.01];
+        let encoder_time = [0.015, -0.015, 0.015, -0.015];
+        let action_x = [0.05, -0.055, 0.06, -0.065];
+        let action_y = [-0.04, 0.04, -0.04, 0.04];
+        for dim in 0..PUSHT_TINY_JEPA_DIM {
+            params[param_index(PUSHT_ENCODER_PIXEL, dim)] = encoder_pixel[dim];
+            params[param_index(PUSHT_ENCODER_ENERGY, dim)] = encoder_energy[dim];
+            params[param_index(PUSHT_ENCODER_TIME, dim)] = encoder_time[dim];
+            params[param_index(PUSHT_ACTION_X, dim)] = action_x[dim];
+            params[param_index(PUSHT_ACTION_Y, dim)] = action_y[dim];
+            params[param_index(PUSHT_PREDICTOR_LATENT, dim)] = 0.65;
+            params[param_index(PUSHT_PREDICTOR_ACTION, dim)] = 0.25;
+            params[param_index(PUSHT_PROJECTOR_SCALE, dim)] = 1.0;
+            params[param_index(PUSHT_PRED_PROJ_SCALE, dim)] = 1.0;
         }
+        Self { params }
     }
 
-    fn predict(self, features: PushtProbeFeatures) -> [f64; PUSHT_ACTION_DIM] {
-        [
-            self.params[0]
-                + (self.params[2] * features.pixel_mean)
-                + (self.params[4] * features.time_fraction),
-            self.params[1]
-                + (self.params[3] * features.pixel_mean)
-                + (self.params[5] * features.time_fraction),
-        ]
+    fn param(&self, group: usize, dim: usize) -> f64 {
+        self.params[param_index(group, dim)]
+    }
+
+    fn encode(&self, features: PushtTinyJepaFeatures) -> [f64; PUSHT_TINY_JEPA_DIM] {
+        let mut latent = [0.0; PUSHT_TINY_JEPA_DIM];
+        for (dim, value) in latent.iter_mut().enumerate() {
+            *value = self.param(PUSHT_ENCODER_BIAS, dim)
+                + (self.param(PUSHT_ENCODER_PIXEL, dim) * features.pixel_mean)
+                + (self.param(PUSHT_ENCODER_ENERGY, dim) * features.pixel_energy)
+                + (self.param(PUSHT_ENCODER_TIME, dim) * features.time_fraction);
+        }
+        latent
+    }
+
+    fn action_encode(&self, action_mean: [f64; PUSHT_ACTION_DIM]) -> [f64; PUSHT_TINY_JEPA_DIM] {
+        let mut embedding = [0.0; PUSHT_TINY_JEPA_DIM];
+        for (dim, value) in embedding.iter_mut().enumerate() {
+            *value = self.param(PUSHT_ACTION_BIAS, dim)
+                + (self.param(PUSHT_ACTION_X, dim) * action_mean[0])
+                + (self.param(PUSHT_ACTION_Y, dim) * action_mean[1]);
+        }
+        embedding
+    }
+
+    fn predict(
+        &self,
+        source_latent: [f64; PUSHT_TINY_JEPA_DIM],
+        action_embedding: [f64; PUSHT_TINY_JEPA_DIM],
+    ) -> [f64; PUSHT_TINY_JEPA_DIM] {
+        let mut prediction = [0.0; PUSHT_TINY_JEPA_DIM];
+        for (dim, value) in prediction.iter_mut().enumerate() {
+            *value = self.param(PUSHT_PREDICTOR_BIAS, dim)
+                + (self.param(PUSHT_PREDICTOR_LATENT, dim) * source_latent[dim])
+                + (self.param(PUSHT_PREDICTOR_ACTION, dim) * action_embedding[dim]);
+        }
+        prediction
+    }
+
+    fn project(
+        &self,
+        bias_group: usize,
+        scale_group: usize,
+        latent: [f64; PUSHT_TINY_JEPA_DIM],
+    ) -> [f64; PUSHT_TINY_JEPA_DIM] {
+        let mut projected = [0.0; PUSHT_TINY_JEPA_DIM];
+        for (dim, value) in projected.iter_mut().enumerate() {
+            *value = self.param(bias_group, dim) + (self.param(scale_group, dim) * latent[dim]);
+        }
+        projected
     }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-struct PushtProbeFeatures {
+struct PushtTinyJepaFeatures {
     pixel_mean: f64,
+    pixel_energy: f64,
     time_fraction: f64,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-struct PushtProbeTarget {
+struct PushtTinyJepaExample {
+    source: PushtTinyJepaFeatures,
+    target: PushtTinyJepaFeatures,
     action_mean: [f64; PUSHT_ACTION_DIM],
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-struct PushtProbeExample {
-    features: PushtProbeFeatures,
-    target: PushtProbeTarget,
+struct PushtTinyJepaAdamWState {
+    step: i32,
+    params: [ScalarAdamWParamState; PUSHT_TINY_JEPA_PARAM_COUNT],
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
-struct PushtProbeAdamWState {
-    step: i32,
-    params: [ScalarAdamWParamState; PUSHT_PROBE_PARAM_COUNT],
+impl Default for PushtTinyJepaAdamWState {
+    fn default() -> Self {
+        Self {
+            step: 0,
+            params: [ScalarAdamWParamState::default(); PUSHT_TINY_JEPA_PARAM_COUNT],
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct PushtTinyJepaStepLoss {
+    total: f64,
+    pred: f64,
+    sigreg_proxy: f64,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-struct PushtProbeOutcome {
+struct PushtTinyJepaOutcome {
     losses: Vec<TrainLossPoint>,
-    model: PushtProbeModel,
-    optimizer: PushtProbeAdamWState,
+    model: PushtTinyJepaModel,
+    optimizer: PushtTinyJepaAdamWState,
     step: u64,
     batch_size: usize,
     samples_seen: u64,
     grad_explosion_events: u64,
 }
 
-#[derive(Clone, Copy, Debug, Serialize)]
-struct PushtProbeRecord {
+#[derive(Clone, Debug, Serialize)]
+struct PushtTinyJepaRecord {
     schema_version: &'static str,
     kind: &'static str,
     step: u64,
-    params: [f64; PUSHT_PROBE_PARAM_COUNT],
+    params: Vec<f64>,
     adamw_step: i32,
     samples_seen: u64,
+}
+
+const fn param_index(group: usize, dim: usize) -> usize {
+    (group * PUSHT_TINY_JEPA_DIM) + dim
 }
 
 fn open_pusht_training_source(
@@ -1275,11 +1379,19 @@ fn open_pusht_training_source(
     })
 }
 
-fn run_pusht_probe_training(
+fn run_pusht_tiny_jepa_training(
     source: &mut PushtTrainingSource,
     config: &TrainingConfig,
+    lambda_sigreg: f64,
     max_steps: u64,
-) -> Result<PushtProbeOutcome, TrainerError> {
+) -> Result<PushtTinyJepaOutcome, TrainerError> {
+    if !lambda_sigreg.is_finite() {
+        return Err(TrainerError::Data {
+            source: DataError::InvalidTransform(
+                "PushT tiny JEPA lambda_sigreg must be finite".to_owned(),
+            ),
+        });
+    }
     let total_steps = train_steps_as_u32(max_steps)?;
     let batch_size_u32 = train_batch_size_as_u32(config.batch_size)?;
     let batch_size =
@@ -1296,22 +1408,29 @@ fn run_pusht_probe_training(
         .with_beta1(config.betas.0)
         .with_beta2(config.betas.1)
         .with_weight_decay(config.weight_decay);
-    let mut model = PushtProbeModel::initial();
-    let mut optimizer = PushtProbeAdamWState::default();
+    let mut model = PushtTinyJepaModel::initial();
+    let mut optimizer = PushtTinyJepaAdamWState::default();
     let mut guard = NanGuard::new();
     let mut losses = Vec::with_capacity(usize::try_from(total_steps).unwrap_or_default());
     let mut samples_seen = 0_u64;
     let mut grad_explosion_events = 0_u64;
+    let sigreg_weight = lambda_sigreg.max(0.0);
 
     for step in 1..=total_steps {
         let mut total_loss = 0.0;
+        let mut pred_loss = 0.0;
+        let mut sigreg_proxy_loss = 0.0;
         let mut sample_gradients = Vec::with_capacity(batch_size);
         for sample_offset in 0..batch_size {
             let dataset_index = training_sample_index(step, sample_offset, batch_size);
             let sample = source.get(dataset_index)?;
-            let example = probe_example_from_sample(&sample)?;
-            let (sample_loss, gradients) = probe_loss_and_gradients(model, example);
-            total_loss += scale_loss_for_accumulation(sample_loss, batch_size_u32)?;
+            let example = tiny_jepa_example_from_sample(&sample, config.history_size)?;
+            let (sample_loss, gradients) =
+                tiny_jepa_loss_and_gradients(&model, example, sigreg_weight);
+            total_loss += scale_loss_for_accumulation(sample_loss.total, batch_size_u32)?;
+            pred_loss += scale_loss_for_accumulation(sample_loss.pred, batch_size_u32)?;
+            sigreg_proxy_loss +=
+                scale_loss_for_accumulation(sample_loss.sigreg_proxy, batch_size_u32)?;
             sample_gradients.push(gradients.to_vec());
             samples_seen = samples_seen.saturating_add(1);
         }
@@ -1333,7 +1452,7 @@ fn run_pusht_probe_training(
             grad_explosion_events += 1;
         }
         let learning_rate = schedule.lr(step);
-        apply_probe_adamw(
+        apply_tiny_jepa_adamw(
             &mut model,
             &gradients,
             &mut optimizer,
@@ -1343,6 +1462,8 @@ fn run_pusht_probe_training(
         losses.push(TrainLossPoint {
             step: step_u64,
             loss: total_loss,
+            pred_loss,
+            sigreg_proxy_loss,
             grad_norm_pre: clip.grad_norm_pre,
             grad_norm_post: clip.grad_norm_post,
             learning_rate,
@@ -1350,7 +1471,7 @@ fn run_pusht_probe_training(
         });
     }
 
-    Ok(PushtProbeOutcome {
+    Ok(PushtTinyJepaOutcome {
         losses,
         model,
         optimizer,
@@ -1382,7 +1503,10 @@ fn training_sample_index(step: u32, sample_offset: usize, batch_size: usize) -> 
         .saturating_add(sample_offset)
 }
 
-fn probe_example_from_sample(sample: &PushtSample) -> Result<PushtProbeExample, TrainerError> {
+fn tiny_jepa_example_from_sample(
+    sample: &PushtSample,
+    history_size: usize,
+) -> Result<PushtTinyJepaExample, TrainerError> {
     let action_values = sample.actions.len();
     let expected_action_values = sample
         .action_shape
@@ -1394,35 +1518,87 @@ fn probe_example_from_sample(sample: &PushtSample) -> Result<PushtProbeExample, 
     if sample.action_shape.1 != PUSHT_ACTION_DIM || action_values != expected_action_values {
         return Err(TrainerError::Data {
             source: DataError::InvalidTransform(format!(
-                "PushT probe expects action shape (T, {PUSHT_ACTION_DIM}), found {:?} with {action_values} values",
+                "PushT tiny JEPA expects action shape (T, {PUSHT_ACTION_DIM}), found {:?} with {action_values} values",
                 sample.action_shape
             )),
         });
     }
 
-    Ok(PushtProbeExample {
-        features: PushtProbeFeatures {
-            pixel_mean: sample_pixel_mean(sample)?,
-            time_fraction: f64::from(sample.meta.start_frame) / 1_000.0,
-        },
-        target: PushtProbeTarget {
-            action_mean: sample_action_mean(sample)?,
-        },
+    let frame_count = sample.frame_shape.0;
+    if frame_count == 0 {
+        return Err(TrainerError::Data {
+            source: DataError::InvalidTransform("PushT frame time is zero".to_owned()),
+        });
+    }
+    let source_len = history_size.clamp(1, frame_count);
+    let target_start = source_len.min(frame_count.saturating_sub(1));
+    let target_len = frame_count.saturating_sub(target_start).max(1);
+
+    Ok(PushtTinyJepaExample {
+        source: sample_temporal_features(sample, 0, source_len)?,
+        target: sample_temporal_features(sample, target_start, target_len)?,
+        action_mean: sample_action_mean(sample)?,
     })
 }
 
-fn sample_pixel_mean(sample: &PushtSample) -> Result<f64, TrainerError> {
+fn sample_temporal_features(
+    sample: &PushtSample,
+    start_frame: usize,
+    frame_count: usize,
+) -> Result<PushtTinyJepaFeatures, TrainerError> {
     if sample.frames_t.is_empty() {
         return Err(TrainerError::Data {
             source: DataError::InvalidTransform("PushT frame buffer is empty".to_owned()),
         });
     }
-    let total = sample
-        .frames_t
-        .iter()
-        .map(|value| f64::from(*value))
-        .sum::<f64>();
-    Ok((total / usize_to_f64(sample.frames_t.len())? / 255.0 * 2.0) - 1.0)
+    let frame_stride = sample
+        .frame_shape
+        .1
+        .checked_mul(sample.frame_shape.2)
+        .and_then(|value| value.checked_mul(sample.frame_shape.3))
+        .ok_or_else(|| TrainerError::Data {
+            source: DataError::InvalidTransform("PushT frame shape overflow".to_owned()),
+        })?;
+    let end_frame = start_frame
+        .checked_add(frame_count)
+        .ok_or_else(|| TrainerError::Data {
+            source: DataError::InvalidTransform("PushT temporal feature range overflow".to_owned()),
+        })?;
+    let end_offset = end_frame
+        .checked_mul(frame_stride)
+        .ok_or_else(|| TrainerError::Data {
+            source: DataError::InvalidTransform(
+                "PushT temporal feature offset overflow".to_owned(),
+            ),
+        })?;
+    if end_frame > sample.frame_shape.0 || end_offset > sample.frames_t.len() {
+        return Err(TrainerError::Data {
+            source: DataError::InvalidTransform(format!(
+                "PushT temporal feature range {start_frame}..{end_frame} exceeds frame shape {:?}",
+                sample.frame_shape
+            )),
+        });
+    }
+
+    let start_offset = start_frame
+        .checked_mul(frame_stride)
+        .ok_or_else(|| TrainerError::Data {
+            source: DataError::InvalidTransform("PushT temporal feature start overflow".to_owned()),
+        })?;
+    let values = &sample.frames_t[start_offset..end_offset];
+    let mut sum = 0.0;
+    let mut energy = 0.0;
+    for value in values {
+        let normalized = (f64::from(*value) / 255.0 * 2.0) - 1.0;
+        sum += normalized;
+        energy += normalized * normalized;
+    }
+    let denominator = usize_to_f64(values.len())?;
+    Ok(PushtTinyJepaFeatures {
+        pixel_mean: sum / denominator,
+        pixel_energy: energy / denominator,
+        time_fraction: f64::from(sample.meta.start_frame) / 1_000.0,
+    })
 }
 
 fn sample_action_mean(sample: &PushtSample) -> Result<[f64; PUSHT_ACTION_DIM], TrainerError> {
@@ -1449,36 +1625,112 @@ fn sample_action_mean(sample: &PushtSample) -> Result<[f64; PUSHT_ACTION_DIM], T
     Ok([sums[0] / denominator, sums[1] / denominator])
 }
 
-fn probe_loss_and_gradients(
-    model: PushtProbeModel,
-    example: PushtProbeExample,
-) -> (f64, [f64; PUSHT_PROBE_PARAM_COUNT]) {
-    let prediction = model.predict(example.features);
-    let mut loss = 0.0;
-    let mut gradients = [0.0; PUSHT_PROBE_PARAM_COUNT];
+fn tiny_jepa_loss_and_gradients(
+    model: &PushtTinyJepaModel,
+    example: PushtTinyJepaExample,
+    sigreg_weight: f64,
+) -> (PushtTinyJepaStepLoss, [f64; PUSHT_TINY_JEPA_PARAM_COUNT]) {
+    let source_latent = model.encode(example.source);
+    let target_latent = model.encode(example.target);
+    let action_embedding = model.action_encode(example.action_mean);
+    let predicted_latent = model.predict(source_latent, action_embedding);
+    let target_projected =
+        model.project(PUSHT_PROJECTOR_BIAS, PUSHT_PROJECTOR_SCALE, target_latent);
+    let predicted_projected = model.project(
+        PUSHT_PRED_PROJ_BIAS,
+        PUSHT_PRED_PROJ_SCALE,
+        predicted_latent,
+    );
 
-    for dim in 0..PUSHT_ACTION_DIM {
-        let residual = prediction[dim] - example.target.action_mean[dim];
-        loss += residual * residual / 2.0;
-        let gradient = residual;
-        gradients[dim] = gradient;
-        gradients[dim + 2] = gradient * example.features.pixel_mean;
-        gradients[dim + 4] = gradient * example.features.time_fraction;
+    let dim_scale = 1.0 / usize_to_f64(PUSHT_TINY_JEPA_DIM).unwrap_or(1.0);
+    let mut pred_loss = 0.0;
+    let mut target_mean_square = 0.0;
+    for dim in 0..PUSHT_TINY_JEPA_DIM {
+        let residual = predicted_projected[dim] - target_projected[dim];
+        pred_loss += 0.5 * residual * residual * dim_scale;
+        target_mean_square += target_projected[dim] * target_projected[dim] * dim_scale;
+    }
+    let sigreg_delta = target_mean_square - 1.0;
+    let sigreg_proxy_loss = 0.5 * sigreg_delta * sigreg_delta;
+    let total_loss = pred_loss + (sigreg_weight * sigreg_proxy_loss);
+
+    let mut gradients = [0.0; PUSHT_TINY_JEPA_PARAM_COUNT];
+    for dim in 0..PUSHT_TINY_JEPA_DIM {
+        let residual = predicted_projected[dim] - target_projected[dim];
+        let grad_pred_projected = residual * dim_scale;
+        let grad_sigreg_target =
+            sigreg_weight * sigreg_delta * 2.0 * target_projected[dim] * dim_scale;
+        let grad_target_projected = (-residual * dim_scale) + grad_sigreg_target;
+
+        gradients[param_index(PUSHT_PRED_PROJ_BIAS, dim)] += grad_pred_projected;
+        gradients[param_index(PUSHT_PRED_PROJ_SCALE, dim)] +=
+            grad_pred_projected * predicted_latent[dim];
+        let grad_predicted_latent = grad_pred_projected * model.param(PUSHT_PRED_PROJ_SCALE, dim);
+
+        gradients[param_index(PUSHT_PREDICTOR_BIAS, dim)] += grad_predicted_latent;
+        gradients[param_index(PUSHT_PREDICTOR_LATENT, dim)] +=
+            grad_predicted_latent * source_latent[dim];
+        gradients[param_index(PUSHT_PREDICTOR_ACTION, dim)] +=
+            grad_predicted_latent * action_embedding[dim];
+        let grad_source_latent = grad_predicted_latent * model.param(PUSHT_PREDICTOR_LATENT, dim);
+        let grad_action_embedding =
+            grad_predicted_latent * model.param(PUSHT_PREDICTOR_ACTION, dim);
+
+        gradients[param_index(PUSHT_ACTION_BIAS, dim)] += grad_action_embedding;
+        gradients[param_index(PUSHT_ACTION_X, dim)] +=
+            grad_action_embedding * example.action_mean[0];
+        gradients[param_index(PUSHT_ACTION_Y, dim)] +=
+            grad_action_embedding * example.action_mean[1];
+
+        gradients[param_index(PUSHT_PROJECTOR_BIAS, dim)] += grad_target_projected;
+        gradients[param_index(PUSHT_PROJECTOR_SCALE, dim)] +=
+            grad_target_projected * target_latent[dim];
+        let grad_target_latent = grad_target_projected * model.param(PUSHT_PROJECTOR_SCALE, dim);
+
+        accumulate_encoder_gradients(&mut gradients, dim, grad_source_latent, example.source);
+        accumulate_encoder_gradients(&mut gradients, dim, grad_target_latent, example.target);
     }
 
-    (loss, gradients)
+    (
+        PushtTinyJepaStepLoss {
+            total: total_loss,
+            pred: pred_loss,
+            sigreg_proxy: sigreg_proxy_loss,
+        },
+        gradients,
+    )
 }
 
-fn apply_probe_adamw(
-    model: &mut PushtProbeModel,
+fn accumulate_encoder_gradients(
+    gradients: &mut [f64; PUSHT_TINY_JEPA_PARAM_COUNT],
+    dim: usize,
+    latent_gradient: f64,
+    features: PushtTinyJepaFeatures,
+) {
+    gradients[param_index(PUSHT_ENCODER_BIAS, dim)] += latent_gradient;
+    gradients[param_index(PUSHT_ENCODER_PIXEL, dim)] += latent_gradient * features.pixel_mean;
+    gradients[param_index(PUSHT_ENCODER_ENERGY, dim)] += latent_gradient * features.pixel_energy;
+    gradients[param_index(PUSHT_ENCODER_TIME, dim)] += latent_gradient * features.time_fraction;
+}
+
+fn apply_tiny_jepa_adamw(
+    model: &mut PushtTinyJepaModel,
     gradients: &[f64],
-    optimizer: &mut PushtProbeAdamWState,
+    optimizer: &mut PushtTinyJepaAdamWState,
     learning_rate: f64,
     config: &OptimConfig,
 ) {
     optimizer.step += 1;
     for (param_index, param) in model.params.iter_mut().enumerate() {
-        let apply_weight_decay = param_index >= 2;
+        let group = param_index / PUSHT_TINY_JEPA_DIM;
+        let apply_weight_decay = !matches!(
+            group,
+            PUSHT_ENCODER_BIAS
+                | PUSHT_ACTION_BIAS
+                | PUSHT_PREDICTOR_BIAS
+                | PUSHT_PROJECTOR_BIAS
+                | PUSHT_PRED_PROJ_BIAS
+        );
         *param = adamw_update_scalar(
             *param,
             gradients[param_index],
@@ -1491,55 +1743,60 @@ fn apply_probe_adamw(
     }
 }
 
-fn write_pusht_probe_checkpoint(
+fn write_pusht_tiny_jepa_checkpoint(
     output_dir: &Path,
     config_hash: &str,
     seed: u64,
-    outcome: &PushtProbeOutcome,
+    outcome: &PushtTinyJepaOutcome,
 ) -> Result<CheckpointPaths, TrainerError> {
     let parameters = vec![
-        ParameterTensor::f32(
-            "pusht_probe.bias",
-            vec![PUSHT_ACTION_DIM],
-            vec![
-                f32_from_f64(outcome.model.params[0]),
-                f32_from_f64(outcome.model.params[1]),
-            ],
+        tiny_jepa_parameter_tensor(&outcome.model, "encoder.bias", PUSHT_ENCODER_BIAS)?,
+        tiny_jepa_parameter_tensor(&outcome.model, "encoder.pixel_weight", PUSHT_ENCODER_PIXEL)?,
+        tiny_jepa_parameter_tensor(
+            &outcome.model,
+            "encoder.energy_weight",
+            PUSHT_ENCODER_ENERGY,
         )?,
-        ParameterTensor::f32(
-            "pusht_probe.pixel_weight",
-            vec![PUSHT_ACTION_DIM],
-            vec![
-                f32_from_f64(outcome.model.params[2]),
-                f32_from_f64(outcome.model.params[3]),
-            ],
+        tiny_jepa_parameter_tensor(&outcome.model, "encoder.time_weight", PUSHT_ENCODER_TIME)?,
+        tiny_jepa_parameter_tensor(&outcome.model, "action_encoder.bias", PUSHT_ACTION_BIAS)?,
+        tiny_jepa_parameter_tensor(&outcome.model, "action_encoder.x_weight", PUSHT_ACTION_X)?,
+        tiny_jepa_parameter_tensor(&outcome.model, "action_encoder.y_weight", PUSHT_ACTION_Y)?,
+        tiny_jepa_parameter_tensor(&outcome.model, "predictor.bias", PUSHT_PREDICTOR_BIAS)?,
+        tiny_jepa_parameter_tensor(
+            &outcome.model,
+            "predictor.latent_scale",
+            PUSHT_PREDICTOR_LATENT,
         )?,
-        ParameterTensor::f32(
-            "pusht_probe.time_weight",
-            vec![PUSHT_ACTION_DIM],
-            vec![
-                f32_from_f64(outcome.model.params[4]),
-                f32_from_f64(outcome.model.params[5]),
-            ],
+        tiny_jepa_parameter_tensor(
+            &outcome.model,
+            "predictor.action_scale",
+            PUSHT_PREDICTOR_ACTION,
         )?,
+        tiny_jepa_parameter_tensor(&outcome.model, "projector.bias", PUSHT_PROJECTOR_BIAS)?,
+        tiny_jepa_parameter_tensor(&outcome.model, "projector.scale", PUSHT_PROJECTOR_SCALE)?,
+        tiny_jepa_parameter_tensor(&outcome.model, "pred_proj.bias", PUSHT_PRED_PROJ_BIAS)?,
+        tiny_jepa_parameter_tensor(&outcome.model, "pred_proj.scale", PUSHT_PRED_PROJ_SCALE)?,
     ];
     let parity = ParityProbe {
-        encoder_cls_l_inf: 0.0,
-        predictor_l_inf: 0.0,
-        sigreg_value: last_train_loss(&outcome.losses),
+        encoder_cls_l_inf: outcome.losses.last().map_or(0.0, |point| point.pred_loss),
+        predictor_l_inf: last_train_loss(&outcome.losses),
+        sigreg_value: outcome
+            .losses
+            .last()
+            .map_or(0.0, |point| point.sigreg_proxy_loss),
     };
-    let record = PushtProbeRecord {
+    let record = PushtTinyJepaRecord {
         schema_version: "1.0.0",
-        kind: "lewm-rs-pusht-action-probe-record",
+        kind: "lewm-rs-pusht-tiny-jepa-record",
         step: outcome.step,
-        params: outcome.model.params,
+        params: outcome.model.params.to_vec(),
         adamw_step: outcome.optimizer.step,
         samples_seen: outcome.samples_seen,
     };
     let burn_record = serde_json::to_vec(&record)?;
     let request = CheckpointWriteRequest {
         output_dir,
-        run_id: "pusht-action-probe-v1",
+        run_id: "pusht-tiny-jepa-v1",
         step: outcome.step,
         epoch: 0,
         wall_time_s: 0.0,
@@ -1549,10 +1806,10 @@ fn write_pusht_probe_checkpoint(
             global_seed: seed,
             step_at_save: outcome.step,
             data_shuffle: "sequential-window-modulo-v1".to_owned(),
-            sigreg_sketch: "disabled-for-action-probe".to_owned(),
-            dropout: "disabled-for-action-probe".to_owned(),
-            cem: "disabled-for-action-probe".to_owned(),
-            model_init: "pusht-action-probe-zero-init".to_owned(),
+            sigreg_sketch: "tiny-jepa-latent-scale-proxy-v1".to_owned(),
+            dropout: "disabled-for-tiny-jepa".to_owned(),
+            cem: "disabled-for-tiny-jepa".to_owned(),
+            model_init: "pusht-tiny-jepa-deterministic-init-v1".to_owned(),
         },
         metrics_last_step: train_checkpoint_metrics(outcome),
         burn_record: &burn_record,
@@ -1563,9 +1820,35 @@ fn write_pusht_probe_checkpoint(
     save_checkpoint(&request).map_err(TrainerError::from)
 }
 
-fn train_checkpoint_metrics(outcome: &PushtProbeOutcome) -> BTreeMap<String, f64> {
+fn tiny_jepa_parameter_tensor(
+    model: &PushtTinyJepaModel,
+    name: &'static str,
+    group: usize,
+) -> Result<ParameterTensor, TrainerError> {
+    let values = (0..PUSHT_TINY_JEPA_DIM)
+        .map(|dim| f32_from_f64(model.param(group, dim)))
+        .collect();
+    Ok(ParameterTensor::f32(
+        name,
+        vec![PUSHT_TINY_JEPA_DIM],
+        values,
+    )?)
+}
+
+fn train_checkpoint_metrics(outcome: &PushtTinyJepaOutcome) -> BTreeMap<String, f64> {
     let mut metrics = BTreeMap::new();
     metrics.insert("loss/train".to_owned(), last_train_loss(&outcome.losses));
+    metrics.insert(
+        "loss/prediction".to_owned(),
+        outcome.losses.last().map_or(0.0, |point| point.pred_loss),
+    );
+    metrics.insert(
+        "loss/sigreg_proxy".to_owned(),
+        outcome
+            .losses
+            .last()
+            .map_or(0.0, |point| point.sigreg_proxy_loss),
+    );
     metrics.insert(
         "optim/grad_norm_pre".to_owned(),
         outcome
@@ -1819,17 +2102,42 @@ mod tests {
         let report = write_train_artifacts(dir.path(), &root, "abc123", None, 10, 7, "cpu")?;
 
         assert_eq!(report.kind, "lewm-rs-train-report");
-        assert_eq!(report.mode, "pusht-action-probe");
+        assert_eq!(report.mode, "pusht-tiny-jepa");
         assert!(report.data_source.starts_with("pusht-compatible-fixture"));
         assert_eq!(report.steps_completed, 10);
         assert_eq!(report.checkpoint_step, 10);
         assert!(report.checkpoint_complete);
         assert_eq!(report.checkpoint_files.len(), 4);
+        assert!(
+            report
+                .losses
+                .iter()
+                .all(|point| point.pred_loss.is_finite())
+        );
+        assert!(
+            report
+                .losses
+                .iter()
+                .all(|point| point.sigreg_proxy_loss.is_finite())
+        );
         assert!(dir.path().join("train_report.json").is_file());
         assert!(dir.path().join("train_losses.jsonl").is_file());
         let loaded = crate::checkpoint::load_checkpoint(dir.path().join("step_0000010.json"))?;
         assert_eq!(loaded.sidecar.step, 10);
         assert_eq!(loaded.sidecar.rng_state.global_seed, 7);
+        assert_eq!(loaded.sidecar.run_id, "pusht-tiny-jepa-v1");
+        assert!(
+            loaded
+                .sidecar
+                .metrics_last_step
+                .contains_key("loss/prediction")
+        );
+        assert!(
+            loaded
+                .sidecar
+                .metrics_last_step
+                .contains_key("loss/sigreg_proxy")
+        );
         Ok(())
     }
 

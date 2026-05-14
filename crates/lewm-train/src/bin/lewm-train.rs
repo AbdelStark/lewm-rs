@@ -245,6 +245,9 @@ fn run(cli: &Cli, mut writer: impl Write) -> Result<(), CliError> {
     }
 
     if let Some(Command::Train(args)) = cli.command.as_ref() {
+        if cli.resume_if_present {
+            return Err(TrainerError::TrainResumeUnsupported.into());
+        }
         let Some(max_steps) = cli.max_steps else {
             return Err(TrainerError::TrainRequiresMaxSteps.into());
         };
@@ -514,7 +517,7 @@ mod tests {
     }
 
     #[test]
-    fn cli_train_writes_uploadable_pusht_probe_artifacts() -> TestResult {
+    fn cli_train_writes_uploadable_pusht_tiny_jepa_artifacts() -> TestResult {
         let dir = tempfile::tempdir()?;
         let config_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("../..")
@@ -542,6 +545,38 @@ mod tests {
         assert!(dir.path().join("train_losses.jsonl").is_file());
         assert!(dir.path().join("step_0000010.json").is_file());
         assert!(String::from_utf8(output)?.contains("train artifacts written"));
+        Ok(())
+    }
+
+    #[test]
+    fn cli_train_rejects_resume_if_present() -> TestResult {
+        let dir = tempfile::tempdir()?;
+        let config_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .join("configs/pusht.toml")
+            .to_string_lossy()
+            .into_owned();
+        let output_dir = dir.path().to_string_lossy().into_owned();
+        let cli = Cli::try_parse_from([
+            "lewm-train",
+            "--config",
+            config_path.as_str(),
+            "--output-dir",
+            output_dir.as_str(),
+            "--resume-if-present",
+            "--max-steps",
+            "10",
+            "train",
+        ])?;
+        let mut output = Vec::new();
+
+        let error = run(&cli, &mut output).expect_err("resume should be rejected");
+
+        assert!(
+            error
+                .to_string()
+                .contains("train --resume-if-present is not supported")
+        );
         Ok(())
     }
 

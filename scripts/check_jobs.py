@@ -35,7 +35,7 @@ JOB_SPECS = {
         ],
     },
     "short_pusht.yaml": {
-        "hardware": "l4x1",
+        "hardware": "cpu-xl",
         "timeout": "45m",
         "command_tokens": [
             "hf download quentinll/lewm-pusht pusht_expert_train.h5.zst",
@@ -43,10 +43,11 @@ JOB_SPECS = {
             "export HDF5_PLUGIN_PATH=$(python -c 'import hdf5plugin; print(hdf5plugin.PLUGIN_PATH)')",
             "lewm-train train",
             "--config configs/pusht.toml",
+            "--device cpu",
             "--data-dir /tmp/data",
             "--max-steps 10",
             "python python/upload_checkpoints.py",
-            "--path-prefix train/pusht-short-$(date -u +%Y%m%dT%H%M%SZ)",
+            "--path-prefix train/pusht-tiny-jepa-short-$(date -u +%Y%m%dT%H%M%SZ)",
         ],
     },
     "train_pusht.yaml": {
@@ -55,12 +56,14 @@ JOB_SPECS = {
         "command_tokens": [
             "hf download quentinll/lewm-pusht pusht_expert_train.h5.zst",
             "zstd -f -d /tmp/data/pusht_expert_train.h5.zst -o /tmp/data/pusht_expert_train.h5",
+            "export HDF5_PLUGIN_PATH=$(python -c 'import hdf5plugin; print(hdf5plugin.PLUGIN_PATH)')",
             "lewm-train train",
             "--config configs/pusht.toml",
             "--data-dir /tmp/data",
             "--output-dir /tmp/out",
-            "--resume-if-present",
+            "--max-steps ${LEWM_MAX_STEPS:-1000}",
             "python python/upload_checkpoints.py",
+            "--path-prefix train/pusht-tiny-jepa-$(date -u +%Y%m%dT%H%M%SZ)",
         ],
     },
     "smoke_so100.yaml": {
