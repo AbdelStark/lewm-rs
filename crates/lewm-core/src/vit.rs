@@ -4,14 +4,12 @@ use burn::module::{Ignored, Initializer, Param};
 use burn::nn::conv::{Conv2d, Conv2dConfig};
 use burn::nn::{Dropout, DropoutConfig, LayerNorm, LayerNormConfig, Linear, LinearConfig};
 use burn::tensor::activation::{gelu, softmax};
-use burn::tensor::{Tensor, TensorData, backend::Backend};
+use burn::tensor::{Tensor, backend::Backend};
 
 use crate::LewmCoreError;
 use crate::config::{GeluVariant, VitConfig};
-use crate::init::{InitTensor, ModelInitRng, model_init_rng, trunc_normal, zeros};
+use crate::init::{ModelInitRng, model_init_rng, trunc_normal_param, zeros_param};
 
-const INIT_STD: f32 = 0.02;
-const INIT_CLIP: f32 = 2.0 * INIT_STD;
 const GELU_TANH_CUBIC: f64 = 0.044_715;
 
 /// Patch embedding layer implemented as a strided `Conv2d`.
@@ -48,7 +46,7 @@ impl<B: Backend> PatchEmbed<B> {
         .with_stride([config.patch_size, config.patch_size])
         .with_initializer(Initializer::Zeros)
         .init(device);
-        proj.weight = trunc_param_4(
+        proj.weight = trunc_normal_param(
             [
                 config.hidden_size,
                 config.num_channels,
@@ -58,7 +56,7 @@ impl<B: Backend> PatchEmbed<B> {
             rng,
             device,
         )?;
-        proj.bias = Some(zero_param_1([config.hidden_size], device)?);
+        proj.bias = Some(zeros_param([config.hidden_size], device)?);
 
         Ok(Self {
             proj,
@@ -115,8 +113,8 @@ impl<B: Backend> ViTEmbeddings<B> {
             });
         }
         let patch_embed = PatchEmbed::init(config, rng, device)?;
-        let cls_token = trunc_param_3([1, 1, config.hidden_size], rng, device)?;
-        let pos_embed = trunc_param_3(
+        let cls_token = trunc_normal_param([1, 1, config.hidden_size], rng, device)?;
+        let pos_embed = trunc_normal_param(
             [1, patch_embed.num_patches() + 1, config.hidden_size],
             rng,
             device,
@@ -196,12 +194,12 @@ impl<B: Backend> Attention<B> {
                 reason: format!("attention head_dim does not fit u32: {err}"),
             })?;
         let mut qkv = linear_zeros(config.hidden_size, 3 * config.hidden_size, device);
-        qkv.weight = trunc_param_2([config.hidden_size, 3 * config.hidden_size], rng, device)?;
-        qkv.bias = Some(zero_param_1([3 * config.hidden_size], device)?);
+        qkv.weight = trunc_normal_param([config.hidden_size, 3 * config.hidden_size], rng, device)?;
+        qkv.bias = Some(zeros_param([3 * config.hidden_size], device)?);
 
         let mut proj = linear_zeros(config.hidden_size, config.hidden_size, device);
-        proj.weight = trunc_param_2([config.hidden_size, config.hidden_size], rng, device)?;
-        proj.bias = Some(zero_param_1([config.hidden_size], device)?);
+        proj.weight = trunc_normal_param([config.hidden_size, config.hidden_size], rng, device)?;
+        proj.bias = Some(zeros_param([config.hidden_size], device)?);
 
         Ok(Self {
             qkv,
@@ -261,12 +259,14 @@ impl<B: Backend> MlpBlock<B> {
         device: &B::Device,
     ) -> Result<Self, LewmCoreError> {
         let mut fc1 = linear_zeros(config.hidden_size, config.intermediate_size, device);
-        fc1.weight = trunc_param_2([config.hidden_size, config.intermediate_size], rng, device)?;
-        fc1.bias = Some(zero_param_1([config.intermediate_size], device)?);
+        fc1.weight =
+            trunc_normal_param([config.hidden_size, config.intermediate_size], rng, device)?;
+        fc1.bias = Some(zeros_param([config.intermediate_size], device)?);
 
         let mut fc2 = linear_zeros(config.intermediate_size, config.hidden_size, device);
-        fc2.weight = trunc_param_2([config.intermediate_size, config.hidden_size], rng, device)?;
-        fc2.bias = Some(zero_param_1([config.hidden_size], device)?);
+        fc2.weight =
+            trunc_normal_param([config.intermediate_size, config.hidden_size], rng, device)?;
+        fc2.bias = Some(zeros_param([config.hidden_size], device)?);
 
         Ok(Self {
             fc1,
@@ -461,55 +461,4 @@ fn square_side(patch_count: usize) -> usize {
         side += 1;
     }
     side
-}
-
-fn trunc_param_2<B: Backend>(
-    shape: [usize; 2],
-    rng: &mut ModelInitRng,
-    device: &B::Device,
-) -> Result<Param<Tensor<B, 2>>, LewmCoreError> {
-    trunc_param(shape, rng, device)
-}
-
-fn trunc_param_3<B: Backend>(
-    shape: [usize; 3],
-    rng: &mut ModelInitRng,
-    device: &B::Device,
-) -> Result<Param<Tensor<B, 3>>, LewmCoreError> {
-    trunc_param(shape, rng, device)
-}
-
-fn trunc_param_4<B: Backend>(
-    shape: [usize; 4],
-    rng: &mut ModelInitRng,
-    device: &B::Device,
-) -> Result<Param<Tensor<B, 4>>, LewmCoreError> {
-    trunc_param(shape, rng, device)
-}
-
-fn trunc_param<B: Backend, const D: usize>(
-    shape: [usize; D],
-    rng: &mut ModelInitRng,
-    device: &B::Device,
-) -> Result<Param<Tensor<B, D>>, LewmCoreError> {
-    Ok(param_from_init(
-        trunc_normal(&shape, INIT_STD, INIT_CLIP, rng)?,
-        device,
-    ))
-}
-
-fn zero_param_1<B: Backend>(
-    shape: [usize; 1],
-    device: &B::Device,
-) -> Result<Param<Tensor<B, 1>>, LewmCoreError> {
-    Ok(param_from_init(zeros(&shape)?, device))
-}
-
-fn param_from_init<B: Backend, const D: usize>(
-    init: InitTensor,
-    device: &B::Device,
-) -> Param<Tensor<B, D>> {
-    let shape = init.shape().to_vec();
-    let data = TensorData::new(init.into_values(), shape);
-    Param::from_data(data, device)
 }
