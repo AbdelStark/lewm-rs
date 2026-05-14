@@ -51,6 +51,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - Direct `lewm-core` Burn `0.20.1` dependency and compile smoke for the
   Rust `1.89.0` parity implementation path.
 - Burn-backed `lewm-core::vit` encoder modules with RFC 0002 shape coverage.
+- Burn-backed `lewm-core::embedder` action encoder with preserved Conv1d-k1
+  smoothing and shape coverage.
 
 ### Changed
 

@@ -1,9 +1,14 @@
 //! Deterministic model initialization helpers.
 
+use burn::module::Param;
+use burn::tensor::{Tensor, TensorData, backend::Backend};
 use rand_chacha::ChaCha20Rng;
 use rand_distr::{Distribution, Normal};
 
 use crate::{LewmCoreError, rng::MODEL_INIT_STREAM, substream_rng};
+
+pub(crate) const TRUNC_NORMAL_STD: f32 = 0.02;
+pub(crate) const TRUNC_NORMAL_CLIP: f32 = 2.0 * TRUNC_NORMAL_STD;
 
 /// Opaque RNG state for deterministic model initialization.
 #[derive(Debug, Clone)]
@@ -132,6 +137,33 @@ pub fn zeros(shape: &[usize]) -> Result<InitTensor, LewmCoreError> {
 /// element count overflows `usize`.
 pub fn ones(shape: &[usize]) -> Result<InitTensor, LewmCoreError> {
     fill(shape, 1.0)
+}
+
+pub(crate) fn trunc_normal_param<B: Backend, const D: usize>(
+    shape: [usize; D],
+    rng: &mut ModelInitRng,
+    device: &B::Device,
+) -> Result<Param<Tensor<B, D>>, LewmCoreError> {
+    Ok(param_from_init(
+        trunc_normal(&shape, TRUNC_NORMAL_STD, TRUNC_NORMAL_CLIP, rng)?,
+        device,
+    ))
+}
+
+pub(crate) fn zeros_param<B: Backend, const D: usize>(
+    shape: [usize; D],
+    device: &B::Device,
+) -> Result<Param<Tensor<B, D>>, LewmCoreError> {
+    Ok(param_from_init(zeros(&shape)?, device))
+}
+
+fn param_from_init<B: Backend, const D: usize>(
+    init: InitTensor,
+    device: &B::Device,
+) -> Param<Tensor<B, D>> {
+    let shape = init.shape().to_vec();
+    let data = TensorData::new(init.into_values(), shape);
+    Param::from_data(data, device)
 }
 
 fn fill(shape: &[usize], value: f32) -> Result<InitTensor, LewmCoreError> {

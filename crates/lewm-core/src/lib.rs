@@ -13,6 +13,7 @@
 //! issues after the workspace scaffold lands.
 
 pub mod config;
+pub mod embedder;
 pub mod errors;
 pub mod init;
 pub mod losses;
@@ -24,6 +25,7 @@ pub use crate::config::{
     EmbedderConfig, GeluVariant, JepaConfig, MlpConfig, NormVariant, PredictorConfig, VitConfig,
     VitSize,
 };
+pub use crate::embedder::Embedder;
 pub use crate::errors::LewmCoreError;
 pub use crate::init::{InitTensor, ModelInitRng, model_init_rng, ones, trunc_normal, zeros};
 pub use crate::losses::{
