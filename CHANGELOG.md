@@ -66,6 +66,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   bidirectional-gradient coverage.
 - Burn-backed `lewm-core::Jepa` top-level wrapper with encode, predict,
   rollout, criterion, and per-candidate cost contracts.
+- RFC 0008 `lewm-core` parity initialization shape audit for the top-level
+  JEPA wrapper.
 
 ### Changed
 
