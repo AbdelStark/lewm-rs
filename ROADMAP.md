@@ -1,0 +1,92 @@
+# Roadmap and Completion Backlog
+
+Updated: 2026-05-14
+
+Canonical GitHub tracker: [#189](https://github.com/AbdelStark/lewm-rs/issues/189)
+
+The PRD and accepted RFCs remain the product contract. This document is the
+live execution backlog: it records what is proven, what is not yet claimed, and
+the next vertical slices needed to finish the project.
+
+## Current Verified State
+
+| Area | Status | Evidence |
+|------|--------|----------|
+| Specs and workspace | Implemented enough for current local gates | `CARGO_INCREMENTAL=0 make check` passed during this refresh |
+| GHCR training image | Published | `ghcr.io/abdelstark/lewm-rs:latest@sha256:831f685a733a801620bbfa3f7ea649a4795ed731934bcb230896d3a47428d3e9` |
+| HF Jobs short PushT run | Completed | `https://huggingface.co/jobs/abdelstark/6a05cf0ee48bea4538b9ccd6` |
+| HF artifact upload | Completed for minimal short run | `abdelstark/lewm-rs-pusht/train/pusht-minimal-lewm-short-20260514T133423Z/` |
+| PushT train command | Real bounded data-plane path exists | `lewm-train --config configs/pusht.toml --device cpu --output-dir /tmp/lewm-train-pusht --max-steps 10 train` |
+| Artifact contract | Implemented for smoke and minimal PushT train | run report, losses JSONL, checkpoint sidecar, `.mpk`, `.safetensors`, parity JSON |
+| Optional observability | Implemented as optional infra | `infra/otel/`; CI and smoke runs do not require OTLP |
+| SO-100 preparation | Partially implemented | decode/stats/config/job scaffolds exist; full hosted run evidence is pending |
+| Inference/export | Partially implemented | Tract runner/export scaffolds and tests exist; real trained-checkpoint benchmark and Space validation are pending |
+
+## Non-Claims
+
+- `pusht-minimal-lewm` is not the final Burn ViT/action-encoder/predictor
+  LeWorldModel. It is a narrow real training path for validating data, training,
+  checkpoint, upload, and job mechanics.
+- PushT planning success rate has not been measured for a trained Rust model.
+- SO-100 full training and evaluation have not been run to a publishable report.
+- Resume is intentionally rejected for the bounded `pusht-minimal-lewm` path.
+  Robust resume remains required for full training.
+- Tract inference has not yet been benchmarked from a real trained checkpoint,
+  and the demo Space is not release-validated.
+- Paper, blog, and release evidence are not complete.
+
+## Definition of Full Completion
+
+The project is complete when the acceptance criteria in `PRD.md` are satisfied
+with linked evidence:
+
+- Full module-backed LeWorldModel training in Rust, not only the minimal PushT
+  path.
+- Reference parity against the published PushT checkpoint, with fixtures small
+  enough for CI.
+- Full PushT training, CEM planning evaluation, model card, report, and Hub
+  artifacts.
+- SO-100 short/full training, warm-start evaluation, report, and Hub artifacts.
+- Tract CPU export/runner benchmark from a real checkpoint and a reachable demo
+  Space.
+- Cost ledger, security controls, credential rotation, release notes, and paper
+  artifact updated from actual runs.
+
+## Current Backlog
+
+| Priority | Issue | Work | Acceptance |
+|----------|-------|------|------------|
+| P0 | [#190](https://github.com/AbdelStark/lewm-rs/issues/190) | Lock final LeWM architecture and parity source of truth | Final module dimensions and parity fixture contract are documented; RFC 0002 open question is resolved |
+| P0 | [#191](https://github.com/AbdelStark/lewm-rs/issues/191) | Replace minimal PushT core with full module-backed LeWM training | Short CPU train can run the full path and preserve the artifact contract |
+| P0 | [#192](https://github.com/AbdelStark/lewm-rs/issues/192) | Implement robust checkpoint restore and resume | Full training can stop and resume with model, optimizer, scheduler, RNG, and step state restored |
+| P1 | [#193](https://github.com/AbdelStark/lewm-rs/issues/193) | Run full PushT training, planning eval, and publish artifacts | HF run, planning success report, model card, uploaded checkpoints, and cost ledger are linked |
+| P1 | [#194](https://github.com/AbdelStark/lewm-rs/issues/194) | Complete SO-100 short/full training and evaluation path | Prepared data, short/full runs, warm-start eval, report, and Hub artifacts are linked |
+| P1 | [#195](https://github.com/AbdelStark/lewm-rs/issues/195) | Finish Tract export, CPU benchmark, and demo Space validation | Export from a real trained checkpoint works; CPU benchmark and Space smoke are recorded |
+| P2 | [#196](https://github.com/AbdelStark/lewm-rs/issues/196) | Finish public reports, paper, and release evidence | README, reports, paper PDF, release checklist, and Hub/blog links match actual artifacts |
+| P2 | [#197](https://github.com/AbdelStark/lewm-rs/issues/197) | Complete release operations and security/cost controls | Tokens are rotated, billing guardrails are documented, and no secret is committed |
+
+## Blockers and Required Human Actions
+
+- Reference weights or exact upstream dumps may require human-owned HF access.
+  If the reference checkpoint cannot be used directly in CI, R0 must produce a
+  small derived parity fixture.
+- Full PushT and SO-100 runs require HF quota and explicit cost control. The
+  long runs should not start until R1 and R2 are green locally.
+- The pasted HF token must be rotated before public release. The repo should
+  continue using environment variables and must not commit live secrets.
+- SO-100 raw Parquet/MP4 decode remains a Python edge-prep path for v1; Rust
+  training consumes prepared HDF5/stat artifacts.
+
+## Issue Hygiene
+
+The older phase issues remain useful implementation detail, but [#189](https://github.com/AbdelStark/lewm-rs/issues/189)
+and this file are the current sequencing source of truth. Close older issues
+only with evidence in the closing comment. When an old horizontal issue conflicts
+with a current vertical slice, link it to the matching R0-R7 issue instead of
+creating a second tracker.
+
+## Next Logical Step
+
+Start with [#190](https://github.com/AbdelStark/lewm-rs/issues/190). The
+project should not spend more hosted GPU time until the final architecture,
+reference parity source, and minimal-vs-full training boundary are locked.

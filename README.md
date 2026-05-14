@@ -8,12 +8,16 @@
 ## What
 
 `lewm-rs` is a Rust workspace for reproducing LeWorldModel training, planning,
-CPU inference, and artifact publication. The repository is currently in the
-bootstrap phase: the spec set is accepted, the workspace skeleton exists, and
-the implementation is landing issue by issue against the RFC contracts.
+CPU inference, and artifact publication. The repository is past bootstrap: the
+spec set, local gates, GHCR image, HF Jobs launcher, optional self-hosted
+OpenTelemetry stack, smoke mechanics, and first bounded PushT training path are
+in place.
 
 The binding product and engineering contract lives in [`PRD.md`](PRD.md) and
-[`specs/`](specs/). The latest planned model artifact is
+[`specs/`](specs/). The current execution backlog is
+[`ROADMAP.md`](ROADMAP.md) and
+[#189](https://github.com/AbdelStark/lewm-rs/issues/189). The latest planned
+model artifact is
 [abdelstark/lewm-rs-pusht](https://huggingface.co/abdelstark/lewm-rs-pusht),
 and the planned demo Space is
 [abdelstark/lewm-rs-demo](https://huggingface.co/spaces/abdelstark/lewm-rs-demo).
@@ -46,10 +50,10 @@ Make targets mirror the local gates:
 
 | Result | Current state | Target |
 |--------|---------------|--------|
-| PushT planning success | Not yet trained in this repo | >= 87% |
-| SO-100 pick-and-place extension | Specified, not yet trained | Warm-start ablation report |
-| CPU inference | Workspace scaffolded | Sub-second Tract cost computation |
-| Hub publication | Repos named in spec | Model, dataset, and Space artifacts |
+| PushT planning success | Not measured yet; `pusht-minimal-lewm` short train is green | >= 87% |
+| SO-100 pick-and-place extension | Prep/config/job scaffolds exist; hosted train/eval evidence pending | Warm-start ablation report |
+| CPU inference | Tract export/runner scaffolds exist; real-checkpoint benchmark pending | Sub-second Tract cost computation |
+| Hub publication | GHCR image and minimal PushT short-run artifacts are published | Model, dataset, and Space artifacts |
 
 Final metrics will link to model cards and reports once the training and
 evaluation milestones land.
@@ -118,8 +122,9 @@ scripts/launch_hf_job.py jobs/short_pusht.yaml
 ## Reproducing
 
 - Clone the repo and use the pinned Rust toolchain in `rust-toolchain.toml`.
-- Run the local quality gates as they land; today that is `cargo check`,
-  `scripts/check_layers.py`, and `scripts/check_specs.py`.
+- Run the local quality gate: `CARGO_INCREMENTAL=0 make check`.
+- Run the focused train crate gate when changing training:
+  `cargo test -p lewm-train --all-features --locked`.
 - Follow the training runbook in
   [RFC 0005](specs/rfcs/0005-training-system.md#9-runbook) once the data,
   training, and job milestones are implemented.
@@ -131,9 +136,9 @@ crates/     Rust workspace crates for core, data, training, planning, inference,
 infra/      Optional self-hosted observability infrastructure
 scripts/    Local validation and repository maintenance scripts
 specs/      Accepted RFCs, ADR process, glossary, and traceability matrix
-python/     Planned edge adapters for conversion, decoding, plotting, and upload
-jobs/       Planned Hugging Face Jobs launch files
-reports/    Planned training, parity, inference, and cost reports
+python/     Edge adapters for conversion, decoding, stats, cost, and upload
+jobs/       Hugging Face Jobs launch files
+reports/    Cost ledger and future training, parity, and inference reports
 paper/      Planned paper-style writeup and figures
 ```
 

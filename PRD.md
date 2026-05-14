@@ -611,7 +611,7 @@ The project ships when every box below is checked.
 
 ## 11. Open questions and decisions deferred
 
-These are intentionally not decided yet. They will be decided during execution and recorded as ADRs in `docs/adr/`.
+These are intentionally not decided yet. They will be decided during execution and recorded as ADRs in `specs/adr/`.
 
 1. ONNX export from Burn vs Burn-record-direct serving via `lewm-infer`. Burn has an ONNX export crate but its op coverage may miss AdaLN. If export fails we ship a Rust-native loader that reads the Burn record directly into a hand-rolled Tract-equivalent CPU runtime, which is more work but more portable.
 2. ffmpeg-next vs Python pre-decode for SO-100 video. Default to Python pre-decode (allowed under "Python at the edges" rule) for v1; revisit if a future v2 wants embedded device deployment.
@@ -661,7 +661,13 @@ For each Rust module, the upstream Python file and line range it implements:
 
 ---
 
-## 15. Appendix B — Sample HF Jobs YAML
+## 15. Appendix B — Current HF Jobs YAML Shape
+
+The checked-in PushT job currently runs the bounded `pusht-minimal-lewm` path.
+It keeps resume disabled until robust full-training resume lands in
+[#192](https://github.com/AbdelStark/lewm-rs/issues/192). The final full-training
+job can remove the `LEWM_MAX_STEPS` guard and enable resume once the R1/R2
+backlog slices are complete.
 
 ```yaml
 # jobs/train_pusht.yaml
@@ -674,20 +680,23 @@ env:
   HF_TOKEN: ${HF_TOKEN}
   HF_HOME: /tmp/hf
   TRACKIO_PROJECT: lewm-rs
-  TRACKIO_RUN: pusht-full-${SLURM_JOB_ID:-local}
-  OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_ENDPOINT}
-command: >
-  bash -c "
+  TRACKIO_RUN: pusht-full
+  OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_ENDPOINT:-}
+command: |
+  bash -lc "
+    set -euo pipefail
     hf download quentinll/lewm-pusht pusht_expert_train.h5.zst --repo-type dataset --local-dir /tmp/data &&
     zstd -f -d /tmp/data/pusht_expert_train.h5.zst -o /tmp/data/pusht_expert_train.h5 &&
-    lewm-train train
-      --config configs/pusht.toml
-      --data-dir /tmp/data
-      --output-dir /tmp/out
-      --resume-if-present &&
-    python python/upload_checkpoints.py
-      --src /tmp/out
-      --dst abdelstark/lewm-rs-pusht
+    export HDF5_PLUGIN_PATH=$(python -c 'import hdf5plugin; print(hdf5plugin.PLUGIN_PATH)') &&
+    lewm-train train \
+      --config configs/pusht.toml \
+      --data-dir /tmp/data \
+      --output-dir /tmp/out \
+      --max-steps ${LEWM_MAX_STEPS:-1000} &&
+    python python/upload_checkpoints.py \
+      --src /tmp/out \
+      --dst abdelstark/lewm-rs-pusht \
+      --path-prefix train/pusht-minimal-lewm-$(date -u +%Y%m%dT%H%M%SZ)
   "
 ```
 
