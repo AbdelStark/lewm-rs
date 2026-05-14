@@ -47,7 +47,7 @@ JOB_SPECS = {
             "--data-dir /tmp/data",
             "--max-steps 10",
             "python python/upload_checkpoints.py",
-            "--path-prefix train/pusht-tiny-jepa-short-$(date -u +%Y%m%dT%H%M%SZ)",
+            "--path-prefix train/pusht-minimal-lewm-short-$(date -u +%Y%m%dT%H%M%SZ)",
         ],
     },
     "train_pusht.yaml": {
@@ -63,7 +63,7 @@ JOB_SPECS = {
             "--output-dir /tmp/out",
             "--max-steps ${LEWM_MAX_STEPS:-1000}",
             "python python/upload_checkpoints.py",
-            "--path-prefix train/pusht-tiny-jepa-$(date -u +%Y%m%dT%H%M%SZ)",
+            "--path-prefix train/pusht-minimal-lewm-$(date -u +%Y%m%dT%H%M%SZ)",
         ],
     },
     "smoke_so100.yaml": {

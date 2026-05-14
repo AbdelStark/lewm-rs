@@ -97,13 +97,14 @@ scripts/launch_hf_job.py jobs/smoke_pusht.yaml
 ## Short PushT train
 
 The bounded `train --max-steps` path is a real PushT data-plane train run for
-`pusht-tiny-jepa`: a deterministic 4D latent dynamics objective with an encoder,
-action encoder, predictor, projector, prediction head, AdamW update, scheduler,
-gradient clipping, JSONL losses, checkpoint sidecar, `.mpk`, `.safetensors`, and
-parity JSON. It uses HDF5 PushT windows when a dataset path is provided, and
-otherwise writes an explicitly marked PushT-compatible fixture run for local
-plumbing checks. It is not the full Burn ViT JEPA stack and does not make PushT
-success-rate claims. Resume is intentionally rejected for this bounded mode.
+`pusht-minimal-lewm`: a deterministic 4D repo-native `LeWM` core with named
+encoder, action encoder, predictor, projector, and prediction-projection
+components, plus AdamW update, scheduler, gradient clipping, JSONL losses,
+checkpoint sidecar, `.mpk`, `.safetensors`, and parity JSON. It uses HDF5 PushT
+windows when a dataset path is provided, and otherwise writes an explicitly
+marked PushT-compatible fixture run for local plumbing checks. It is not the
+full Burn ViT stack and does not make PushT success-rate claims. Resume is
+intentionally rejected for this bounded mode.
 
 The public `quentinll/lewm-pusht` HDF5 stores pixels with the Blosc HDF5 filter;
 set `HDF5_PLUGIN_PATH` from the Python `hdf5plugin` package before reading that
