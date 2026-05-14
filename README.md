@@ -78,7 +78,8 @@ lewm-data -> lewm-train -> checkpoints + telemetry + Hub upload
 Real training runs can export OTLP traces to the self-hosted local stack in
 [`infra/otel`](infra/otel/README.md). CI and smoke runs leave
 `OTEL_EXPORTER_OTLP_ENDPOINT` unset, so the OTLP exporter is disabled and
-training does not depend on telemetry infrastructure.
+training does not depend on telemetry infrastructure. Use
+`python3 scripts/otel_smoke.py` for an opt-in local collector smoke check.
 
 ## Training image
 
