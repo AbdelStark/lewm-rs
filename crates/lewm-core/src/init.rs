@@ -157,6 +157,13 @@ pub(crate) fn zeros_param<B: Backend, const D: usize>(
     Ok(param_from_init(zeros(&shape)?, device))
 }
 
+pub(crate) fn ones_param<B: Backend, const D: usize>(
+    shape: [usize; D],
+    device: &B::Device,
+) -> Result<Param<Tensor<B, D>>, LewmCoreError> {
+    Ok(param_from_init(ones(&shape)?, device))
+}
+
 fn param_from_init<B: Backend, const D: usize>(
     init: InitTensor,
     device: &B::Device,
