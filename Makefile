@@ -29,7 +29,7 @@ check: fmt lint
 	$(PYTHON) scripts/check_otel_infra.py
 	$(PYTHON) scripts/check_train_so100_job.py
 	$(PYTHON) scripts/check_nondet.py
-	$(PYTHON) -m py_compile python/hf_pricing.py python/cost_ledger.py python/upload_checkpoints.py scripts/launch_hf_job.py
+	$(PYTHON) -m py_compile python/hf_pricing.py python/cost_ledger.py python/upload_checkpoints.py python/param_name_map.py scripts/launch_hf_job.py
 	$(PYTHON) python/cost_ledger.py check --path reports/cost.md --cap-usd 200
 	cargo deny check
 	# hdf5-metno depends on paste; cargo-deny still blocks direct workspace unmaintained deps.

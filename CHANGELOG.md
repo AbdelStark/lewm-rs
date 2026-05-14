@@ -68,6 +68,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   rollout, criterion, and per-candidate cost contracts.
 - RFC 0008 `lewm-core` parity initialization shape audit for the top-level
   JEPA wrapper.
+- Python reference-checkpoint parameter-name map for the locked PushT source
+  state dict and Burn record conversion preflight.
 
 ### Changed
 
@@ -75,6 +77,9 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   CODEOWNERS mappings for crate-level review routing.
 - Bumped the pinned Rust toolchain, CI toolchain, and training image builder to
   Rust `1.89.0` to satisfy the Burn `0.20.1` MSRV.
+- Aligned the Burn predictor attention and feed-forward submodules with the
+  upstream PushT checkpoint layout, including predictor qkv bias removal and
+  affine pre-norm parameters.
 
 ### Deprecated
 

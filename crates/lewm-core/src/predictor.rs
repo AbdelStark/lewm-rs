@@ -12,6 +12,7 @@ use crate::init::{ModelInitRng, model_init_rng, trunc_normal_param, zeros_param}
 use crate::tensor_ops::{DeviceKey, build_causal_mask};
 
 const DEFAULT_LAYER_NORM_EPSILON: f64 = 1.0e-5;
+const AFFINE_FREE_LAYER_NORM_EPSILON: f64 = 1.0e-6;
 
 /// Pre-norm transformer block with AdaLN-zero action conditioning.
 #[derive(burn::module::Module, Debug)]
@@ -241,7 +242,7 @@ struct AffineFreeLayerNorm {
 impl AffineFreeLayerNorm {
     fn new(_hidden_dim: usize) -> Self {
         Self {
-            epsilon: DEFAULT_LAYER_NORM_EPSILON,
+            epsilon: AFFINE_FREE_LAYER_NORM_EPSILON,
         }
     }
 
@@ -253,6 +254,7 @@ impl AffineFreeLayerNorm {
 
 #[derive(burn::module::Module, Debug)]
 struct CausalSelfAttention<B: Backend> {
+    norm: LayerNorm<B>,
     qkv: Linear<B>,
     proj: Linear<B>,
     attn_drop: Dropout,
@@ -287,13 +289,14 @@ impl<B: Backend> CausalSelfAttention<B> {
             })?;
         let mut qkv = linear_zeros(config.hidden_dim, qkv_dim, device);
         qkv.weight = trunc_normal_param([config.hidden_dim, qkv_dim], rng, device)?;
-        qkv.bias = Some(zeros_param([qkv_dim], device)?);
+        qkv.bias = None;
 
         let mut proj = linear_zeros(inner_dim, config.hidden_dim, device);
         proj.weight = trunc_normal_param([inner_dim, config.hidden_dim], rng, device)?;
         proj.bias = Some(zeros_param([config.hidden_dim], device)?);
 
         Ok(Self {
+            norm: layer_norm(config.hidden_dim, device),
             qkv,
             proj,
             attn_drop: DropoutConfig::new(config.dropout).init(),
@@ -306,6 +309,7 @@ impl<B: Backend> CausalSelfAttention<B> {
     }
 
     fn forward(&self, tokens: Tensor<B, 3>) -> Result<Tensor<B, 3>, LewmCoreError> {
+        let tokens = self.norm.forward(tokens);
         let device = tokens.device();
         let [batch_size, seq_len, _hidden_dim] = tokens.dims();
         let qkv = self
@@ -333,6 +337,7 @@ impl<B: Backend> CausalSelfAttention<B> {
 
 #[derive(burn::module::Module, Debug)]
 struct PredictorMlpBlock<B: Backend> {
+    norm: LayerNorm<B>,
     fc1: Linear<B>,
     fc2: Linear<B>,
     drop: Dropout,
@@ -353,6 +358,7 @@ impl<B: Backend> PredictorMlpBlock<B> {
         fc2.bias = Some(zeros_param([config.hidden_dim], device)?);
 
         Ok(Self {
+            norm: layer_norm(config.hidden_dim, device),
             fc1,
             fc2,
             drop: DropoutConfig::new(config.dropout).init(),
@@ -360,8 +366,10 @@ impl<B: Backend> PredictorMlpBlock<B> {
     }
 
     fn forward(&self, tokens: Tensor<B, 3>) -> Tensor<B, 3> {
-        self.fc2
-            .forward(self.drop.forward(gelu(self.fc1.forward(tokens))))
+        self.fc2.forward(
+            self.drop
+                .forward(gelu(self.fc1.forward(self.norm.forward(tokens)))),
+        )
     }
 }
 
@@ -387,6 +395,12 @@ fn causal_mask_tensor<B: Backend>(
 fn linear_zeros<B: Backend>(d_input: usize, d_output: usize, device: &B::Device) -> Linear<B> {
     LinearConfig::new(d_input, d_output)
         .with_initializer(Initializer::Zeros)
+        .init(device)
+}
+
+fn layer_norm<B: Backend>(hidden_dim: usize, device: &B::Device) -> LayerNorm<B> {
+    LayerNormConfig::new(hidden_dim)
+        .with_epsilon(DEFAULT_LAYER_NORM_EPSILON)
         .init(device)
 }
 
@@ -435,9 +449,9 @@ mod tests {
             heads: 1,
             mlp_dim: 1,
             dim_head: 1,
-            input_dim: 1,
-            hidden_dim: 1,
-            output_dim: 1,
+            input_dim: 3,
+            hidden_dim: 3,
+            output_dim: 3,
             action_emb_dim: 1,
             dropout: 0.0,
             emb_dropout: 0.0,
@@ -445,17 +459,38 @@ mod tests {
         let mut rng = model_init_rng(11).expect("valid model init seed");
         let mut attn = CausalSelfAttention::<CpuBackend>::init(&config, &mut rng, &device)
             .expect("compact attention should initialize");
-        attn.qkv.weight = Param::from_data(TensorData::new(vec![0.0, 0.0, 1.0], [1, 3]), &device);
-        attn.proj.weight = Param::from_data(TensorData::new(vec![1.0], [1, 1]), &device);
-        attn.qkv.bias = Some(zeros_param([3], &device).expect("zero qkv bias"));
-        attn.proj.bias = Some(zeros_param([1], &device).expect("zero projection bias"));
+        attn.qkv.weight = Param::from_data(
+            TensorData::new(
+                vec![
+                    1.0, 1.0, 0.0, //
+                    0.0, 0.0, 1.0, //
+                    0.0, 0.0, 0.0,
+                ],
+                [3, 3],
+            ),
+            &device,
+        );
+        attn.proj.weight = Param::from_data(TensorData::new(vec![1.0, 0.0, 0.0], [1, 3]), &device);
+        attn.proj.bias = Some(zeros_param([3], &device).expect("zero projection bias"));
 
         let baseline = Tensor::<CpuBackend, 3>::from_data(
-            TensorData::new(vec![1.0, 10.0], [1, 2, 1]),
+            TensorData::new(
+                vec![
+                    0.0, 0.0, 1.0, //
+                    0.0, 1.0, 0.0,
+                ],
+                [1, 2, 3],
+            ),
             &device,
         );
         let changed_future = Tensor::<CpuBackend, 3>::from_data(
-            TensorData::new(vec![1.0, 100.0], [1, 2, 1]),
+            TensorData::new(
+                vec![
+                    0.0, 0.0, 1.0, //
+                    1.0, 0.0, 0.0,
+                ],
+                [1, 2, 3],
+            ),
             &device,
         );
 
@@ -473,7 +508,9 @@ mod tests {
             .expect("f32 attention output");
 
         assert!((baseline[0] - changed_future[0]).abs() <= 1.0e-6);
-        assert!((baseline[1] - changed_future[1]).abs() > 1.0);
+        assert!((baseline[1] - changed_future[1]).abs() <= 1.0e-6);
+        assert!((baseline[2] - changed_future[2]).abs() <= 1.0e-6);
+        assert!((baseline[3] - changed_future[3]).abs() > 1.0e-3);
     }
 
     #[test]
