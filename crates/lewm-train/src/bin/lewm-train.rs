@@ -11,6 +11,7 @@ use std::{
 
 use clap::{Parser, Subcommand};
 use lewm_train::config::{EnvOverrides, canonical_toml, load_root};
+use lewm_train::trainer::{TrainerError, write_smoke_artifacts};
 use serde::Deserialize;
 
 #[cfg(feature = "cuda")]
@@ -140,6 +141,9 @@ struct TrainArgs {
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, clap::Args)]
 struct SmokeArgs {
+    #[arg(long, value_name = "PATH")]
+    data_dir: Option<PathBuf>,
+
     #[arg(long, default_value_t = 50, value_name = "INT")]
     steps: u64,
 
@@ -215,6 +219,28 @@ fn run(cli: &Cli, mut writer: impl Write) -> Result<(), CliError> {
     }
 
     if cli.dry_run {
+        return Ok(());
+    }
+
+    if let Some(Command::Smoke(args)) = cli.command.as_ref() {
+        let report = write_smoke_artifacts(
+            &cli.output_dir,
+            &loaded.config_hash,
+            args.data_dir.as_deref(),
+            args.steps,
+            args.batch_size,
+            cli.seed.unwrap_or(DEFAULT_SEED),
+            &cli.device,
+        )?;
+        writeln!(
+            writer,
+            "smoke artifacts written to {}; loss_slope={:.8}; mode={}; checkpoint_step={}; checkpoint_complete={}",
+            cli.output_dir.display(),
+            report.loss_slope,
+            report.mode,
+            report.checkpoint_step,
+            report.checkpoint_complete
+        )?;
         return Ok(());
     }
 
@@ -338,6 +364,12 @@ impl From<lewm_train::config::ConfigError> for CliError {
     }
 }
 
+impl From<TrainerError> for CliError {
+    fn from(source: TrainerError) -> Self {
+        Self(source.to_string())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -396,6 +428,8 @@ mod tests {
             "--max-steps",
             "10",
             "smoke",
+            "--data-dir",
+            "/tmp/data",
             "--steps",
             "200",
             "--batch-size",
@@ -413,9 +447,43 @@ mod tests {
         assert_eq!(cli.seed, Some(42));
         assert_eq!(cli.max_steps, Some(10));
         assert!(cli.dry_run);
+        assert_eq!(args.data_dir, Some(PathBuf::from("/tmp/data")));
         assert_eq!(args.steps, 200);
         assert_eq!(args.batch_size, 16);
 
+        Ok(())
+    }
+
+    #[test]
+    fn cli_smoke_writes_uploadable_artifacts() -> TestResult {
+        let dir = tempfile::tempdir()?;
+        let config_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .join("configs/pusht.toml")
+            .to_string_lossy()
+            .into_owned();
+        let output_dir = dir.path().to_string_lossy().into_owned();
+        let cli = Cli::try_parse_from([
+            "lewm-train",
+            "--config",
+            config_path.as_str(),
+            "--output-dir",
+            output_dir.as_str(),
+            "--device",
+            "cpu",
+            "smoke",
+            "--steps",
+            "50",
+            "--batch-size",
+            "4",
+        ])?;
+        let mut output = Vec::new();
+
+        run(&cli, &mut output)?;
+
+        assert!(dir.path().join("smoke_report.json").is_file());
+        assert!(dir.path().join("smoke_losses.jsonl").is_file());
+        assert!(String::from_utf8(output)?.contains("smoke artifacts written"));
         Ok(())
     }
 

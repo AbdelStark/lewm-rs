@@ -9,7 +9,7 @@ Manifest shape:
   "artifacts": [
     {
       "name": "PushT model card",
-      "repo": "AbdelStark/lewm-rs-pusht",
+      "repo": "abdelstark/lewm-rs-pusht",
       "repo_type": "model",
       "revision": "main",
       "path": "README.md",

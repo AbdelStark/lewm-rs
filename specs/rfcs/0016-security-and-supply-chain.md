@@ -78,7 +78,7 @@ INPUTS  ─►  │ Datasets (PushT, SO-100) — hash-verified              │
 | Secret | Use | Storage | Rotation |
 |--------|-----|---------|----------|
 | `HF_TOKEN` | HF Hub auth (download + upload) | GitHub Actions secret, HF Spaces secret, local `~/.config/lewm-rs/secrets.toml` | every 90 days |
-| `OTEL_EXPORTER_OTLP_ENDPOINT_AUTH` | Honeycomb/Grafana auth | GitHub Actions secret, optional in HF Spaces | per provider policy |
+| `GRAFANA_ADMIN_PASSWORD` | optional self-hosted Grafana admin password | local `.env` or deployment secret store, never in git | per deployment policy |
 | `GHCR_TOKEN` | GHCR push (release) | GitHub Actions auto-provided via `${{ secrets.GITHUB_TOKEN }}` | per-job ephemeral |
 | `INTERN_AUDIT_HF_TOKEN` | upload ml-intern session logs to private dataset | local + ml-intern session env | every 30 days |
 
@@ -87,7 +87,7 @@ INPUTS  ─►  │ Datasets (PushT, SO-100) — hash-verified              │
 **RFC0016-003 [MUST]** — Secrets are scoped narrowly:
 
 - `HF_TOKEN`: write access only to `AbdelStark/lewm-rs-*` repos; read access to public datasets.
-- `INTERN_AUDIT_HF_TOKEN`: write access only to `AbdelStark/lewm-rs-intern-audit`.
+- `INTERN_AUDIT_HF_TOKEN`: write access only to `abdelstark/lewm-rs-intern-audit`.
 
 **RFC0016-004 [MUST]** — `~/.config/lewm-rs/secrets.toml` has mode `0600`; the loader rejects readable-by-others files.
 
@@ -241,14 +241,14 @@ Reproduced from [RFC 0001 §7.1](0001-project-foundation-and-build-system.md) an
 {
   "schema_version": "1.0.0",
   "project": "lewm-rs",
-  "namespace": "AbdelStark",
+  "namespace": "abdelstark",
   "billing": {
     "hard_cap_usd": 200,
     "soft_cap_usd": 100,
     "per_job_default_timeout": "30m",
     "session_cap_usd": 20
   },
-  "hardware_allowed":          ["cpu-basic", "cpu-xl", "l4", "a10g-large"],
+  "hardware_allowed":          ["cpu-basic", "cpu-xl", "l4x1", "a10g-large"],
   "hardware_denied":           ["a100-large", "a100-xl", "h100", "h100-xl"],
   "jobs_allowed":              ["smoke_pusht.yaml", "short_pusht.yaml", "smoke_so100.yaml", "short_so100.yaml", "eval.yaml"],
   "jobs_human_approval_required": ["train_pusht.yaml", "train_so100.yaml"],
@@ -269,7 +269,7 @@ Reproduced from [RFC 0001 §7.1](0001-project-foundation-and-build-system.md) an
     ".ml-intern/sessions/**"
   ],
   "audit": {
-    "session_log_repo": "AbdelStark/lewm-rs-intern-audit",
+    "session_log_repo": "abdelstark/lewm-rs-intern-audit",
     "private": true,
     "upload_at_session_end": true,
     "redact_keys": ["HF_TOKEN", "OTEL_AUTH"]
@@ -315,7 +315,7 @@ You are an assistant operating inside the `lewm-rs` project. Adhere to the follo
 
 4. **Approval-required jobs.** `train_pusht.yaml` and `train_so100.yaml` MUST NOT be launched without explicit human go-ahead. Smoke and short variants are pre-approved.
 
-5. **Audit.** Every session's commands and outputs are uploaded to `AbdelStark/lewm-rs-intern-audit` (private). Assume everything you do is logged.
+5. **Audit.** Every session's commands and outputs are uploaded to `abdelstark/lewm-rs-intern-audit` (private). Assume everything you do is logged.
 
 6. **Disagreement protocol.** If you believe a rule is wrong or blocks legitimate work, file an issue tagged `intern-policy-discussion`. Do not bypass the rule.
 
@@ -330,7 +330,7 @@ Each session log is a JSONL file in the private audit repo:
 
 ```json
 {"ts": "2026-05-12T14:00:00Z", "kind": "session_start", "prompt_sha256": "...", "config_sha256": "..."}
-{"ts": "2026-05-12T14:00:05Z", "kind": "command", "cmd": "hf jobs run --hardware l4 --timeout 30m -f jobs/smoke_pusht.yaml"}
+{"ts": "2026-05-12T14:00:05Z", "kind": "command", "cmd": "hf jobs run --flavor l4x1 --timeout 30m -f jobs/smoke_pusht.yaml"}
 {"ts": "2026-05-12T14:00:08Z", "kind": "command_output", "stdout_hash": "...", "exit_code": 0}
 ...
 {"ts": "2026-05-12T15:30:00Z", "kind": "session_end", "duration_s": 5400, "cost_usd": 1.20}

@@ -517,8 +517,8 @@ Expected: green in 2–5 minutes on a laptop with `--device cpu`.
 
 ```bash
 hf jobs run \
-  --namespace AbdelStark \
-  --hardware l4 \
+  --namespace abdelstark \
+  --flavor l4x1 \
   --timeout 30m \
   --image ghcr.io/abdelstark/lewm-rs:latest \
   -- bash -c "lewm-train smoke --config configs/pusht.toml --steps 200 --batch-size 16"
@@ -528,7 +528,7 @@ hf jobs run \
 
 ```bash
 hf jobs run \
-  --namespace AbdelStark \
+  --namespace abdelstark \
   --hardware a10g-large \
   --timeout 2h \
   --image ghcr.io/abdelstark/lewm-rs:latest \
@@ -539,7 +539,7 @@ hf jobs run \
 
 ```bash
 hf jobs run \
-  --namespace AbdelStark \
+  --namespace abdelstark \
   --hardware a10g-large \
   --timeout 12h \
   --image ghcr.io/abdelstark/lewm-rs:latest \
@@ -550,7 +550,7 @@ hf jobs run \
 
 ```bash
 hf jobs run \
-  --namespace AbdelStark \
+  --namespace abdelstark \
   --hardware a10g-large \
   --timeout 12h \
   --image ghcr.io/abdelstark/lewm-rs:latest \

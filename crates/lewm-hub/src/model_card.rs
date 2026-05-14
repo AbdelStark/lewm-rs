@@ -21,7 +21,7 @@ pub const LEWM_RS_CITATION_BIBTEX: &str = r"@software{lewm_rs_2026,
 /// Metadata required to render an RFC 0010 model card.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct ModelCardMetadata {
-    /// Hub repository name, for example `AbdelStark/lewm-rs-pusht`.
+    /// Hub repository name, for example `abdelstark/lewm-rs-pusht`.
     pub repo_name: Option<String>,
     /// Dataset tag used in Hub frontmatter, for example `pusht`.
     pub dataset_tag: Option<String>,
@@ -362,7 +362,7 @@ mod tests {
 
         assert!(!card.contains("{{"));
         assert!(!card.contains("}}"));
-        assert!(card.contains("# AbdelStark/lewm-rs-pusht"));
+        assert!(card.contains("# abdelstark/lewm-rs-pusht"));
         assert!(card.contains("planning_success_rate: 0.82"));
         assert!(card.contains("| Config hash | cfg-123 |"));
         Ok(())
@@ -417,7 +417,7 @@ mod tests {
 
     fn sample_metadata() -> ModelCardMetadata {
         ModelCardMetadata {
-            repo_name: Some("AbdelStark/lewm-rs-pusht".to_owned()),
+            repo_name: Some("abdelstark/lewm-rs-pusht".to_owned()),
             dataset_tag: Some("pusht".to_owned()),
             primary_dataset: Some("quentinll/lewm-pusht".to_owned()),
             dataset_display: Some("PushT".to_owned()),
@@ -433,7 +433,7 @@ mod tests {
             tract_laptop_ms: Some(24.0),
             cost_usd: Some(17.25),
             report_url: Some(
-                "https://huggingface.co/AbdelStark/lewm-rs-pusht/blob/main/reports/training.md"
+                "https://huggingface.co/abdelstark/lewm-rs-pusht/blob/main/reports/training.md"
                     .to_owned(),
             ),
             git_sha: Some("abc123".to_owned()),

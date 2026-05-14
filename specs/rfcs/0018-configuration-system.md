@@ -321,7 +321,7 @@ otel_endpoint_env = "OTEL_EXPORTER_OTLP_ENDPOINT"
 tensorboard_dir = "tb"
 
 [hub]
-model_repo = "AbdelStark/lewm-rs-pusht"
+model_repo = "abdelstark/lewm-rs-pusht"
 upload_at_end = true
 upload_every_n_epochs = 0   # only at end; set >0 to upload mid-run
 

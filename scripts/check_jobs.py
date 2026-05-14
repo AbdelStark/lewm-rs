@@ -16,24 +16,30 @@ REQUIRED_ENV = {
     "HF_TOKEN",
     "OTEL_EXPORTER_OTLP_ENDPOINT",
 }
+EXPECTED_NAMESPACE = "abdelstark"
+EXPECTED_IMAGE = "ghcr.io/abdelstark/lewm-rs:latest"
+OPTIONAL_OTEL_ENDPOINT_VALUE = "${OTEL_ENDPOINT:-}"
 
 JOB_SPECS = {
     "smoke_pusht.yaml": {
-        "hardware": "l4",
+        "hardware": "l4x1",
         "timeout": "30m",
         "command_tokens": [
             "lewm-train smoke",
             "--config configs/pusht.toml",
-            "--steps 200",
-            "--batch-size 16",
-            "--max-steps 200",
+            "--device cpu",
+            "--steps 50",
+            "--batch-size 4",
             "python python/upload_checkpoints.py",
+            "--path-prefix smoke/pusht-$(date -u +%Y%m%dT%H%M%SZ)",
         ],
     },
     "short_pusht.yaml": {
         "hardware": "a10g-large",
         "timeout": "2h",
         "command_tokens": [
+            "hf download quentinll/lewm-pusht pusht_expert_train.h5.zst",
+            "zstd -f -d /tmp/data/pusht_expert_train.h5.zst -o /tmp/data/pusht_expert_train.h5",
             "lewm-train train",
             "--config configs/pusht.toml",
             "--data-dir /tmp/data",
@@ -45,6 +51,8 @@ JOB_SPECS = {
         "hardware": "a10g-large",
         "timeout": "12h",
         "command_tokens": [
+            "hf download quentinll/lewm-pusht pusht_expert_train.h5.zst",
+            "zstd -f -d /tmp/data/pusht_expert_train.h5.zst -o /tmp/data/pusht_expert_train.h5",
             "lewm-train train",
             "--config configs/pusht.toml",
             "--data-dir /tmp/data",
@@ -54,11 +62,11 @@ JOB_SPECS = {
         ],
     },
     "smoke_so100.yaml": {
-        "hardware": "l4",
+        "hardware": "l4x1",
         "timeout": "30m",
         "requires_upload": False,
         "command_tokens": [
-            "hf download AbdelStark/so100-pickplace-lewm-ready",
+            "hf download abdelstark/so100-pickplace-lewm-ready",
             "--repo-type dataset",
             "lewm-train smoke",
             "--config configs/so100.toml",
@@ -71,7 +79,7 @@ JOB_SPECS = {
         "timeout": "2h",
         "requires_upload": False,
         "command_tokens": [
-            "hf download AbdelStark/so100-pickplace-lewm-ready",
+            "hf download abdelstark/so100-pickplace-lewm-ready",
             "--repo-type dataset",
             "lewm-train train",
             "--config configs/so100.toml",
@@ -85,6 +93,7 @@ JOB_SPECS = {
 
 def main() -> int:
     failures: list[str] = []
+    validate_image_contract(failures)
 
     for name, expected in JOB_SPECS.items():
         path = ROOT / "jobs" / name
@@ -95,7 +104,9 @@ def main() -> int:
         text = path.read_text(encoding="utf-8")
         fields = parse_top_level_fields(text)
         env_keys = parse_env_keys(text)
+        env_values = parse_env_values(text)
         command = normalize_command(fields.get("command", ""))
+        validate_shell_continuations(fields.get("command", ""), path, failures)
 
         for field in ("hardware", "timeout", "namespace", "image", "command"):
             if field not in fields:
@@ -111,13 +122,27 @@ def main() -> int:
                 f"{path}: timeout must be {expected['timeout']!r}, got {fields.get('timeout')!r}"
             )
 
+        if fields.get("namespace") != EXPECTED_NAMESPACE:
+            failures.append(
+                f"{path}: namespace must be {EXPECTED_NAMESPACE!r}, got {fields.get('namespace')!r}"
+            )
+
+        if fields.get("image") != EXPECTED_IMAGE:
+            failures.append(f"{path}: image must be {EXPECTED_IMAGE!r}, got {fields.get('image')!r}")
+
         missing_env = sorted(REQUIRED_ENV - env_keys)
         if missing_env:
             failures.append(f"{path}: missing env passthrough keys {missing_env}")
+        elif env_values.get("OTEL_EXPORTER_OTLP_ENDPOINT") != OPTIONAL_OTEL_ENDPOINT_VALUE:
+            failures.append(
+                f"{path}: OTEL_EXPORTER_OTLP_ENDPOINT must be {OPTIONAL_OTEL_ENDPOINT_VALUE!r}"
+            )
 
         for token in expected["command_tokens"]:
             if token not in command:
                 failures.append(f"{path}: command missing {token!r}")
+        if "archive.tar.zst" in command:
+            failures.append(f"{path}: command references removed PushT archive.tar.zst path")
 
         if expected.get("requires_upload", True):
             upload_pos = command.rfind("python python/upload_checkpoints.py")
@@ -149,7 +174,7 @@ def parse_top_level_fields(text: str) -> dict[str, str]:
             continue
 
         key, value = match.groups()
-        if value == ">":
+        if value in {">", "|"}:
             block: list[str] = []
             index += 1
             while index < len(lines) and (not lines[index] or lines[index].startswith(" ")):
@@ -162,6 +187,38 @@ def parse_top_level_fields(text: str) -> dict[str, str]:
         index += 1
 
     return fields
+
+
+def validate_image_contract(failures: list[str]) -> None:
+    dockerfile = ROOT / "Dockerfile"
+    upload_script = ROOT / "python" / "upload_checkpoints.py"
+    launcher_script = ROOT / "scripts" / "launch_hf_job.py"
+
+    if not dockerfile.is_file():
+        failures.append(f"{dockerfile}: missing training image Dockerfile")
+    else:
+        text = dockerfile.read_text(encoding="utf-8")
+        for token in (
+            "FROM rust:1.85.0-bookworm AS builder",
+            "cargo build --locked --release -p lewm-train",
+            "huggingface_hub==",
+            'org.opencontainers.image.source="https://github.com/AbdelStark/lewm-rs"',
+            "COPY python ./python",
+            "CMD [\"lewm-train\", \"--help\"]",
+        ):
+            if token not in text:
+                failures.append(f"{dockerfile}: missing image contract token {token!r}")
+
+    if not upload_script.is_file():
+        failures.append(f"{upload_script}: missing checkpoint upload helper")
+
+    if not launcher_script.is_file():
+        failures.append(f"{launcher_script}: missing HF Jobs launcher")
+    else:
+        launcher = launcher_script.read_text(encoding="utf-8")
+        for token in ("hf", "jobs", "run", '"--"', "shlex.split"):
+            if token not in launcher:
+                failures.append(f"{launcher_script}: missing launcher contract token {token!r}")
 
 
 def parse_env_keys(text: str) -> set[str]:
@@ -183,8 +240,39 @@ def parse_env_keys(text: str) -> set[str]:
     return keys
 
 
+def parse_env_values(text: str) -> dict[str, str]:
+    values: dict[str, str] = {}
+    lines = text.splitlines()
+    in_env = False
+
+    for line in lines:
+        if line == "env:":
+            in_env = True
+            continue
+        if in_env and line and not line.startswith(" "):
+            break
+        if in_env:
+            match = re.match(r"^\s{2}([A-Za-z_][A-Za-z0-9_]*):\s*(.*)$", line)
+            if match:
+                key, value = match.groups()
+                values[key] = value.strip()
+
+    return values
+
+
 def normalize_command(command: str) -> str:
     return " ".join(command.split())
+
+
+def validate_shell_continuations(command: str, path: Path, failures: list[str]) -> None:
+    previous: str | None = None
+    for raw_line in command.splitlines():
+        line = raw_line.strip()
+        if not line or line in {'"', 'bash -lc "', 'bash -c "'}:
+            continue
+        if line.startswith("--") and not (previous and previous.endswith("\\")):
+            failures.append(f"{path}: shell flag line {line!r} must follow a backslash continuation")
+        previous = line
 
 
 def validate_intern_config(failures: list[str]) -> None:

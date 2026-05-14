@@ -56,12 +56,12 @@ LeWM is the cleanest JEPA world model published to date. Two loss terms, one hyp
 | ID | Deliverable | Format | Location |
 |----|------------|--------|----------|
 | D1 | `lewm-rs` source repo | Rust workspace, MIT | github.com/AbdelStark/lewm-rs |
-| D2 | PushT trained checkpoints (epoch 1, 2, 5, 10) | Burn record `.mpk` + Safetensors mirror | `AbdelStark/lewm-rs-pusht` model repo |
-| D3 | SO-100 trained checkpoints (epoch 1, 2, 5, 10) | Burn record `.mpk` + Safetensors mirror | `AbdelStark/lewm-rs-so100-pickplace` model repo |
-| D4 | Dataset mirrors with provenance manifests | LeWM HDF5 untouched; SO-100 with Rust loader doc | `AbdelStark/lewm-pusht-mirror`, `AbdelStark/so100-pickplace-lewm-ready` |
+| D2 | PushT trained checkpoints (epoch 1, 2, 5, 10) | Burn record `.mpk` + Safetensors mirror | `abdelstark/lewm-rs-pusht` model repo |
+| D3 | SO-100 trained checkpoints (epoch 1, 2, 5, 10) | Burn record `.mpk` + Safetensors mirror | `abdelstark/lewm-rs-so100-pickplace` model repo |
+| D4 | Dataset mirrors with provenance manifests | LeWM HDF5 untouched; SO-100 with Rust loader doc | `abdelstark/lewm-pusht-mirror`, `abdelstark/so100-pickplace-lewm-ready` |
 | D5 | Training reports (parity, full PushT, full SO-100) | Trackio runs + Markdown summaries committed to repo | Repo `reports/` + Trackio public links |
 | D6 | Inference report | Wall-clock, FLOPs, peak memory on CPU laptop class | Repo `reports/inference.md` |
-| D7 | Tract CPU planning Space | Gradio Space wrapping the Rust binary via Python bridge | `AbdelStark/lewm-rs-demo` Space |
+| D7 | Tract CPU planning Space | Gradio Space wrapping the Rust binary via Python bridge | `abdelstark/lewm-rs-demo` Space |
 | D8 | Paper-style writeup | Markdown + assets, also a PDF render | Repo `paper/` and a Hub blog post |
 | D9 | Cost ledger | Per-phase HF Jobs spend with screenshots | Repo `reports/cost.md` |
 
@@ -95,7 +95,7 @@ From `jepa.py` and `module.py` in lucas-maes/le-wm:
 
 | Dataset | Format | Size | Action dim | Image | Source |
 |---------|--------|------|-----------|-------|--------|
-| `quentinll/lewm-pusht` | HDF5 in `.tar.zst` | ~920k frames | 2 | 224x224 RGB | HF dataset |
+| `quentinll/lewm-pusht` | `pusht_expert_train.h5.zst` | ~920k frames | 2 | 224x224 RGB | HF dataset |
 | `lerobot/svla_so100_pickplace` | Parquet + MP4, LeRobot v2.1 | 19,631 frames across 50 episodes, two camera views | 6 | 480x640 RGB native | HF dataset |
 
 PushT is ~50x larger and is the right vehicle for the parity and stack-validation phase. SO-100 needs a dedicated Rust LeRobot-v2.1 loader writing into the same tensor shapes the model already consumes (frames at 224x224, action vectors at 6-D).
@@ -367,7 +367,7 @@ Per epoch we also emit `eval/planning_success_rate` on a 50-episode subset, and 
 
 **Tensorboard** is written in parallel as a portability backstop. Anyone without HF account can still inspect runs.
 
-**OpenTelemetry traces** are emitted from the Rust trainer using the `tracing` + `tracing-opentelemetry` crates. Spans: `epoch`, `step`, `forward`, `backward`, `optim_step`, `data_load`, `checkpoint_save`. OTLP exporter writes to a free Honeycomb or Grafana Cloud tenant. This is what makes the system debuggable when something stalls, since a "loss is fine but throughput collapsed" issue is invisible in scalar logs but obvious in span timing.
+**OpenTelemetry traces** are emitted from the Rust trainer using the `tracing` + `tracing-opentelemetry` crates. Spans: `epoch`, `step`, `forward`, `backward`, `optim_step`, `data_load`, `checkpoint_save`. The default backend is the optional self-hosted stack under `infra/otel`; smoke training and CI leave the OTLP endpoint unset. This is what makes the system debuggable when something stalls, since a "loss is fine but throughput collapsed" issue is invisible in scalar logs but obvious in span timing.
 
 **Structured logs** via `tracing` with JSON formatter to stdout. HF Jobs captures stdout to the job log. Each line carries a `run_id`, `phase`, `step`, `wall_time_ms` so reports can be reconstructed by `jq` post-hoc.
 
@@ -411,7 +411,7 @@ T2 SHORT   A10G-large 24GB $1.50/hr   2  h  cap      first 1 epoch, validates th
 T3 FULL    A10G-large 24GB $1.50/hr   12 h cap       the actual training run
 ```
 
-Each tier has a yaml in `jobs/` and is launched via `hf jobs run --namespace AbdelStark --timeout <cap> --hardware <flavor> ...`. T2 must succeed before T3 launches. T3 is the only run that costs real money.
+Each tier has a yaml in `jobs/` and is launched via `hf jobs run --namespace abdelstark --timeout <cap> --flavor <flavor> ...`. T2 must succeed before T3 launches. T3 is the only run that costs real money.
 
 ### 6.6 ml-intern usage protocol
 
@@ -495,7 +495,7 @@ Timeline assumes ~10 to 15 hours of focused engineering per phase plus async ml-
 - Scaffold workspace, CI, formatting, basic burn-cuda hello tensor
 - Pull and decompress `lewm-pusht`, document schema in `reports/pusht_schema.md`
 - Pull reference HF checkpoint via `hf download quentinll/lewm-pusht`
-- Set up Trackio Space, OTel exporter, HF Jobs org billing
+- Set up Trackio Space, optional self-hosted OTel exporter, HF Jobs org billing
 - Set up ml-intern config with the allowed/forbidden list from section 6.6
 - **Exit gate:** `cargo build --workspace` green, reference weights on disk, Trackio dashboard reachable.
 
@@ -521,12 +521,12 @@ Timeline assumes ~10 to 15 hours of focused engineering per phase plus async ml-
 - Cloud T3 FULL on A10G-large, 10 epochs, ~8 hours
 - ml-intern runs the 5-point lambda_sigreg sweep in parallel on 1-epoch T2 SHORT jobs (read-only role: it can launch sweep jobs in a separate namespace, results merged into the final report)
 - After main run completes: eval job on the standard 50-episode planning protocol
-- **Exit gate:** planning success rate >= 87 percent (paper reports 96 percent), no collapse, all 4 checkpoints uploaded to `AbdelStark/lewm-rs-pusht`, training report rendered.
+- **Exit gate:** planning success rate >= 87 percent (paper reports 96 percent), no collapse, all 4 checkpoints uploaded to `abdelstark/lewm-rs-pusht`, training report rendered.
 
 ### Phase 4 — SO-100 prep and short, week 5
 
 - Implement `lewm-data::lerobot_v21` loader (Parquet for actions, video frames via either `ffmpeg-next` Rust crate OR a Python pre-decode to H5 if Rust path is fragile)
-- Resample SO-100 videos to 224x224 at 10 Hz (downsample from 30 Hz) and dump to a single HDF5 archive uploaded to `AbdelStark/so100-pickplace-lewm-ready`
+- Resample SO-100 videos to 224x224 at 10 Hz (downsample from 30 Hz) and dump to a single HDF5 archive uploaded to `abdelstark/so100-pickplace-lewm-ready`
 - Init the SO-100 model from the PushT epoch-10 encoder (warm start) while keeping a from-scratch arm as a control
 - Adapt config: `action_encoder.input_dim = 6`, action vector normalization parameters computed from the dataset
 - T1 SMOKE on L4, T2 SHORT on A10G-large
@@ -638,7 +638,7 @@ These are intentionally not decided yet. They will be decided during execution a
 
 - Code: MIT, same as upstream lucas-maes/le-wm.
 - Trained checkpoints: Apache-2.0, with the dataset attribution in the model card.
-- Datasets: PushT mirrored at MIT under `AbdelStark/lewm-pusht-mirror` with the original license preserved; SO-100 derivative under the original LeRobot license, attributed to `lerobot/svla_so100_pickplace`.
+- Datasets: PushT mirrored at MIT under `abdelstark/lewm-pusht-mirror` with the original license preserved; SO-100 derivative under the original LeRobot license, attributed to `lerobot/svla_so100_pickplace`.
 - Writeup: CC-BY-4.0, with citation to `maes_lelidec2026lewm` mandatory.
 
 All artifacts carry the upstream citation block in their cards.
@@ -667,7 +667,7 @@ For each Rust module, the upstream Python file and line range it implements:
 # jobs/train_pusht.yaml
 hardware: a10g-large
 timeout: 12h
-namespace: AbdelStark
+namespace: abdelstark
 image: ghcr.io/abdelstark/lewm-rs:latest
 env:
   RUST_LOG: lewm=info,burn=info
@@ -678,8 +678,8 @@ env:
   OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_ENDPOINT}
 command: >
   bash -c "
-    hf download quentinll/lewm-pusht --repo-type dataset --local-dir /tmp/data &&
-    tar --zstd -xvf /tmp/data/archive.tar.zst -C /tmp/data &&
+    hf download quentinll/lewm-pusht pusht_expert_train.h5.zst --repo-type dataset --local-dir /tmp/data &&
+    zstd -f -d /tmp/data/pusht_expert_train.h5.zst -o /tmp/data/pusht_expert_train.h5 &&
     lewm-train train
       --config configs/pusht.toml
       --data-dir /tmp/data
@@ -687,7 +687,7 @@ command: >
       --resume-if-present &&
     python python/upload_checkpoints.py
       --src /tmp/out
-      --dst AbdelStark/lewm-rs-pusht
+      --dst abdelstark/lewm-rs-pusht
   "
 ```
 
@@ -788,7 +788,7 @@ Parity vs reference weights: encoder CLS within 7e-5 absolute, predictor within
 For Rust inference on CPU:
 
     cargo install --git https://github.com/AbdelStark/lewm-rs lewm-infer
-    hf download AbdelStark/lewm-rs-pusht --local-dir ckpt
+    hf download abdelstark/lewm-rs-pusht --local-dir ckpt
     lewm-infer plan --checkpoint ckpt/step_10.mpk --start start.png --goal goal.png
 
 For Python loading via Safetensors mirror:

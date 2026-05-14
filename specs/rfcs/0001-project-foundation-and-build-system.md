@@ -488,13 +488,13 @@ The agent is a force multiplier and a blast radius hazard. The leash is encoded 
 {
   "schema_version": "1.0.0",
   "project": "lewm-rs",
-  "namespace": "AbdelStark",
+  "namespace": "abdelstark",
   "billing": {
     "hard_cap_usd": 200,
     "soft_cap_usd": 100,
     "per_job_default_timeout": "30m"
   },
-  "hardware_allowed": ["cpu-basic", "cpu-xl", "l4", "a10g-large"],
+  "hardware_allowed": ["cpu-basic", "cpu-xl", "l4x1", "a10g-large"],
   "hardware_denied":  ["a100-large", "a100-xl", "h100", "h100-xl"],
   "jobs_allowed": [
     "smoke_pusht.yaml",
@@ -521,7 +521,7 @@ The agent is a force multiplier and a blast radius hazard. The leash is encoded 
     "configs/overrides/**"
   ],
   "audit": {
-    "session_log_repo": "AbdelStark/lewm-rs-intern-audit",
+    "session_log_repo": "abdelstark/lewm-rs-intern-audit",
     "upload_at_session_end": true
   },
   "command_denylist": [

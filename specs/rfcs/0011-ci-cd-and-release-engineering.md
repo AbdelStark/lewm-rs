@@ -91,7 +91,7 @@ strategy:
 2. `clippy` — `cargo clippy --workspace --all-targets -- -D warnings`.
 3. `build` — `cargo build --workspace --features ${feature_set}`.
 4. `test` — `cargo test --workspace --features ${feature_set} -- --skip "_slow_"`.
-5. `parity` — only on `parity-fixtures` build; runs `parity_*` tests. Requires the parity fixture and dumps; fetched from the `AbdelStark/lewm-rs-parity-dumps` HF dataset using a CI secret token.
+5. `parity` — only on `parity-fixtures` build; runs `parity_*` tests. Requires the parity fixture and dumps; fetched from the `abdelstark/lewm-rs-parity-dumps` HF dataset using a CI secret token.
 6. `deny` — `cargo deny check`.
 7. `audit` — `cargo audit --deny warnings`.
 8. `layers` — `python scripts/check_layers.py`.

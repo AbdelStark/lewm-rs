@@ -71,7 +71,7 @@ The two datasets are heterogeneous:
 
 | Dataset | Container | Per-frame access | Random-access cost |
 |---------|-----------|------------------|--------------------|
-| PushT | one HDF5 file per `tar.zst` shard | constant (HDF5 chunk read) | low (~µs) |
+| PushT | `pusht_expert_train.h5.zst` decompressed to HDF5 | constant (HDF5 chunk read) | low (~µs) |
 | SO-100 (raw) | per-episode Parquet + MP4 | linear (decode from MP4) | high (~ms per frame) |
 | SO-100 (preprocessed) | one HDF5 per dataset | constant | low |
 

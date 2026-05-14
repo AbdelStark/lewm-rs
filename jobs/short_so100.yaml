@@ -1,26 +1,26 @@
 name: so100-short
 hardware: a10g-large
 timeout: 2h
-namespace: AbdelStark
+namespace: abdelstark
 image: ghcr.io/abdelstark/lewm-rs:latest
 env:
   RUST_LOG: lewm=info,burn=info
   HF_TOKEN: ${HF_TOKEN}
   HF_HOME: /tmp/hf
   TRACKIO_PROJECT: lewm-rs
-  TRACKIO_RUN: so100-short-${SLURM_JOB_ID:-local}
-  OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_ENDPOINT}
-command: >
+  TRACKIO_RUN: so100-short
+  OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_ENDPOINT:-}
+command: |
   bash -c "
     set -euo pipefail
     mkdir -p /tmp/data/so100 /tmp/out
-    hf download AbdelStark/so100-pickplace-lewm-ready
-      --repo-type dataset
+    hf download abdelstark/so100-pickplace-lewm-ready \
+      --repo-type dataset \
       --local-dir /tmp/data/so100
-    lewm-train train
-      --config configs/so100.toml
-      --data-dir /tmp/data/so100
-      --output-dir /tmp/out
-      --set training.epochs=1
+    lewm-train train \
+      --config configs/so100.toml \
+      --data-dir /tmp/data/so100 \
+      --output-dir /tmp/out \
+      --set training.epochs=1 \
       --set experimental.subset_name=so100-short
   "

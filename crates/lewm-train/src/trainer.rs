@@ -1,9 +1,20 @@
 //! Trainer outer-loop state machine and artifact contracts.
 
+use std::collections::BTreeMap;
 use std::fmt;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use crate::checkpoint::{
+    CheckpointError, CheckpointPaths, CheckpointRngState, CheckpointWriteRequest, ParameterTensor,
+    ParityProbe, save_checkpoint,
+};
+use crate::optim::OptimConfig;
+use crate::schedule::CosineWarmup;
+use crate::step::{
+    DEFAULT_MAX_GRAD_NORM, NanGuard, NanGuardDecision, StepError, accumulate_scaled_gradients,
+    clip_global_norm, grad_explosion_artifact, scale_loss_for_accumulation,
+};
 use serde::{Deserialize, Serialize};
 
 /// Number of steps included in the local smoke run.
@@ -14,6 +25,10 @@ pub const SMOKE_SLOPE_START_STEP: u64 = 10;
 
 /// Default mini-eval cadence in epochs.
 pub const DEFAULT_EVAL_EVERY_N_EPOCHS: u64 = 5;
+
+const SMOKE_LR_PEAK: f64 = 0.05;
+const SMOKE_LR_MIN: f64 = 0.01;
+const SMOKE_MAX_BATCH_SIZE: u64 = 1_024;
 
 /// Error returned by trainer state-machine helpers.
 #[derive(Debug)]
@@ -29,6 +44,16 @@ pub enum TrainerError {
     Json {
         /// Original JSON error.
         source: serde_json::Error,
+    },
+    /// Checkpoint persistence failed.
+    Checkpoint {
+        /// Original checkpoint error.
+        source: CheckpointError,
+    },
+    /// Inner step primitive failed.
+    Step {
+        /// Original step error.
+        source: StepError,
     },
     /// State transition is not allowed by RFC 0005.
     InvalidTransition {
@@ -56,6 +81,23 @@ pub enum TrainerError {
         /// Step outside the expected smoke range.
         step: u64,
     },
+    /// Smoke command received an invalid step count.
+    InvalidSmokeSteps {
+        /// Requested smoke steps.
+        steps: u64,
+    },
+    /// Smoke command received an invalid batch size.
+    InvalidSmokeBatchSize {
+        /// Requested smoke batch size.
+        batch_size: u64,
+    },
+    /// The smoke guard rejected a synthetic step.
+    SmokeGuardRejected {
+        /// Rejected optimizer step.
+        step: u64,
+        /// Guard reason.
+        reason: String,
+    },
 }
 
 impl fmt::Display for TrainerError {
@@ -69,6 +111,8 @@ impl fmt::Display for TrainerError {
                 )
             },
             Self::Json { source } => write!(formatter, "trainer JSON error: {source}"),
+            Self::Checkpoint { source } => write!(formatter, "trainer checkpoint error: {source}"),
+            Self::Step { source } => write!(formatter, "trainer step error: {source}"),
             Self::InvalidTransition { from, to } => {
                 write!(formatter, "invalid trainer transition: {from:?} -> {to:?}")
             },
@@ -85,6 +129,19 @@ impl fmt::Display for TrainerError {
             Self::SmokeStepOutOfRange { step } => {
                 write!(formatter, "smoke step outside supported range: {step}")
             },
+            Self::InvalidSmokeSteps { steps } => {
+                write!(
+                    formatter,
+                    "smoke steps must be greater than zero, found {steps}"
+                )
+            },
+            Self::InvalidSmokeBatchSize { batch_size } => write!(
+                formatter,
+                "smoke batch size must be in 1..={SMOKE_MAX_BATCH_SIZE}, found {batch_size}"
+            ),
+            Self::SmokeGuardRejected { step, reason } => {
+                write!(formatter, "smoke guard rejected step {step}: {reason}")
+            },
         }
     }
 }
@@ -94,11 +151,16 @@ impl std::error::Error for TrainerError {
         match self {
             Self::Io { source, .. } => Some(source),
             Self::Json { source } => Some(source),
+            Self::Checkpoint { source } => Some(source),
+            Self::Step { source } => Some(source),
             Self::InvalidTransition { .. }
             | Self::EmptyTransitionId
             | Self::InsufficientSmokePoints { .. }
             | Self::NonFiniteSmokeLoss { .. }
-            | Self::SmokeStepOutOfRange { .. } => None,
+            | Self::SmokeStepOutOfRange { .. }
+            | Self::InvalidSmokeSteps { .. }
+            | Self::InvalidSmokeBatchSize { .. }
+            | Self::SmokeGuardRejected { .. } => None,
         }
     }
 }
@@ -106,6 +168,18 @@ impl std::error::Error for TrainerError {
 impl From<serde_json::Error> for TrainerError {
     fn from(source: serde_json::Error) -> Self {
         Self::Json { source }
+    }
+}
+
+impl From<CheckpointError> for TrainerError {
+    fn from(source: CheckpointError) -> Self {
+        Self::Checkpoint { source }
+    }
+}
+
+impl From<StepError> for TrainerError {
+    fn from(source: StepError) -> Self {
+        Self::Step { source }
     }
 }
 
@@ -273,12 +347,61 @@ pub struct ParityProbeReport {
 }
 
 /// Smoke-test loss observation.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
 pub struct SmokeLossPoint {
     /// Optimizer step.
     pub step: u64,
     /// Total loss at the step.
     pub loss: f64,
+    /// Pre-clip global gradient norm.
+    pub grad_norm_pre: f64,
+    /// Post-clip global gradient norm.
+    pub grad_norm_post: f64,
+    /// Learning rate used for the parameter update.
+    pub learning_rate: f64,
+}
+
+/// Smoke run report written by the CLI smoke command.
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+pub struct SmokeRunReport {
+    /// Report schema version.
+    pub schema_version: String,
+    /// Artifact kind.
+    pub kind: String,
+    /// Hash of the canonical loaded config.
+    pub config_hash: String,
+    /// Optional dataset directory passed to the smoke command.
+    pub data_dir: Option<String>,
+    /// Output directory used for this run.
+    pub output_dir: String,
+    /// Requested smoke steps.
+    pub steps: u64,
+    /// Requested batch size.
+    pub batch_size: u64,
+    /// Run seed.
+    pub seed: u64,
+    /// Requested device string.
+    pub device: String,
+    /// Best-fit loss slope over the canonical smoke window.
+    pub loss_slope: f64,
+    /// Whether the deterministic smoke losses decrease.
+    pub loss_decreased: bool,
+    /// First recorded loss.
+    pub initial_loss: f64,
+    /// Last recorded loss.
+    pub final_loss: f64,
+    /// Optimizer step saved as a checkpoint.
+    pub checkpoint_step: u64,
+    /// Whether the smoke checkpoint contains all required files.
+    pub checkpoint_complete: bool,
+    /// Smoke checkpoint files written beside the report.
+    pub checkpoint_files: Vec<String>,
+    /// Number of gradient-explosion events observed by the guard.
+    pub grad_explosion_events: u64,
+    /// Explicitly scopes this artifact while the full JEPA loop is pending.
+    pub mode: String,
+    /// Deterministic loss observations.
+    pub losses: Vec<SmokeLossPoint>,
 }
 
 /// Return whether `from -> to` is an RFC 0005 success transition.
@@ -407,6 +530,384 @@ pub fn smoke_loss_decreases(points: &[SmokeLossPoint]) -> Result<bool, TrainerEr
     Ok(smoke_loss_slope(points)? < 0.0)
 }
 
+/// Write scalar training-mechanics smoke artifacts for local/HF validation.
+///
+/// This validates the CLI, config, gradient accumulation, clipping,
+/// non-finite guards, parameter updates, checkpoint writing, output directory,
+/// and upload contract without claiming that the full JEPA loop has landed.
+///
+/// # Errors
+///
+/// Returns an error if the output directory cannot be created, a smoke
+/// regression cannot be computed, or the artifact files cannot be written.
+pub fn write_smoke_artifacts(
+    output_dir: impl AsRef<Path>,
+    config_hash: &str,
+    data_dir: Option<&Path>,
+    steps: u64,
+    batch_size: u64,
+    seed: u64,
+    device: &str,
+) -> Result<SmokeRunReport, TrainerError> {
+    let output_dir = output_dir.as_ref();
+    fs::create_dir_all(output_dir).map_err(|source| io_error(output_dir, source))?;
+
+    let outcome = run_scalar_smoke_training(steps, batch_size)?;
+    let paths = write_scalar_smoke_checkpoint(output_dir, config_hash, seed, &outcome)?;
+    let losses = outcome.losses.clone();
+    let loss_slope = smoke_loss_slope(&losses)?;
+    let report = SmokeRunReport {
+        schema_version: "1.0.0".to_owned(),
+        kind: "lewm-rs-smoke-report".to_owned(),
+        config_hash: config_hash.to_owned(),
+        data_dir: data_dir.map(|path| path.display().to_string()),
+        output_dir: output_dir.display().to_string(),
+        steps,
+        batch_size,
+        seed,
+        device: device.to_owned(),
+        loss_slope,
+        loss_decreased: smoke_loss_decreases(&losses)?,
+        initial_loss: first_loss(&losses),
+        final_loss: last_loss(&losses),
+        checkpoint_step: outcome.step,
+        checkpoint_complete: paths.is_complete(),
+        checkpoint_files: checkpoint_file_names(&paths),
+        grad_explosion_events: outcome.grad_explosion_events,
+        mode: "mechanics-smoke".to_owned(),
+        losses,
+    };
+
+    let report_path = output_dir.join("smoke_report.json");
+    fs::write(&report_path, serde_json::to_vec_pretty(&report)?)
+        .map_err(|source| io_error(&report_path, source))?;
+
+    let losses_path = output_dir.join("smoke_losses.jsonl");
+    let mut losses_jsonl = String::new();
+    for point in &report.losses {
+        losses_jsonl.push_str(&serde_json::to_string(point)?);
+        losses_jsonl.push('\n');
+    }
+    fs::write(&losses_path, losses_jsonl).map_err(|source| io_error(&losses_path, source))?;
+
+    Ok(report)
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct ScalarSmokeModel {
+    weight: f64,
+    bias: f64,
+}
+
+impl ScalarSmokeModel {
+    const fn initial() -> Self {
+        Self {
+            weight: 0.0,
+            bias: 0.0,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+struct ScalarAdamWParamState {
+    first_moment: f64,
+    second_moment: f64,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+struct ScalarAdamWState {
+    step: i32,
+    weight: ScalarAdamWParamState,
+    bias: ScalarAdamWParamState,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct ScalarSmokeOutcome {
+    losses: Vec<SmokeLossPoint>,
+    model: ScalarSmokeModel,
+    optimizer: ScalarAdamWState,
+    step: u64,
+    grad_explosion_events: u64,
+}
+
+#[derive(Clone, Copy, Debug, Serialize)]
+struct ScalarSmokeRecord {
+    schema_version: &'static str,
+    kind: &'static str,
+    step: u64,
+    weight: f64,
+    bias: f64,
+    adamw_step: i32,
+}
+
+fn run_scalar_smoke_training(
+    steps: u64,
+    batch_size: u64,
+) -> Result<ScalarSmokeOutcome, TrainerError> {
+    let total_steps = smoke_steps_as_u32(steps)?;
+    let accumulation_steps = smoke_batch_size_as_u32(batch_size)?;
+    let microbatch_capacity =
+        usize::try_from(accumulation_steps).map_err(|_| TrainerError::InvalidSmokeBatchSize {
+            batch_size: u64::from(accumulation_steps),
+        })?;
+    let schedule = CosineWarmup::from_parts(SMOKE_LR_PEAK, SMOKE_LR_MIN, 0, total_steps);
+    let config = OptimConfig::new();
+    let mut model = ScalarSmokeModel::initial();
+    let mut optimizer = ScalarAdamWState::default();
+    let mut guard = NanGuard::new();
+    let mut losses = Vec::with_capacity(usize::try_from(total_steps).unwrap_or_default());
+    let mut grad_explosion_events = 0_u64;
+
+    for step in 1..=total_steps {
+        let mut total_loss = 0.0;
+        let mut microbatch_gradients = Vec::with_capacity(microbatch_capacity);
+        for sample_index in 0..accumulation_steps {
+            let (input, target) = smoke_sample(step, sample_index);
+            let (loss, gradients) = scalar_loss_and_gradients(model, input, target);
+            total_loss += scale_loss_for_accumulation(loss, accumulation_steps)?;
+            microbatch_gradients.push(vec![gradients[0], gradients[1]]);
+        }
+
+        let mut gradients = accumulate_scaled_gradients(&microbatch_gradients, accumulation_steps)?;
+        let step_u64 = u64::from(step);
+        match guard.observe(step_u64, total_loss, &gradients) {
+            NanGuardDecision::Apply => {},
+            NanGuardDecision::Skip { artifact } | NanGuardDecision::Abort { artifact } => {
+                return Err(TrainerError::SmokeGuardRejected {
+                    step: step_u64,
+                    reason: artifact.reason,
+                });
+            },
+        }
+
+        let clip = clip_global_norm(&mut gradients, DEFAULT_MAX_GRAD_NORM)?;
+        if grad_explosion_artifact(step_u64, clip.grad_norm_pre).is_some() {
+            grad_explosion_events += 1;
+        }
+        let learning_rate = schedule.lr(step);
+        apply_scalar_adamw(
+            &mut model,
+            &gradients,
+            &mut optimizer,
+            learning_rate,
+            &config,
+        );
+        losses.push(SmokeLossPoint {
+            step: step_u64,
+            loss: total_loss,
+            grad_norm_pre: clip.grad_norm_pre,
+            grad_norm_post: clip.grad_norm_post,
+            learning_rate,
+        });
+    }
+
+    Ok(ScalarSmokeOutcome {
+        losses,
+        model,
+        optimizer,
+        step: steps,
+        grad_explosion_events,
+    })
+}
+
+fn smoke_steps_as_u32(steps: u64) -> Result<u32, TrainerError> {
+    if steps == 0 {
+        return Err(TrainerError::InvalidSmokeSteps { steps });
+    }
+    u32::try_from(steps).map_err(|_| TrainerError::SmokeStepOutOfRange { step: steps })
+}
+
+fn smoke_batch_size_as_u32(batch_size: u64) -> Result<u32, TrainerError> {
+    if !(1..=SMOKE_MAX_BATCH_SIZE).contains(&batch_size) {
+        return Err(TrainerError::InvalidSmokeBatchSize { batch_size });
+    }
+    u32::try_from(batch_size).map_err(|_| TrainerError::InvalidSmokeBatchSize { batch_size })
+}
+
+fn smoke_sample(step: u32, sample_index: u32) -> (f64, f64) {
+    let raw_bucket = ((u64::from(step) * 13) + (u64::from(sample_index) * 7)) % 23;
+    let bucket = u32::try_from(raw_bucket).unwrap_or_default();
+    let input = (f64::from(bucket) - 11.0) / 11.0;
+    let target = (2.0 * input) - 0.5;
+    (input, target)
+}
+
+fn scalar_loss_and_gradients(model: ScalarSmokeModel, input: f64, target: f64) -> (f64, [f64; 2]) {
+    let prediction = model.weight.mul_add(input, model.bias);
+    let residual = prediction - target;
+    let loss = residual * residual;
+    let grad_weight = 2.0 * residual * input;
+    let grad_bias = 2.0 * residual;
+    (loss, [grad_weight, grad_bias])
+}
+
+fn apply_scalar_adamw(
+    model: &mut ScalarSmokeModel,
+    gradients: &[f64],
+    optimizer: &mut ScalarAdamWState,
+    learning_rate: f64,
+    config: &OptimConfig,
+) {
+    optimizer.step += 1;
+    model.weight = adamw_update_scalar(
+        model.weight,
+        gradients[0],
+        &mut optimizer.weight,
+        optimizer.step,
+        learning_rate,
+        config,
+        true,
+    );
+    model.bias = adamw_update_scalar(
+        model.bias,
+        gradients[1],
+        &mut optimizer.bias,
+        optimizer.step,
+        learning_rate,
+        config,
+        false,
+    );
+}
+
+fn adamw_update_scalar(
+    value: f64,
+    gradient: f64,
+    state: &mut ScalarAdamWParamState,
+    step: i32,
+    learning_rate: f64,
+    config: &OptimConfig,
+    apply_weight_decay: bool,
+) -> f64 {
+    state.first_moment = config
+        .beta1
+        .mul_add(state.first_moment, (1.0 - config.beta1) * gradient);
+    state.second_moment = config.beta2.mul_add(
+        state.second_moment,
+        (1.0 - config.beta2) * gradient * gradient,
+    );
+
+    let decayed_value = if apply_weight_decay {
+        value * (1.0 - (learning_rate * config.weight_decay))
+    } else {
+        value
+    };
+    let corrected_first = state.first_moment / (1.0 - config.beta1.powi(step));
+    let corrected_second = state.second_moment / (1.0 - config.beta2.powi(step));
+
+    decayed_value - (learning_rate * corrected_first / (corrected_second.sqrt() + config.epsilon))
+}
+
+fn write_scalar_smoke_checkpoint(
+    output_dir: &Path,
+    config_hash: &str,
+    seed: u64,
+    outcome: &ScalarSmokeOutcome,
+) -> Result<CheckpointPaths, TrainerError> {
+    let parameters = vec![
+        ParameterTensor::f32(
+            "smoke_scalar.weight",
+            vec![1],
+            vec![f32_from_f64(outcome.model.weight)],
+        )?,
+        ParameterTensor::f32(
+            "smoke_scalar.bias",
+            vec![1],
+            vec![f32_from_f64(outcome.model.bias)],
+        )?,
+    ];
+    let parity = ParityProbe {
+        encoder_cls_l_inf: 0.0,
+        predictor_l_inf: 0.0,
+        sigreg_value: last_loss(&outcome.losses),
+    };
+    let record = ScalarSmokeRecord {
+        schema_version: "1.0.0",
+        kind: "lewm-rs-scalar-smoke-record",
+        step: outcome.step,
+        weight: outcome.model.weight,
+        bias: outcome.model.bias,
+        adamw_step: outcome.optimizer.step,
+    };
+    let burn_record = serde_json::to_vec(&record)?;
+    let request = CheckpointWriteRequest {
+        output_dir,
+        run_id: "smoke-mechanics-v1",
+        step: outcome.step,
+        epoch: 0,
+        wall_time_s: 0.0,
+        git_short_sha: option_env!("LEWM_GIT_SHA").unwrap_or("unknown"),
+        config_hash,
+        rng_state: CheckpointRngState {
+            global_seed: seed,
+            step_at_save: outcome.step,
+            data_shuffle: "deterministic-scalar-grid-v1".to_owned(),
+            sigreg_sketch: "disabled-for-smoke".to_owned(),
+            dropout: "disabled-for-smoke".to_owned(),
+            cem: "disabled-for-smoke".to_owned(),
+            model_init: "scalar-smoke-initial-zeros".to_owned(),
+        },
+        metrics_last_step: smoke_checkpoint_metrics(outcome),
+        burn_record: &burn_record,
+        parameters: &parameters,
+        parity: &parity,
+    };
+
+    save_checkpoint(&request).map_err(TrainerError::from)
+}
+
+fn smoke_checkpoint_metrics(outcome: &ScalarSmokeOutcome) -> BTreeMap<String, f64> {
+    let mut metrics = BTreeMap::new();
+    metrics.insert("loss/total".to_owned(), last_loss(&outcome.losses));
+    metrics.insert(
+        "optim/grad_norm_pre".to_owned(),
+        outcome
+            .losses
+            .last()
+            .map_or(0.0, |point| point.grad_norm_pre),
+    );
+    metrics.insert(
+        "optim/grad_norm_post".to_owned(),
+        outcome
+            .losses
+            .last()
+            .map_or(0.0, |point| point.grad_norm_post),
+    );
+    metrics.insert(
+        "smoke/grad_explosion_events".to_owned(),
+        smoke_step_as_f64(outcome.grad_explosion_events).unwrap_or(0.0),
+    );
+    metrics
+}
+
+fn checkpoint_file_names(paths: &CheckpointPaths) -> Vec<String> {
+    [
+        &paths.model_burn,
+        &paths.model_safetensors,
+        &paths.sidecar,
+        &paths.parity,
+    ]
+    .iter()
+    .map(|path| {
+        path.file_name()
+            .and_then(|name| name.to_str())
+            .map_or_else(|| path.display().to_string(), str::to_owned)
+    })
+    .collect()
+}
+
+fn first_loss(points: &[SmokeLossPoint]) -> f64 {
+    points.first().map_or(0.0, |point| point.loss)
+}
+
+fn last_loss(points: &[SmokeLossPoint]) -> f64 {
+    points.last().map_or(0.0, |point| point.loss)
+}
+
+#[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+fn f32_from_f64(value: f64) -> f32 {
+    value as f32
+}
+
 /// Return whether mini-eval should run at `epoch`.
 pub const fn should_run_eval(epoch: u64, eval_every_n_epochs: u64) -> bool {
     eval_every_n_epochs > 0 && epoch > 0 && epoch % eval_every_n_epochs == 0
@@ -489,17 +990,52 @@ mod tests {
             .map(|step| SmokeLossPoint {
                 step: u64::from(step),
                 loss: 100.0 - f64::from(step),
+                grad_norm_pre: 1.0,
+                grad_norm_post: 1.0,
+                learning_rate: 0.01,
             })
             .collect::<Vec<_>>();
         let increasing = (1_u32..=smoke_steps)
             .map(|step| SmokeLossPoint {
                 step: u64::from(step),
                 loss: f64::from(step),
+                grad_norm_pre: 1.0,
+                grad_norm_post: 1.0,
+                learning_rate: 0.01,
             })
             .collect::<Vec<_>>();
 
         assert!(smoke_loss_decreases(&decreasing)?);
         assert!(!smoke_loss_decreases(&increasing)?);
+        Ok(())
+    }
+
+    #[test]
+    fn smoke_artifacts_are_written() -> Result<(), Box<dyn std::error::Error>> {
+        let dir = TestDir::new("smoke-artifacts")?;
+        let report = write_smoke_artifacts(
+            dir.path(),
+            "abc123",
+            Some(Path::new("/tmp/data")),
+            SMOKE_STEPS,
+            4,
+            7,
+            "cpu",
+        )?;
+
+        assert_eq!(report.kind, "lewm-rs-smoke-report");
+        assert_eq!(report.mode, "mechanics-smoke");
+        assert!(report.loss_decreased);
+        assert!(report.loss_slope < 0.0);
+        assert!(report.initial_loss > report.final_loss);
+        assert_eq!(report.checkpoint_step, SMOKE_STEPS);
+        assert!(report.checkpoint_complete);
+        assert_eq!(report.checkpoint_files.len(), 4);
+        assert!(dir.path().join("smoke_report.json").is_file());
+        assert!(dir.path().join("smoke_losses.jsonl").is_file());
+        let loaded = crate::checkpoint::load_checkpoint(dir.path().join("step_0000050.json"))?;
+        assert_eq!(loaded.sidecar.step, SMOKE_STEPS);
+        assert_eq!(loaded.sidecar.rng_state.global_seed, 7);
         Ok(())
     }
 

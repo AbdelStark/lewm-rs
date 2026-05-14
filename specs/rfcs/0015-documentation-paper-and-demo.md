@@ -287,7 +287,7 @@ pandoc paper/lewm-rs.md \
 
 ---
 
-## 6. Demo Space (`AbdelStark/lewm-rs-demo`)
+## 6. Demo Space (`abdelstark/lewm-rs-demo`)
 
 ### 6.1 UI
 

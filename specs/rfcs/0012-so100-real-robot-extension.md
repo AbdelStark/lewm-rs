@@ -161,7 +161,7 @@ attrs:
   content_hash            : str  "<blake3 of array bytes>"
 ```
 
-**RFC0012-004 [MUST]** — The output HDF5 is uploaded to `AbdelStark/so100-pickplace-lewm-ready` per [RFC 0010 §7.4](0010-huggingface-hub-integration.md) with a manifest.
+**RFC0012-004 [MUST]** — The output HDF5 is uploaded to `abdelstark/so100-pickplace-lewm-ready` per [RFC 0010 §7.4](0010-huggingface-hub-integration.md) with a manifest.
 
 ---
 

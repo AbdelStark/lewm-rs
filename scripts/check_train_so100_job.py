@@ -54,7 +54,7 @@ def _parse_job(path: Path) -> dict[str, object]:
             top[key] = value
 
     if command_lines:
-        top["command"] = " ".join(command_lines)
+        top["command"] = "\n".join(command_lines)
 
     return top
 
@@ -66,7 +66,7 @@ def _split_key_value(line: str, path: Path) -> tuple[str, str]:
     key, value = line.split(":", 1)
     key = key.strip()
     value = value.strip()
-    if value == ">":
+    if value in {">", "|"}:
         value = ""
     if not key:
         raise CheckError(f"{path.relative_to(ROOT)}: empty YAML key in line: {line!r}")
@@ -111,7 +111,7 @@ def _validate_job(job: dict[str, object]) -> None:
     _require(job["name"] == "so100-full-train", "job name must be so100-full-train")
     _require(job["hardware"] == "a10g-large", "train_so100.yaml must use a10g-large")
     _require(job["timeout"] == "6h", "train_so100.yaml must use timeout 6h")
-    _require(job["namespace"] == "AbdelStark", "train_so100.yaml namespace must be AbdelStark")
+    _require(job["namespace"] == "abdelstark", "train_so100.yaml namespace must be abdelstark")
     _require(
         job["image"] == "ghcr.io/abdelstark/lewm-rs:latest",
         "train_so100.yaml image must be ghcr.io/abdelstark/lewm-rs:latest",
@@ -119,15 +119,27 @@ def _validate_job(job: dict[str, object]) -> None:
 
     env = job["env"]
     _require(isinstance(env, dict), "train_so100.yaml env must be a mapping")
-    for key in ("RUST_LOG", "HF_HOME", "TRACKIO_PROJECT", "TRACKIO_RUN", "SO100_VARIANT"):
+    for key in (
+        "RUST_LOG",
+        "HF_TOKEN",
+        "HF_HOME",
+        "TRACKIO_PROJECT",
+        "TRACKIO_RUN",
+        "OTEL_EXPORTER_OTLP_ENDPOINT",
+        "SO100_VARIANT",
+    ):
         _require(key in env, f"train_so100.yaml env missing {key}")
+    _require(
+        env["OTEL_EXPORTER_OTLP_ENDPOINT"] == "${OTEL_ENDPOINT:-}",
+        "OTEL_EXPORTER_OTLP_ENDPOINT must default to empty for optional OTEL",
+    )
     _require(env["SO100_VARIANT"] == "so100", "SO100_VARIANT default must be so100")
 
     command = str(job["command"])
     _expect_contains(
         command,
         [
-            "hf download AbdelStark/so100-pickplace-lewm-ready",
+            "hf download abdelstark/so100-pickplace-lewm-ready",
             "--repo-type dataset",
             "--local-dir /tmp/data/so100",
             "lewm-train train",
@@ -142,7 +154,7 @@ def _validate_job(job: dict[str, object]) -> None:
 
 def _validate_leash(leash: dict[str, object]) -> None:
     _require(leash.get("schema_version") == "1.0.0", "intern leash schema_version must be 1.0.0")
-    _require(leash.get("namespace") == "AbdelStark", "intern leash namespace must be AbdelStark")
+    _require(leash.get("namespace") == "abdelstark", "intern leash namespace must be abdelstark")
 
     allowed = leash.get("hardware_allowed")
     denied = leash.get("hardware_denied")
@@ -150,6 +162,7 @@ def _validate_leash(leash: dict[str, object]) -> None:
     jobs_allowed = leash.get("jobs_allowed")
 
     _require(isinstance(allowed, list), "intern leash hardware_allowed must be a list")
+    _require("l4x1" in allowed, "intern leash must allow l4x1 hardware")
     _require("a10g-large" in allowed, "intern leash must allow a10g-large hardware")
     _require(isinstance(denied, list), "intern leash hardware_denied must be a list")
     _require(any("a100" in str(item) for item in denied), "intern leash must deny a100 tiers")
@@ -165,10 +178,7 @@ def _validate_leash(leash: dict[str, object]) -> None:
 
 
 def _render_launch(job: dict[str, object]) -> str:
-    command = str(job["command"])
-    return " ".join(
-        shlex.quote(part)
-        for part in [
+    command = [
             "hf",
             "jobs",
             "run",
@@ -179,9 +189,10 @@ def _render_launch(job: dict[str, object]) -> str:
             "--timeout",
             str(job["timeout"]),
             str(job["image"]),
-            command,
         ]
-    )
+    command.append("--")
+    command.extend(shlex.split(str(job["command"])))
+    return shlex.join(command)
 
 
 def main() -> int:

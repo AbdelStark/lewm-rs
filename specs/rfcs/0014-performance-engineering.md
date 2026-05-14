@@ -256,7 +256,7 @@ For host: `dhat` (Rust) or `valgrind --tool=massif`.
 
 ### 6.4 Tracing-time analysis
 
-OTLP spans uploaded to Honeycomb show the wall-clock distribution of `training.step.forward`, `training.step.backward`, etc. Useful for spotting cross-step jitter.
+OTLP spans sent to the self-hosted Tempo stack show the wall-clock distribution of `training.step.forward`, `training.step.backward`, etc. Useful for spotting cross-step jitter.
 
 ---
 

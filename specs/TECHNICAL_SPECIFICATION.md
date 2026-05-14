@@ -61,7 +61,7 @@ The system **consists of** (and only of):
 - The Rust workspace under `crates/`.
 - A small Python adapter layer under `python/` (reference-weight conversion, MP4 decode, plotting, HF upload helpers) — Python is **only** at the edges per PRD §5.1.
 - HF Jobs YAMLs under `jobs/` that launch cloud training.
-- The artifacts published to HF Hub: `AbdelStark/lewm-rs-pusht`, `AbdelStark/lewm-rs-so100-pickplace`, `AbdelStark/lewm-pusht-mirror`, `AbdelStark/so100-pickplace-lewm-ready`, `AbdelStark/lewm-rs-demo`.
+- The artifacts published to HF Hub: `abdelstark/lewm-rs-pusht`, `abdelstark/lewm-rs-so100-pickplace`, `abdelstark/lewm-pusht-mirror`, `abdelstark/so100-pickplace-lewm-ready`, `abdelstark/lewm-rs-demo`.
 
 The system **does not include**: a GPU inference path in Rust, distributed training, novel JEPA architectures, a graphical eval visualizer, or a hosted Inference Endpoint. See PRD §2 *Non-goals*.
 
@@ -84,7 +84,7 @@ All outbound credentials live in the secrets layer defined by [RFC 0016](rfcs/00
 ```
                 ┌────────────────────────────────────────────┐
                 │              HF Hub (datasets)              │
-                │  lewm-pusht ▸ tar.zst ▸ HDF5                │
+                │  lewm-pusht ▸ pusht_expert_train.h5.zst     │
                 │  svla_so100_pickplace ▸ parquet + MP4       │
                 └─────────────────┬──────────────────────────┘
                                   │ download
@@ -393,7 +393,7 @@ An inference process:
 | Checkpoints | HF Hub model repos | permanent | `hf upload` |
 | Run artifacts (logs, parity probes) | Job-local disk, then HF artifacts repo | per run | upload at run end |
 | Trackio runs | Trackio Space | permanent | HTTPS |
-| OTLP traces | Honeycomb or Grafana Cloud | 30-day retention (tier-dependent) | gRPC export |
+| OTLP traces | Self-hosted Tempo via `infra/otel` | operator-defined retention | gRPC export |
 
 No data sits exclusively on a developer laptop. The HF Hub is the single durable store of record.
 
@@ -568,7 +568,7 @@ CI **MUST** enforce Strict at L0/L1/L2 (CPU). T3 runs **MUST** record the determ
 See [RFC 0009](rfcs/0009-observability-and-mlops.md) for the full spec. Highlights:
 
 - **Metrics** flow to Trackio (primary) and Tensorboard (mirror).
-- **Traces** flow to OTLP (Honeycomb or Grafana Cloud).
+- **Traces** flow to the optional self-hosted OTLP stack.
 - **Logs** are structured JSON to stdout, captured by HF Jobs.
 - Every metric carries a stable name in the dot-separated form `{namespace}/{metric}` (e.g., `loss/total`, `optim/lr`).
 - Every span carries a `run_id` attribute. Every log line carries `run_id`, `step`, and `wall_time_ms`.

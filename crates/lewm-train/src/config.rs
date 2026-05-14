@@ -708,7 +708,7 @@ pub struct HubConfig {
 impl Default for HubConfig {
     fn default() -> Self {
         Self {
-            model_repo: "AbdelStark/lewm-rs-pusht".to_string(),
+            model_repo: "abdelstark/lewm-rs-pusht".to_string(),
             upload_at_end: true,
             upload_every_n_epochs: 0,
         }

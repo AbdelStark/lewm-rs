@@ -322,7 +322,7 @@ Global flags:
 
 ## 10. Gradio Space
 
-The Space lives in the HF Hub repo `AbdelStark/lewm-rs-demo`. It is a small Python Gradio app that wraps the Rust binary via subprocess.
+The Space lives in the HF Hub repo `abdelstark/lewm-rs-demo`. It is a small Python Gradio app that wraps the Rust binary via subprocess.
 
 ### 10.1 Layout
 

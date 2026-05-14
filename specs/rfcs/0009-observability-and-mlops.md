@@ -275,7 +275,7 @@ pub fn init_tracer(endpoint: &str, run_id: &str) -> Tracer {
 }
 ```
 
-**RFC0009-008 [MUST]** — OTLP endpoint configured via `OTEL_EXPORTER_OTLP_ENDPOINT` env var. If absent, the OTLP exporter is **silently disabled** (with a warning) — Trackio and TB remain active.
+**RFC0009-008 [MUST]** — OTLP endpoint configured via `OTEL_EXPORTER_OTLP_ENDPOINT` env var. If absent, the OTLP exporter is **silently disabled** (with a warning) — Trackio and TB remain active. The default backend is the self-hosted stack in `infra/otel`; smoke training and CI leave the endpoint unset.
 
 **RFC0009-009 [MUST]** — Span batching is enabled; max batch 512 spans; flush interval 5 s.
 
@@ -406,7 +406,7 @@ Dashboard config lives at `tracking/dashboards/lewm-rs.json` and is uploaded wit
 
 Fixtures:
 
-- A local OTLP collector spun up in CI via `otel-collector-contrib` Docker.
+- A local OTLP collector from `infra/otel` for opt-in integration tests.
 - A synthetic collapsed-encoder fixture for `TST-0009-COL-001`.
 
 ---
@@ -416,7 +416,7 @@ Fixtures:
 ### 11.1 Runbook
 
 - **"Trackio dashboard shows no metrics."** — verify the sidecar `python/upload_trackio.py` ran post-step. Often a missing HF token.
-- **"OTLP collector receives zero spans."** — verify `OTEL_EXPORTER_OTLP_ENDPOINT` env var; check the collector's auth.
+- **"OTLP collector receives zero spans."** — verify `OTEL_EXPORTER_OTLP_ENDPOINT` env var and collector reachability.
 - **"Logs flooded with `data/error_count` increments."** — a malformed shard; see RFC 0004 §13.2.
 
 ### 11.2 Capacity
@@ -448,7 +448,7 @@ These are uploaded to a separate "observability" prefix in the run repo for clea
 ## 14. Alternatives considered
 
 - **A1 — Native Trackio Rust SDK.** No such SDK exists at the pinned date. We use the local-file + Python-sidecar pattern.
-- **A2 — Stack Driver / Datadog.** Out of scope; HF-native Trackio + OTLP-to-Honeycomb is sufficient.
+- **A2 — Stack Driver / Datadog.** Out of scope; HF-native Trackio plus the self-hosted OTLP stack is sufficient.
 - **A3 — Skip Tensorboard.** Rejected: PRD §6.1 requires the portability backstop.
 
 ---

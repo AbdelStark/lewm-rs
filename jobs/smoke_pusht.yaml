@@ -1,26 +1,26 @@
-hardware: l4
+hardware: l4x1
 timeout: 30m
-namespace: AbdelStark
+namespace: abdelstark
 image: ghcr.io/abdelstark/lewm-rs:latest
 env:
   RUST_LOG: lewm=info,burn=info
   HF_TOKEN: ${HF_TOKEN}
   HF_HOME: /tmp/hf
   TRACKIO_PROJECT: lewm-rs
-  TRACKIO_RUN: pusht-smoke-${HF_JOB_ID:-local}
-  OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_ENDPOINT}
-command: >
+  TRACKIO_RUN: pusht-smoke
+  OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_ENDPOINT:-}
+command: |
   bash -lc "
     set -euo pipefail
-    hf download quentinll/lewm-pusht --repo-type dataset --local-dir /tmp/data &&
-    tar --zstd -xvf /tmp/data/archive.tar.zst -C /tmp/data &&
-    lewm-train smoke
-      --config configs/pusht.toml
-      --output-dir /tmp/out
-      --steps 200
-      --batch-size 16
-      --max-steps 200 &&
-    python python/upload_checkpoints.py
-      --src /tmp/out
-      --dst AbdelStark/lewm-rs-pusht
+    mkdir -p /tmp/out &&
+    lewm-train smoke \
+      --config configs/pusht.toml \
+      --device cpu \
+      --output-dir /tmp/out \
+      --steps 50 \
+      --batch-size 4 &&
+    python python/upload_checkpoints.py \
+      --src /tmp/out \
+      --dst abdelstark/lewm-rs-pusht \
+      --path-prefix smoke/pusht-$(date -u +%Y%m%dT%H%M%SZ)
   "

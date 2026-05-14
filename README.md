@@ -14,9 +14,9 @@ the implementation is landing issue by issue against the RFC contracts.
 
 The binding product and engineering contract lives in [`PRD.md`](PRD.md) and
 [`specs/`](specs/). The latest planned model artifact is
-[AbdelStark/lewm-rs-pusht](https://huggingface.co/AbdelStark/lewm-rs-pusht),
+[abdelstark/lewm-rs-pusht](https://huggingface.co/abdelstark/lewm-rs-pusht),
 and the planned demo Space is
-[AbdelStark/lewm-rs-demo](https://huggingface.co/spaces/AbdelStark/lewm-rs-demo).
+[abdelstark/lewm-rs-demo](https://huggingface.co/spaces/abdelstark/lewm-rs-demo).
 
 ## Quickstart
 
@@ -69,6 +69,31 @@ lewm-data -> lewm-train -> checkpoints + telemetry + Hub upload
              lewm-infer -> Tract CPU runner -> demo Space
 ```
 
+## Optional telemetry
+
+Real training runs can export OTLP traces to the self-hosted local stack in
+[`infra/otel`](infra/otel/README.md). CI and smoke runs leave
+`OTEL_EXPORTER_OTLP_ENDPOINT` unset, so the OTLP exporter is disabled and
+training does not depend on telemetry infrastructure.
+
+## Training image
+
+HF Jobs use `ghcr.io/abdelstark/lewm-rs:latest`, built from the checked-in
+[`Dockerfile`](Dockerfile). The image contains `lewm-train`, the checked-in
+configs, HF job specs, Python helpers, `hf`, `zstd`, and `bash`.
+
+## Smoke training
+
+The current smoke path validates the runnable training envelope: config load,
+deterministic scalar training mechanics, checkpoint artifacts, Hub upload, and
+optional telemetry wiring. It is not the full JEPA training loop yet.
+
+```sh
+cargo run -p lewm-train -- --config configs/pusht.toml --device cpu --output-dir /tmp/lewm-smoke smoke --steps 50 --batch-size 4
+HF_TOKEN=dummy python3 python/upload_checkpoints.py --src /tmp/lewm-smoke --dst abdelstark/lewm-rs-pusht --path-prefix smoke/local --dry-run
+scripts/launch_hf_job.py jobs/smoke_pusht.yaml
+```
+
 ## Reproducing
 
 - Clone the repo and use the pinned Rust toolchain in `rust-toolchain.toml`.
@@ -82,6 +107,7 @@ lewm-data -> lewm-train -> checkpoints + telemetry + Hub upload
 
 ```text
 crates/     Rust workspace crates for core, data, training, planning, inference, telemetry, Hub
+infra/      Optional self-hosted observability infrastructure
 scripts/    Local validation and repository maintenance scripts
 specs/      Accepted RFCs, ADR process, glossary, and traceability matrix
 python/     Planned edge adapters for conversion, decoding, plotting, and upload

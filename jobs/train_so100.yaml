@@ -1,23 +1,25 @@
 name: so100-full-train
 hardware: a10g-large
 timeout: 6h
-namespace: AbdelStark
+namespace: abdelstark
 image: ghcr.io/abdelstark/lewm-rs:latest
 env:
   RUST_LOG: lewm=info,burn=info
+  HF_TOKEN: ${HF_TOKEN}
   HF_HOME: /tmp/hf
   TRACKIO_PROJECT: lewm-rs
-  TRACKIO_RUN: so100-full-${SO100_VARIANT}-${HF_JOB_ID:-local}
+  TRACKIO_RUN: so100-full-${SO100_VARIANT}
+  OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_ENDPOINT:-}
   SO100_VARIANT: so100
-command: >
+command: |
   bash -lc "
     set -euo pipefail &&
-    hf download AbdelStark/so100-pickplace-lewm-ready
-      --repo-type dataset
+    hf download abdelstark/so100-pickplace-lewm-ready \
+      --repo-type dataset \
       --local-dir /tmp/data/so100 &&
-    lewm-train train
-      --config configs/${SO100_VARIANT}.toml
-      --data-dir /tmp/data/so100
-      --output-dir /tmp/out/so100-${SO100_VARIANT}
+    lewm-train train \
+      --config configs/${SO100_VARIANT}.toml \
+      --data-dir /tmp/data/so100 \
+      --output-dir /tmp/out/so100-${SO100_VARIANT} \
       --resume-if-present
   "

@@ -16,7 +16,7 @@ use crate::upload::{
 };
 
 const DEFAULT_ENDPOINT: &str = "https://huggingface.co";
-const DEFAULT_NAMESPACE: &str = "AbdelStark";
+const DEFAULT_NAMESPACE: &str = "abdelstark";
 const DEFAULT_REVISION: &str = "main";
 const USER_AGENT: &str = concat!("lewm-rs/", env!("CARGO_PKG_VERSION"));
 
@@ -52,7 +52,7 @@ impl RepoKind {
 /// Handle for a repository on the Hub.
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct RepoHandle {
-    /// Full repo id, for example `AbdelStark/lewm-rs-pusht`.
+    /// Full repo id, for example `abdelstark/lewm-rs-pusht`.
     pub repo_id: String,
     /// Repo kind.
     pub kind: RepoKind,
@@ -876,12 +876,12 @@ mod tests {
         let client =
             HubClient::from_env_with(MockTransport::with_user("abdel"), |key| match key {
                 "HF_TOKEN" => Some("token".to_owned()),
-                "HF_NAMESPACE" => Some("AbdelStark".to_owned()),
+                "HF_NAMESPACE" => Some("abdelstark".to_owned()),
                 _ => None,
             })?;
 
         assert_eq!(client.user(), "abdel");
-        assert_eq!(client.namespace(), "AbdelStark");
+        assert_eq!(client.namespace(), "abdelstark");
         assert_eq!(client.transport().whoami_calls, 1);
         assert!(client.token_is_configured());
         Ok(())
@@ -892,7 +892,7 @@ mod tests {
         let mut client = test_client(MockTransport::default())?;
         let repo = client.ensure_repo("lewm-rs-test", RepoKind::Model, false)?;
 
-        assert_eq!(repo.repo_id, "AbdelStark/lewm-rs-test");
+        assert_eq!(repo.repo_id, "abdelstark/lewm-rs-test");
         assert_eq!(repo.kind, RepoKind::Model);
         assert_eq!(client.transport().ensure_repo_calls, 1);
         Ok(())
@@ -903,7 +903,7 @@ mod tests {
         let dir = unique_temp_dir()?;
         let local = dir.join("weights.safetensors");
         std::fs::write(&local, b"same")?;
-        let repo = RepoHandle::new("AbdelStark/lewm-rs-test", RepoKind::Model)?;
+        let repo = RepoHandle::new("abdelstark/lewm-rs-test", RepoKind::Model)?;
         let sha256 = sha256_file(&local)?;
         let mut transport = MockTransport::default();
         transport.remote.insert(
@@ -930,7 +930,7 @@ mod tests {
         let dir = unique_temp_dir()?;
         let local = dir.join("weights.safetensors");
         std::fs::write(&local, b"payload")?;
-        let repo = RepoHandle::new("AbdelStark/lewm-rs-test", RepoKind::Model)?;
+        let repo = RepoHandle::new("abdelstark/lewm-rs-test", RepoKind::Model)?;
         let mut transport = MockTransport::default();
         transport.fail_upload_once(
             &repo,
@@ -961,7 +961,7 @@ mod tests {
         let second = folder.join("b.txt");
         std::fs::write(&first, b"a")?;
         std::fs::write(&second, b"b")?;
-        let repo = RepoHandle::new("AbdelStark/lewm-rs-test", RepoKind::Model)?;
+        let repo = RepoHandle::new("abdelstark/lewm-rs-test", RepoKind::Model)?;
         let mut transport = MockTransport::default();
         transport.fail_upload_once(
             &repo,
@@ -988,7 +988,7 @@ mod tests {
 
     #[test]
     fn delete_file_uses_transport() -> Result<(), Box<dyn std::error::Error>> {
-        let repo = RepoHandle::new("AbdelStark/lewm-rs-test", RepoKind::Model)?;
+        let repo = RepoHandle::new("abdelstark/lewm-rs-test", RepoKind::Model)?;
         let mut client = test_client(MockTransport::default())?;
 
         client.delete_file(&repo, "old.bin", "run: delete file")?;
@@ -998,7 +998,7 @@ mod tests {
     }
 
     fn test_client(transport: MockTransport) -> Result<HubClient<MockTransport>, HubError> {
-        HubClient::from_token(transport, "token", "AbdelStark")
+        HubClient::from_token(transport, "token", "abdelstark")
             .map(|client| client.with_retry_policy(RetryPolicy::no_delay()))
     }
 

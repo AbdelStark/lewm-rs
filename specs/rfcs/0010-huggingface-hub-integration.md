@@ -49,9 +49,9 @@ Hub publication is the *act* that turns "a trained model in `out/`" into a publi
 
 ## 2. Conventions
 
-- **Model repo** — an HF repo of type `model` (e.g., `AbdelStark/lewm-rs-pusht`).
-- **Dataset repo** — type `dataset` (e.g., `AbdelStark/lewm-pusht-mirror`).
-- **Space repo** — type `space` (e.g., `AbdelStark/lewm-rs-demo`).
+- **Model repo** — an HF repo of type `model` (e.g., `abdelstark/lewm-rs-pusht`).
+- **Dataset repo** — type `dataset` (e.g., `abdelstark/lewm-pusht-mirror`).
+- **Space repo** — type `space` (e.g., `abdelstark/lewm-rs-demo`).
 - **Revision** — a commit SHA on the repo.
 
 ---
@@ -197,7 +197,7 @@ All of the above run as a single Rust function with structured tracing.
 
 | Date (UTC)          | Phase | Job ID            | Hardware     | Wall   | Cost (USD) | Cumulative (USD) | Notes |
 |---------------------|-------|-------------------|--------------|--------|-----------:|----------------:|-------|
-| 2026-05-12 14:30:02 | P1    | hfjob-2026-05-12-001 | l4 (24GB)    | 0:28:13 | 0.38 | 0.38 | smoke pusht |
+| 2026-05-12 14:30:02 | P1    | hfjob-2026-05-12-001 | l4x1 (24GB)  | 0:28:13 | 0.38 | 0.38 | smoke pusht |
 ```
 
 ### 6.2 Update protocol
@@ -236,7 +236,7 @@ Hardware prices are stored in `python/hf_pricing.py` and refreshed manually when
 HF_HARDWARE_PRICE_USD_PER_HOUR = {
     "cpu-basic":   0.00,   # free
     "cpu-xl":      1.00,
-    "l4":          0.80,
+    "l4x1":        0.80,
     "a10g-small":  1.00,
     "a10g-large":  1.50,
     "l40s":        1.80,
@@ -393,7 +393,7 @@ source_datasets:
   - quentinll/lewm-pusht
 ---
 
-# AbdelStark/lewm-pusht-mirror
+# abdelstark/lewm-pusht-mirror
 
 Mirror of `quentinll/lewm-pusht` for the `lewm-rs` project. Re-uploaded with a
 [provenance manifest](manifest.json) for byte-level reproducibility.
@@ -503,7 +503,7 @@ if __name__ == "__main__":
 Fixtures:
 
 - A mock HF API using `wiremock`-rs for unit tests.
-- A real (small) staging repo `AbdelStark/lewm-rs-test-staging` for integration tests under a CI-only secret token.
+- A real (small) staging repo `abdelstark/lewm-rs-test-staging` for integration tests under a CI-only secret token.
 
 ---
 

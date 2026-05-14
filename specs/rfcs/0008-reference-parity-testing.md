@@ -70,7 +70,7 @@ HF Hub repo:  quentinll/lewm-pusht/pytorch_model.bin           # original
                 Jepa<NdArray<F32>>
 ```
 
-The pipeline runs once, in Phase 1, by `python/convert_reference.py`. Output artifacts are committed to the `AbdelStark/lewm-rs-pusht` model repo for downstream reproducibility (under the `parity/` subfolder).
+The pipeline runs once, in Phase 1, by `python/convert_reference.py`. Output artifacts are committed to the `abdelstark/lewm-rs-pusht` model repo for downstream reproducibility (under the `parity/` subfolder).
 
 ### 3.2 `convert_reference.py`
 
@@ -216,7 +216,7 @@ dump_dir/
 └── meta.json                              # config hash, weights hash, generation time
 ```
 
-Total size ~ 100 MB; committed to a private HF dataset `AbdelStark/lewm-rs-parity-dumps` (Git LFS in-repo would exceed budget).
+Total size ~ 100 MB; committed to a private HF dataset `abdelstark/lewm-rs-parity-dumps` (Git LFS in-repo would exceed budget).
 
 **RFC0008-007 [MUST]** — `meta.json` includes:
 
@@ -324,7 +324,7 @@ The recorder is a thin instrumentation layer that taps each block's output. See 
 `tests/support/load.rs` knows two paths:
 
 1. **Vendored** — fixture and dumps live under `tests/fixtures/`. Default.
-2. **HF dataset** — for CI under bandwidth constraints, fetch from `AbdelStark/lewm-rs-parity-dumps` via `hf-hub` with a checksum check.
+2. **HF dataset** — for CI under bandwidth constraints, fetch from `abdelstark/lewm-rs-parity-dumps` via `hf-hub` with a checksum check.
 
 ```rust
 pub fn load_dumps() -> ParityDumps {
@@ -426,7 +426,7 @@ The reference checkpoint is publicly hosted on HF and not sensitive. Dumps are n
 
 - [ ] `python/convert_reference.py` and `python/verify_conversion.py` exist and pass.
 - [ ] `tests/fixtures/parity_fixture.npz` committed via LFS.
-- [ ] `AbdelStark/lewm-rs-parity-dumps` HF dataset created and populated.
+- [ ] `abdelstark/lewm-rs-parity-dumps` HF dataset created and populated.
 - [ ] All `parity_*` tests pass at the tolerances in §5.3.
 - [ ] CI workflow `parity.yml` exists and runs on every PR.
 

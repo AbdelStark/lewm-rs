@@ -167,7 +167,7 @@ Examples:
 ```
 invalid tensor shape: expected [B, T, 3, 224, 224], found [B, T, 3, 240, 320]; resize input to 224x224 or update config encoder.image_size
 checkpoint not found: '/run/abc/step_0014400.mpk' (no such file); list checkpoints with `lewm-eval list /run/abc`
-HF Hub upload failed: 401 Unauthorized for AbdelStark/lewm-rs-pusht; verify HF_TOKEN scope includes write
+HF Hub upload failed: 401 Unauthorized for abdelstark/lewm-rs-pusht; verify HF_TOKEN scope includes write
 ```
 
 **RFC0017-008 [MUST]** — The "what failed" part is a noun phrase, lowercase, no trailing punctuation.
