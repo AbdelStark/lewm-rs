@@ -27,7 +27,7 @@ pub use crate::errors::LewmCoreError;
 pub use crate::init::{InitTensor, ModelInitRng, model_init_rng, ones, trunc_normal, zeros};
 pub use crate::losses::{
     CLS_COSINE_PAIR_CEILING, CLS_MEAN_ABS_CEILING, CLS_VAR_FLOOR, CollapseProbe,
-    CollapseProbeResult, CollapseThresholds, CollapseTrip, run_collapse_probe,
+    CollapseProbeResult, CollapseThresholds, CollapseTrip, prediction_loss, run_collapse_probe,
     run_collapse_probe_with_thresholds,
 };
 pub use crate::rng::{
