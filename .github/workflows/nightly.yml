@@ -18,7 +18,7 @@ permissions:
   pull-requests: write
 
 env:
-  RUST_TOOLCHAIN: "1.85.0"
+  RUST_TOOLCHAIN: "1.89.0"
 
 jobs:
   slow-tests:

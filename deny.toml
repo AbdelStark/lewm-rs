@@ -10,8 +10,7 @@ db-urls = ["https://github.com/rustsec/advisory-db"]
 unmaintained = "workspace"
 yanked = "deny"
 ignore = [
-    # Tract 0.22.1 pulls Liquid, whose time 0.3.47 fix requires Rust 1.88;
-    # this workspace is pinned to Rust 1.85 until the support contract changes.
+    # Tract 0.22.1 pulls Liquid/time; keep scoped until tract can upgrade.
     "RUSTSEC-2026-0009",
 ]
 

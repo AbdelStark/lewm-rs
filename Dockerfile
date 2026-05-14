@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 
-FROM rust:1.85.0-bookworm AS builder
+FROM rust:1.89.0-bookworm AS builder
 
 WORKDIR /src
 

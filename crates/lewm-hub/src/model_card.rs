@@ -398,9 +398,8 @@ mod tests {
         let mut metadata = sample_metadata();
         metadata.repo_name = None;
 
-        let error = match render(&metadata) {
-            Ok(_) => return Err("missing field should fail".into()),
-            Err(error) => error,
+        let Err(error) = render(&metadata) else {
+            return Err("missing field should fail".into());
         };
 
         assert_eq!(error, ModelCardError::MissingField("repo_name"));
@@ -437,7 +436,7 @@ mod tests {
                     .to_owned(),
             ),
             git_sha: Some("abc123".to_owned()),
-            rust_version: Some("rustc 1.85.0".to_owned()),
+            rust_version: Some("rustc 1.89.0".to_owned()),
             config_hash: Some("cfg-123".to_owned()),
             run_id: Some("20260512-143002-9f3a-abcd".to_owned()),
             wall_time: Some("2:13:00".to_owned()),

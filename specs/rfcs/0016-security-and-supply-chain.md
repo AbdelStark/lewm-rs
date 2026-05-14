@@ -186,6 +186,9 @@ cargo audit --deny warnings
 - The dep is upgraded past the advisory.
 - An ADR documents the waiver with a date by which the advisory will be resolved.
 
+Current audit ignores must remain ADR-backed and scoped in CI. ADR 0002 covers
+the Burn `0.20.1` transitive `RUSTSEC-2025-0141` waiver through 2026-06-30.
+
 ### 4.3 SBOM
 
 `scripts/sbom.py` generates a CycloneDX SBOM for the workspace:

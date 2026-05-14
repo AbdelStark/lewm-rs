@@ -67,7 +67,7 @@ The project pins a single toolchain version in `rust-toolchain.toml` at the repo
 ```toml
 # rust-toolchain.toml
 [toolchain]
-channel    = "1.85.0"        # stable; bump in lock-step with Burn upgrade
+channel    = "1.89.0"        # stable; pinned to Burn 0.20.1 MSRV
 profile    = "default"
 components = ["rustfmt", "clippy", "rust-src", "rust-analyzer"]
 targets    = ["x86_64-unknown-linux-gnu", "aarch64-apple-darwin"]
@@ -298,7 +298,7 @@ edition    = "2024"
 license    = "MIT"
 authors    = ["Abdel <abdel@starkware.co>"]
 repository = "https://github.com/AbdelStark/lewm-rs"
-rust-version = "1.85"
+rust-version = "1.89"
 
 [workspace.dependencies]
 # see Appendix A.1
@@ -675,7 +675,7 @@ CI uses `ubuntu-22.04` (4 vCPU, 16 GB RAM) for non-GPU jobs, `ubuntu-22.04-gpu-l
 | ID | Risk | L | I | Mitigation |
 |----|------|---|---|-----------|
 | R-1 | Burn 0.20.x soft-yanks an API we use | M | H | Pinned `=0.20.1`; weekly nightly run on `0.20.next` to detect early |
-| R-2 | Rust 1.85.0 has a regression for our hot loop | L | M | `rust-toolchain.toml` allows pinned override; rollback ADR template ready |
+| R-2 | Rust 1.89.0 has a regression for our hot loop | L | M | `rust-toolchain.toml` allows pinned override; rollback ADR template ready |
 | R-3 | Workspace grows beyond seven crates | M | L | New crate requires updating §4.1 and `traceability-matrix.md` |
 | R-4 | Layer invariants get tedious to enforce manually | L | M | `scripts/check_layers.py` is automatic |
 

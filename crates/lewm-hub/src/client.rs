@@ -646,10 +646,9 @@ where
         let sha256 = sha256_file(local)?;
         if let Some(remote_meta) = with_backoff(self.retry_policy, || {
             self.transport.file_metadata(&self.token, repo, remote)
-        })? {
-            if remote_meta.sha256.as_deref() == Some(sha256.as_str()) {
-                return Ok(UploadResult::skipped());
-            }
+        })? && remote_meta.sha256.as_deref() == Some(sha256.as_str())
+        {
+            return Ok(UploadResult::skipped());
         }
 
         let bytes = std::fs::metadata(local)
@@ -831,10 +830,10 @@ mod tests {
             sha256: &str,
         ) -> Result<(), HubError> {
             let key = Self::remote_key(repo, remote);
-            if let Some(queue) = self.upload_failures.get_mut(&key) {
-                if let Some(error) = queue.pop_front() {
-                    return Err(error);
-                }
+            if let Some(queue) = self.upload_failures.get_mut(&key)
+                && let Some(error) = queue.pop_front()
+            {
+                return Err(error);
             }
             self.upload_calls.push(remote.to_owned());
             let size_bytes = std::fs::metadata(local)

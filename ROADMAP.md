@@ -76,11 +76,9 @@ with linked evidence:
   small derived parity fixture.
 - Full PushT and SO-100 runs require HF quota and explicit cost control. The
   long runs should not start until the Burn parity stack is green locally.
-- [#198](https://github.com/AbdelStark/lewm-rs/issues/198): directly depending
-  on pinned Burn `0.20.1` currently requires Rust 1.89, while the repo MSRV is
-  Rust 1.85. Before landing Burn module structs in `lewm-core`, either bump the
-  repo/toolchain contract or select a Burn release compatible with the current
-  MSRV.
+- [#198](https://github.com/AbdelStark/lewm-rs/issues/198): resolved by moving
+  the repo/toolchain contract to Rust 1.89 and adding a direct `lewm-core` Burn
+  compile smoke. Burn-backed module structs can now proceed on that toolchain.
 - The pasted HF token must be rotated before public release. The repo should
   continue using environment variables and must not commit live secrets.
 - SO-100 raw Parquet/MP4 decode remains a Python edge-prep path for v1; Rust

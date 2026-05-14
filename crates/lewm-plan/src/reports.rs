@@ -1,5 +1,6 @@
 //! `PushT` evaluation report and artifact writers.
 
+use std::fmt::Write as _;
 use std::fs::File;
 use std::path::Path;
 use std::sync::Arc;
@@ -17,32 +18,36 @@ pub fn render_pusht_report(report: &PushtEvalReport) -> String {
     markdown.push_str("# PushT Evaluation Report\n\n");
     markdown.push_str("| Metric | Value |\n");
     markdown.push_str("|---|---:|\n");
-    markdown.push_str(&format!(
-        "| Planning success rate | {:.4} |\n",
+    let _ = writeln!(
+        &mut markdown,
+        "| Planning success rate | {:.4} |",
         report.success_rate
-    ));
-    markdown.push_str(&format!("| Episodes | {} |\n", report.per_episode.len()));
-    markdown.push_str(&format!("| Total steps | {} |\n", report.total_steps));
-    markdown.push_str(&format!(
-        "| Max steps per episode | {} |\n",
+    );
+    let _ = writeln!(&mut markdown, "| Episodes | {} |", report.per_episode.len());
+    let _ = writeln!(&mut markdown, "| Total steps | {} |", report.total_steps);
+    let _ = writeln!(
+        &mut markdown,
+        "| Max steps per episode | {} |",
         report.max_steps_per_episode
-    ));
-    markdown.push_str(&format!("| Seed | {} |\n", report.seed));
-    markdown.push_str(&format!(
-        "| Wall time seconds | {:.3} |\n",
+    );
+    let _ = writeln!(&mut markdown, "| Seed | {} |", report.seed);
+    let _ = writeln!(
+        &mut markdown,
+        "| Wall time seconds | {:.3} |",
         report.wall_time_s
-    ));
+    );
     markdown.push_str("\n## Episodes\n\n");
     markdown.push_str("| Episode | Success | Steps | Final cost |\n");
     markdown.push_str("|---:|:---:|---:|---:|\n");
     for episode in &report.per_episode {
-        markdown.push_str(&format!(
-            "| {} | {} | {} | {:.6} |\n",
+        let _ = writeln!(
+            &mut markdown,
+            "| {} | {} | {} | {:.6} |",
             episode.episode_id,
             if episode.success { "yes" } else { "no" },
             episode.steps_taken,
             episode.final_cost
-        ));
+        );
     }
     markdown
 }

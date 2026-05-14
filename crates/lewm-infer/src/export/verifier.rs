@@ -1,6 +1,6 @@
 //! Output-equivalence verifier for exported inference graphs.
 
-use std::fmt;
+use std::fmt::{self, Write as _};
 
 /// Default RFC 0007 export tolerance for the `L_inf` norm.
 pub const DEFAULT_L_INF_TOLERANCE: f32 = 1.0e-4;
@@ -361,22 +361,22 @@ pub fn pick_export_strategy(
 pub fn render_model_card_decision(decision: &ExportDecision) -> String {
     let mut out = String::new();
     out.push_str("## Export verification\n\n");
-    out.push_str(&format!(
-        "- Selected strategy: `{}`\n",
+    let _ = writeln!(
+        &mut out,
+        "- Selected strategy: `{}`",
         decision.selected.as_str()
-    ));
-    out.push_str(&format!(
-        "- Fixed input: `{}`\n",
-        decision.report.input_name
-    ));
-    out.push_str(&format!(
-        "- Output elements: `{}`\n",
+    );
+    let _ = writeln!(&mut out, "- Fixed input: `{}`", decision.report.input_name);
+    let _ = writeln!(
+        &mut out,
+        "- Output elements: `{}`",
         decision.report.output_len
-    ));
-    out.push_str(&format!(
-        "- L_inf: `{:.8}` (tolerance `{:.8}`)\n\n",
+    );
+    let _ = writeln!(
+        &mut out,
+        "- L_inf: `{:.8}` (tolerance `{:.8}`)\n",
         decision.report.l_inf, decision.report.tolerance
-    ));
+    );
     out.push_str("| Strategy | Status |\n|---|---|\n");
     for attempt in &decision.attempts {
         let status = match &attempt.status {
@@ -386,11 +386,7 @@ pub fn render_model_card_decision(decision: &ExportDecision) -> String {
             VerificationAttemptStatus::Failed { reason } => format!("failed: {reason}"),
             VerificationAttemptStatus::Blocked { reason } => format!("blocked: {reason}"),
         };
-        out.push_str(&format!(
-            "| `{}` | {} |\n",
-            attempt.strategy.as_str(),
-            status
-        ));
+        let _ = writeln!(&mut out, "| `{}` | {} |", attempt.strategy.as_str(), status);
     }
     out
 }

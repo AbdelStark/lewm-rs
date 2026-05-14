@@ -472,9 +472,8 @@ mod tests {
         let path = unique_ledger_path("under-cap");
 
         append_entry(sample_entry("hfjob-1", 19_999), &path)?;
-        let error = match append_entry(sample_entry("hfjob-2", 2), &path) {
-            Ok(_) => return Err("cap should be enforced".into()),
-            Err(error) => error,
+        let Err(error) = append_entry(sample_entry("hfjob-2", 2), &path) else {
+            return Err("cap should be enforced".into());
         };
 
         assert_eq!(

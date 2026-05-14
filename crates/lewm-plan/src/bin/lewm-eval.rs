@@ -224,12 +224,12 @@ fn validate_reserved_global_flags(cli: &Cli) -> Result<(), EvalError> {
             "--device must not be empty".to_owned(),
         ));
     }
-    if let Some(checkpoint) = &cli.checkpoint {
-        if checkpoint.as_os_str().is_empty() {
-            return Err(EvalError::InvalidConfig(
-                "--checkpoint must not be an empty path".to_owned(),
-            ));
-        }
+    if let Some(checkpoint) = &cli.checkpoint
+        && checkpoint.as_os_str().is_empty()
+    {
+        return Err(EvalError::InvalidConfig(
+            "--checkpoint must not be an empty path".to_owned(),
+        ));
     }
     Ok(())
 }
