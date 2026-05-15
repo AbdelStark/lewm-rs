@@ -17,7 +17,8 @@ the next vertical slices needed to finish the project.
 | HF Jobs short PushT run | Completed | `https://huggingface.co/jobs/abdelstark/6a05cf0ee48bea4538b9ccd6` |
 | HF artifact upload | Completed for earlier minimal short run | `abdelstark/lewm-rs-pusht/train/pusht-minimal-lewm-short-20260514T133423Z/` |
 | Full PushT training job | Running | `https://huggingface.co/jobs/abdelstark/6a06f0c43308d79117b90276`; 50k steps on a10g-large |
-| SO-100 training job | Running | `https://huggingface.co/jobs/abdelstark/6a06fe17e48bea4538b9e1cb`; 10 epochs on a10g-large; builds lewm-train from source in rust:1.89.0-bookworm container |
+| SO-100 training job | Running | `https://huggingface.co/jobs/abdelstark/6a070293e48bea4538b9e1fb`; 10 epochs on a10g-large; rust:1.89.0-bookworm + HDF5 compat symlink |
+| Demo Space | Created | `https://huggingface.co/spaces/abdelstark/lewm-rs-demo`; Gradio app with CEM planning via ONNX; loads model from Hub when available |
 | SO-100 processed dataset | Uploaded | `abdelstark/so100-pickplace-lewm-ready`; 1.9 GB HDF5 + stats.safetensors; 6,559 timesteps, 50 episodes at 10 fps |
 | SO-100 training support | Implemented | `lewm-train` trainer dispatches on `DatasetConfig::So100`; `run_so100_full_lewm_training`; 6-DOF action packing; commit `6add7fd` |
 | ONNX export pipeline | Implemented (pending trained checkpoint) | `python/export_onnx.py` inverts param_name_map and exports encoder + predictor to ONNX opset 18 for Tract runner |
