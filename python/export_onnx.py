@@ -235,7 +235,16 @@ class LeWMPredictorModule(nn.Module):
         self.num_heads: int = pred_cfg["heads"]
         self.head_dim: int = pred_cfg["dim_head"]
         self._inner_dim = self.num_heads * self.head_dim
+        self._T: int = pred_cfg.get("num_frames", 3)
+        self._D: int = pred_cfg.get("input_dim", 192)
         self._state = state
+        # Pre-register the causal mask as a buffer so ONNX doesn't see a dynamic
+        # torch.ones(T, T) call – using a fixed T from the config is safe because
+        # the predictor always runs with exactly num_frames history steps.
+        self.register_buffer(
+            "_causal_mask",
+            torch.triu(torch.ones(self._T, self._T, dtype=torch.bool), diagonal=1),
+        )
 
     def _s(self, key: str) -> "torch.Tensor":
         return self._state[key]
@@ -255,16 +264,18 @@ class LeWMPredictorModule(nn.Module):
         ae = F.linear(F.silu(F.linear(ae, fc1_w, fc1_b)), fc2_w, fc2_b)
 
         # Predictor transformer
-        B, T, D = history.shape
         num_layers = self.num_layers
         num_heads = self.num_heads
         head_dim = self.head_dim
         inner_dim = self._inner_dim
+        T = self._T
+        D = self._D
+        B = history.shape[0]
 
         pos_embed = self._s("predictor.pos_embedding")
         tokens = history + pos_embed[:, :T, :]
 
-        causal_mask = torch.triu(torch.ones(T, T, dtype=torch.bool, device=tokens.device), diagonal=1)
+        causal_mask = self._causal_mask  # pre-registered buffer, no dynamic creation
 
         for i in range(num_layers):
             src = f"predictor.transformer.layers.{i}"
@@ -327,9 +338,12 @@ class LeWMPredictorModule(nn.Module):
         fc2_w = self._s("pred_proj.net.3.weight")
         fc2_b = self._s("pred_proj.net.3.bias")
 
-        flat = output.reshape(-1, D)
-        pp = F.gelu(F.batch_norm(F.linear(flat, fc1_w, fc1_b), bn_mean, bn_var, bn_w, bn_b, training=False))
-        return F.linear(pp, fc2_w, fc2_b).reshape(B, T, -1)
+        # Reshape to (B*T, D), project, then restore batch/time.
+        # Use -1 for B*T to stay compatible with dynamic batch sizes.
+        output_2d = output.reshape(-1, D)
+        pp = F.gelu(F.batch_norm(F.linear(output_2d, fc1_w, fc1_b), bn_mean, bn_var, bn_w, bn_b, training=False))
+        out = F.linear(pp, fc2_w, fc2_b)
+        return out.reshape(output.shape[0], T, -1)
 
 
 # ---------------------------------------------------------------------------
@@ -352,10 +366,10 @@ def export_encoder_onnx(
             module,
             dummy,
             str(output_path),
-            opset_version=18,
+            opset_version=17,
             input_names=["pixels"],
             output_names=["embedding"],
-            dynamic_axes={"pixels": {0: "batch"}, "embedding": {0: "batch"}},
+            dynamo=False,
             verbose=False,
         )
     print(f"Encoder ONNX written: {output_path}")
@@ -385,14 +399,10 @@ def export_predictor_onnx(
             module,
             (dummy_history, dummy_actions),
             str(output_path),
-            opset_version=18,
+            opset_version=17,
             input_names=["history", "actions"],
             output_names=["predicted_embedding"],
-            dynamic_axes={
-                "history": {0: "batch", 1: "history"},
-                "actions": {0: "batch", 1: "history"},
-                "predicted_embedding": {0: "batch", 1: "history"},
-            },
+            dynamo=False,
             verbose=False,
         )
     print(f"Predictor ONNX written: {output_path}")

@@ -124,7 +124,7 @@ struct BenchArgs {
     report: Option<PathBuf>,
     #[arg(long, default_value_t = 0, hide = true)]
     seed: u64,
-    #[arg(long, default_value_t = 2, hide = true)]
+    #[arg(long, default_value_t = 3, hide = true)]
     history_steps: usize,
 }
 
