@@ -16,7 +16,10 @@
 | 2026-05-15T11:40    | train | 6a0703cf3308d79117b902aa | a10g-large | ~3 min  | ~$0.25 | TBD | SO-100 v6 (failed: --max-steps required guard) |
 | 2026-05-15T11:42    | train | 6a0706a8e48bea4538b9e229 | a10g-large | ~1 min  | ~$0.08 | TBD | SO-100 v7 (failed: GHCR image stale, no SO-100 trainer) |
 | 2026-05-15T11:45    | train | 6a0707653308d79117b902b4 | a10g-large | ~5 min  | ~$0.42 | TBD | SO-100 v8 (failed: cmake not installed, hdf5-metno-src fallback) |
-| 2026-05-15T11:52    | train | 6a0708903308d79117b902bc | a10g-large | running | TBD | TBD | SO-100 v9 rust:bookworm + cmake + PKG_CONFIG_PATH fix |
+| 2026-05-15T11:52    | train | 6a0708903308d79117b902bc | a10g-large | ~10 min | ~$0.83 | TBD | SO-100 v9 (failed: --data-dir before train subcommand, not valid for SO-100) |
+| 2026-05-15T12:05    | train | 6a0709973308d79117b902c2 | a10g-large | ~14 min | ~$1.19 | TBD | SO-100 v10 COMPLETED (no upload step; artifacts lost) |
+| 2026-05-15T12:14    | train | 6a070e02e48bea4538b9e2a5 | a10g-large | running | TBD | TBD | SO-100 v11a rust:bookworm + upload step (running) |
+| 2026-05-15T12:19    | train | 6a070f393308d79117b902de | a10g-large | running | TBD | TBD | SO-100 v11b duplicate submission (hf jobs run blocking) |
 
 > Prices estimated at ~$5/hr for A10G-large based on HF Jobs published pricing.
 > Exact figures will be updated when jobs complete and actual billed amounts are available.

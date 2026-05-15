@@ -2,25 +2,48 @@ name: so100-full-train
 hardware: a10g-large
 timeout: 6h
 namespace: abdelstark
-image: ghcr.io/abdelstark/lewm-rs:latest
+image: rust:1.89.0-bookworm
 env:
+  CARGO_INCREMENTAL: "0"
+  DEBIAN_FRONTEND: noninteractive
   RUST_LOG: lewm=info,burn=info
   HF_TOKEN: ${HF_TOKEN}
   HF_HOME: /tmp/hf
-  TRACKIO_PROJECT: lewm-rs
-  TRACKIO_RUN: so100-full-${SO100_VARIANT}
-  OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_ENDPOINT:-}
-  SO100_VARIANT: so100
+  HDF5_DIR: /tmp/hdf5-compat
+  HDF5_SYS_STATIC: "0"
+  PKG_CONFIG_PATH: /usr/lib/x86_64-linux-gnu/pkgconfig
+  RUSTFLAGS: -C link-args=-Wl,-rpath,/usr/lib/x86_64-linux-gnu/hdf5/serial
+  LEWM_SO100_MAX_STEPS: "5000"
 command: |
   bash -lc "
     set -euo pipefail &&
-    hf download abdelstark/so100-pickplace-lewm-ready \
-      --repo-type dataset \
-      --local-dir /tmp/data/so100 &&
-    lewm-train train \
-      --config configs/${SO100_VARIANT}.toml \
-      --data-dir /tmp/data/so100 \
-      --output-dir /tmp/out/so100-${SO100_VARIANT} \
-      --resume-if-present \
-      --max-steps ${LEWM_SO100_MAX_STEPS:-5000}
+    export PATH=/usr/local/cargo/bin:\$PATH &&
+    apt-get update -qq &&
+    apt-get install -y --no-install-recommends build-essential clang cmake git ca-certificates curl python3-pip libhdf5-serial-dev pkg-config libzstd-dev &&
+    mkdir -p /tmp/hdf5-compat &&
+    ln -sf /usr/include/hdf5/serial /tmp/hdf5-compat/include &&
+    ln -sf /usr/lib/x86_64-linux-gnu/hdf5/serial /tmp/hdf5-compat/lib &&
+    ln -sf /usr/lib/x86_64-linux-gnu/pkgconfig/hdf5-serial.pc /usr/lib/x86_64-linux-gnu/pkgconfig/hdf5.pc 2>/dev/null || true &&
+    git clone https://github.com/AbdelStark/lewm-rs.git /src &&
+    cd /src &&
+    cargo build --locked --release -p lewm-train &&
+    pip3 install --break-system-packages huggingface_hub==1.8.0 &&
+    hf download abdelstark/so100-pickplace-lewm-ready --repo-type dataset --local-dir /tmp/data/so100 &&
+    ./target/release/lewm-train \
+      --config configs/so100.toml \
+      --output-dir /tmp/out/so100 \
+      --max-steps \${LEWM_SO100_MAX_STEPS:-5000} \
+      --set \"\$(printf 'dataset.hdf5_path=\"%s\"' /tmp/data/so100/svla_so100_pickplace.h5)\" \
+      --set \"\$(printf 'dataset.stats_path=\"%s\"' /tmp/data/so100/stats.safetensors)\" \
+      train &&
+    export RUN_ID=\$(date -u +%Y%m%dT%H%M%SZ) &&
+    python3 << 'PYEOF'
+import os
+from huggingface_hub import HfApi
+run_id = os.environ['RUN_ID']
+api = HfApi(token=os.environ['HF_TOKEN'])
+api.create_repo(repo_id='abdelstark/lewm-rs-so100', repo_type='model', exist_ok=True)
+api.upload_folder(folder_path='/tmp/out/so100', repo_id='abdelstark/lewm-rs-so100', repo_type='model', path_in_repo='train/so100-full-' + run_id, commit_message='SO-100 training artifacts: ' + run_id)
+print('Upload complete: train/so100-full-' + run_id)
+PYEOF
   "

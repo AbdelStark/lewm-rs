@@ -41,7 +41,7 @@ the next vertical slices needed to finish the project.
 | Numerical parity correctness | Verified | All 10 parity tests pass (L∞ &lt; 1e-4 encoder/action_encoder/predictor/pred_proj, \|Δ\| &lt; 1e-3 sigreg); LayerNorm eps=1e-12 and exact-erf GELU fixes; dumps uploaded to `AbdelStark/lewm-rs-parity-dumps`; PR [#217](https://github.com/AbdelStark/lewm-rs/pull/217) |
 | Artifact contract | Implemented for smoke and bounded PushT train | run report, losses JSONL, checkpoint sidecar, `.mpk`, `.safetensors`, parity JSON |
 | Optional observability | Implemented as optional infra | `infra/otel/`; CI and smoke runs do not require OTLP |
-| SO-100 preparation | Partially implemented | decode/stats/config/job scaffolds exist; full hosted run evidence is pending |
+| SO-100 full training | Completed | v11a job `6a070e02e48bea4538b9e2a5` completed (864s, 5000 steps, A10G-large); artifacts at `abdelstark/lewm-rs-so100/train/so100-full-20260515T122820Z/` (safetensors, mpk, losses, report, parity JSON) |
 | Inference/export | Partially implemented | Tract runner/export scaffolds and tests exist; real trained-checkpoint benchmark and Space validation are pending |
 
 ## Non-Claims
@@ -88,8 +88,8 @@ with linked evidence:
 | Done | [#37](https://github.com/AbdelStark/lewm-rs/issues/37) | Add dump subcommand to convert_reference.py | `python/convert_reference.py dump` captures all per-layer activations as Safetensors; PR [#214](https://github.com/AbdelStark/lewm-rs/pull/214); numerical fixes in PR [#217](https://github.com/AbdelStark/lewm-rs/pull/217) |
 | Done | [#38](https://github.com/AbdelStark/lewm-rs/issues/38) | Implement Rust parity test suite | 10 tests for encoder/action_encoder/predictor/pred_proj/sigreg; graceful skip without dumps; PR [#215](https://github.com/AbdelStark/lewm-rs/pull/215) |
 | Done | [#39](https://github.com/AbdelStark/lewm-rs/issues/39) | Wire CI parity workflow | Cache + HF download + numerical/shape conditional; PR [#216](https://github.com/AbdelStark/lewm-rs/pull/216) |
-| In Progress | [#193](https://github.com/AbdelStark/lewm-rs/issues/193) | Run full PushT training, planning eval, and publish artifacts | Training job running: `6a06f0c43308d79117b90276`; pending: collect artifacts, planning eval, model card |
-| In Progress | [#194](https://github.com/AbdelStark/lewm-rs/issues/194) | Complete SO-100 short/full training and evaluation path | Training job running: `6a0707653308d79117b902b4` (v8, rust:bookworm build-from-source, 5000 steps); data uploaded to `abdelstark/so100-pickplace-lewm-ready`; pending: collect artifacts, warm-start eval |
+| In Progress | [#193](https://github.com/AbdelStark/lewm-rs/issues/193) | Run full PushT training, planning eval, and publish artifacts | Training job running: `6a06f0c43308d79117b90276` (50k steps, GHCR image, CUDA); pending: collect artifacts from `abdelstark/lewm-rs-pusht`, planning eval, model card |
+| In Progress | [#194](https://github.com/AbdelStark/lewm-rs/issues/194) | Complete SO-100 short/full training and evaluation path | v11a COMPLETED: `6a070e02e48bea4538b9e2a5` (864s); artifacts at `abdelstark/lewm-rs-so100/train/so100-full-20260515T122820Z/`; v11b `6a070f393308d79117b902de` still running; pending: ONNX export, warm-start eval, model card upload |
 | P1 | [#195](https://github.com/AbdelStark/lewm-rs/issues/195) | Finish Tract export, CPU benchmark, and demo Space validation | Export pipeline ready (`python/export_onnx.py`); Tract runner implemented; pending: run benchmark from trained checkpoint, create demo Space |
 | P2 | [#196](https://github.com/AbdelStark/lewm-rs/issues/196) | Finish public reports, paper, and release evidence | CHANGELOG updated; ROADMAP updated; pending: README final pass, reports, paper PDF |
 | P2 | [#197](https://github.com/AbdelStark/lewm-rs/issues/197) | Complete release operations and security/cost controls | Tokens are rotated, billing guardrails are documented, and no secret is committed |
@@ -103,10 +103,12 @@ with linked evidence:
   job in the release workflow.
 - **Token rotation**: The `HF_TOKEN` in `.env` must be rotated before public release.
   Use env vars only; no live secrets in git.
-- Two training jobs running on HF:
-  - PushT: `6a06f0c43308d79117b90276` (50k steps, A10G-large)
-  - SO-100: `6a06fe17e48bea4538b9e1cb` (10 epochs, A10G-large)
+- Three training jobs running on HF (as of 2026-05-15):
+  - PushT full: `6a06f0c43308d79117b90276` (50k steps, A10G-large, GHCR image with auto-upload)
+  - SO-100 v11a: `6a070e02e48bea4538b9e2a5` (5000 steps + upload to `abdelstark/lewm-rs-so100`)
+  - SO-100 v11b: `6a070f393308d79117b902de` (5000 steps + upload, duplicate submission)
   After completion: collect artifacts, run eval, upload model cards.
+- **SO-100 v10** (`6a0709973308d79117b902c2`) completed successfully but had no upload step; artifacts were lost.
 
 ## Issue Hygiene
 
