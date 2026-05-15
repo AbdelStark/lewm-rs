@@ -8,18 +8,25 @@
 ## What
 
 `lewm-rs` is a Rust workspace for reproducing LeWorldModel training, planning,
-CPU inference, and artifact publication. The repository is past bootstrap: the
-spec set, local gates, GHCR image, HF Jobs launcher, optional self-hosted
-OpenTelemetry stack, smoke mechanics, and first bounded PushT training path are
-in place.
+CPU inference, and artifact publication. The stack is past bootstrap and
+currently running full training on HuggingFace Jobs:
+
+- **PushT** (50k steps, A10G-large): job `6a06f0c43308d79117b90276`
+- **SO-100** (10 epochs, A10G-large): job `6a0701143308d79117b9029e`
+
+The Burn-backed parity stack is numerically verified against the locked
+PushT reference checkpoint: all 10 activation-level parity tests pass (L∞ < 1e-4).
+SO-100 data (50 episodes, 6-DOF arm actions) is prepared and uploaded to HF.
 
 The binding product and engineering contract lives in [`PRD.md`](PRD.md) and
 [`specs/`](specs/). The current execution backlog is
 [`ROADMAP.md`](ROADMAP.md) and
-[#189](https://github.com/AbdelStark/lewm-rs/issues/189). The latest planned
-model artifact is
-[abdelstark/lewm-rs-pusht](https://huggingface.co/abdelstark/lewm-rs-pusht),
-and the planned demo Space is
+[#189](https://github.com/AbdelStark/lewm-rs/issues/189). Model artifacts
+land at
+[abdelstark/lewm-rs-pusht](https://huggingface.co/abdelstark/lewm-rs-pusht)
+and
+[abdelstark/lewm-rs-so100](https://huggingface.co/abdelstark/lewm-rs-so100);
+the demo Space will be at
 [abdelstark/lewm-rs-demo](https://huggingface.co/spaces/abdelstark/lewm-rs-demo).
 
 ## Quickstart
@@ -50,13 +57,14 @@ Make targets mirror the local gates:
 
 | Result | Current state | Target |
 |--------|---------------|--------|
-| PushT planning success | Not measured yet; `pusht-full-module-lewm` short train is green | >= 87% |
-| SO-100 pick-and-place extension | Prep/config/job scaffolds exist; hosted train/eval evidence pending | Warm-start ablation report |
-| CPU inference | Tract export/runner scaffolds exist; real-checkpoint benchmark pending | Sub-second Tract cost computation |
-| Hub publication | GHCR image and PushT short-run artifacts are published | Model, dataset, and Space artifacts |
+| Parity verification | **Verified** — all 10 activation-level tests pass (L∞ < 1e-4) | Numerical match to reference |
+| PushT full training | **Running** on HF A10G-large (`6a06f0c43308d79117b90276`) | >= 87% success rate |
+| SO-100 pick-and-place | **Running** on HF A10G-large (`6a0701143308d79117b9029e`) | Warm-start ablation report |
+| CPU inference (Tract) | Export pipeline ready; benchmark pending trained checkpoint | Sub-second cost computation |
+| Hub publication | SO-100 data uploaded; model artifacts pending training completion | Model, dataset, and Space |
 
-Final metrics will link to model cards and reports once the training and
-evaluation milestones land.
+Final metrics will link to model cards and reports once the training jobs
+complete and the evaluation milestones land.
 
 ## Architecture at a glance
 
