@@ -9,7 +9,6 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-
 ALLOW_MARKER = "determinism-lint: allow"
 SKIP_DIRS = {".git", "target"}
 

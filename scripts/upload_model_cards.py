@@ -8,7 +8,6 @@ import os
 import sys
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 CARDS_DIR = ROOT / "python" / "model_cards"
 
@@ -22,7 +21,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "target",
-        choices=list(REPOS.keys()) + ["all"],
+        choices=[*REPOS.keys(), "all"],
         help="Which model card to upload: pusht, so100, or all",
     )
     parser.add_argument("--dry-run", action="store_true", help="Print without uploading")

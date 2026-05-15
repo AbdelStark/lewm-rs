@@ -14,7 +14,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from decode_so100_to_h5 import DecodeConfig, decode_dataset, validate_hdf5
 
-
 FPS_NATIVE = 30
 FPS_TARGET = 10
 SIZE = 16

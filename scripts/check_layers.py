@@ -8,7 +8,6 @@ import tomllib
 from pathlib import Path
 from typing import Any
 
-
 EXPECTED_MEMBERS = [
     "crates/lewm-core",
     "crates/lewm-data",

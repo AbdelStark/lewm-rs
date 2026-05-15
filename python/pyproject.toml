@@ -29,4 +29,55 @@ url = "https://download.pytorch.org/whl/cpu"
 [dependency-groups]
 dev = [
     "pytest>=8,<9",
+    "ruff>=0.13,<1",
+]
+
+# Ruff is the project-wide linter for Python helpers. Run `ruff check .` from
+# this directory, or `make check` (see `python/Makefile`) to enforce the same
+# gate as CI. The selected rule families focus on real bugs (E, F, W, B),
+# modernisation (UP), simplifications (SIM), import hygiene (I), and Ruff's
+# own ergonomic lints (RUF). Style-only and documentation-coverage families
+# are deliberately out of scope: the existing code is already consistently
+# formatted, so we lint without prescribing a formatter to keep diffs small.
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+extend-exclude = ["uv.lock"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B", "UP", "SIM", "RUF", "I"]
+ignore = [
+    # E501 (line length): not enforced as a lint because no formatter is
+    # configured; long lines are already rare and reviewable per PR.
+    "E501",
+    # SIM108 (ternary): subjective; keep explicit if/else for arithmetic clarity.
+    "SIM108",
+    # RUF003 (ambiguous unicode in comments): we intentionally use en-dash in prose.
+    "RUF003",
+    # RUF046 (redundant int cast of int): defensive `int(round(...))` reads well
+    # for float inputs whose runtime type is not obvious from context.
+    "RUF046",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests routinely use `assert` and module-level fixtures; loosen accordingly.
+"tests/**/*.py" = ["B011"]
+
+[tool.ruff.lint.isort]
+# Treat sibling helpers as first-party so import ordering is identical whether
+# Ruff is invoked from the repository root or from `python/`.
+known-first-party = [
+    "param_name_map",
+    "convert_reference",
+    "hf_pricing",
+    "cost_ledger",
+    "upload_checkpoints",
+    "verify_conversion",
+    "build_parity_fixture",
+    "compute_so100_stats",
+    "compute_stats",
+    "decode_so100_to_h5",
+    "export_onnx",
+    "plot_curves",
+    "pusht_runner",
 ]

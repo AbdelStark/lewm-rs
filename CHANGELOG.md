@@ -9,6 +9,15 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Added
 
+- Python lint baseline: Ruff configured in `python/pyproject.toml` (rule
+  families `E`, `F`, `W`, `B`, `UP`, `SIM`, `RUF`, `I`) with `param_name_map`
+  and sibling helpers declared as first-party so import ordering is stable
+  whether Ruff is invoked from the repo root or `python/`. New `python/Makefile`
+  exposes `make check` / `make lint` / `make fix` and activates the existing
+  `make accept` hook in the root `Makefile`. The root `Makefile` gains a
+  `py-lint` target that is now part of `make check`; it falls back to a
+  `py_compile` sweep when `ruff` is not installed so minimal environments
+  degrade gracefully.
 - SO-100 full training completed: v11a job `6a070e02e48bea4538b9e2a5` (5000 steps,
   864s, A10G-large); artifacts at `abdelstark/lewm-rs-so100/train/so100-full-20260515T122820Z/`
   (safetensors, mpk, losses, report, parity JSON); model card uploaded.
@@ -28,6 +37,16 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Changed
 
+- Python helpers cleaned up against the new Ruff baseline: `zip(..., strict=True)`
+  in `python/export_onnx.py`'s QKV inverse-transforms (closes a silent
+  length-mismatch class), `raise SystemExit(130) from None` on
+  `KeyboardInterrupt` in `python/decode_so100_to_h5.py`, `contextlib.suppress`
+  in place of bare `try/except/pass` for AV seek failures, `[*a, b]`-style
+  list construction over `+` concatenation, and unused unpacking renamed to
+  `_config_path`. No behaviour change.
+- `ROADMAP.md` and `reports/release_checklist.md` refreshed: PushT training
+  is recorded as complete, stale "still running" / "4 commits ahead of main"
+  notes removed, and the Python lint baseline added to the quality-gate row.
 - `python/export_onnx.py`: switched ONNX opset 18 → 17 and `dynamo=True` →
   `dynamo=False` for Tract compatibility; removed `dynamic_axes`; causal mask
   is now a pre-registered buffer in `LeWMPredictorModule.__init__`.

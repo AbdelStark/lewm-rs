@@ -4,15 +4,17 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import math
 import os
 import platform
+from collections.abc import Iterable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
 from threading import Lock
-from typing import Any, Iterable
+from typing import Any
 
 import av
 import blake3
@@ -21,7 +23,6 @@ import numpy as np
 import pyarrow as pa
 import pyarrow.parquet as pq
 from PIL import Image
-
 
 SOURCE_DATASET = "lerobot/svla_so100_pickplace"
 SCHEMA_VERSION = "1.0"
@@ -491,15 +492,13 @@ def decode_view_frames(
         stream = container.streams.video[0]
         if video_start > 0 and stream.time_base is not None:
             seek_seconds = max(0.0, video_start - 1.0)
-            try:
+            with contextlib.suppress(av.FFmpegError):
                 container.seek(
                     int(seek_seconds / float(stream.time_base)),
                     stream=stream,
                     any_frame=False,
                     backward=True,
                 )
-            except av.FFmpegError:
-                pass
 
         decoded_without_time = 0
         for frame in container.decode(stream):
@@ -784,4 +783,4 @@ if __name__ == "__main__":
     try:
         raise SystemExit(main())
     except KeyboardInterrupt:
-        raise SystemExit(130)
+        raise SystemExit(130) from None

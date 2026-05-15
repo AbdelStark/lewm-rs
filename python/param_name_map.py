@@ -9,13 +9,13 @@ for preflight checks.
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
-from typing import Any, Iterable, Mapping
+from typing import Any
 
 import numpy as np
-
 
 REFERENCE_META_PATH = (
     Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "reference_model.meta.json"
@@ -43,7 +43,7 @@ class ParamRule:
     transform: Transform
 
     @classmethod
-    def single(cls, source: str, destination: str, transform: Transform) -> "ParamRule":
+    def single(cls, source: str, destination: str, transform: Transform) -> ParamRule:
         return cls((source,), destination, transform)
 
 

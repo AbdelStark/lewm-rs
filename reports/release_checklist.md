@@ -1,6 +1,6 @@
 # Release Checklist (Issue #197)
 
-**Updated:** 2026-05-15
+**Updated:** 2026-05-15 (post-cleanup pass)
 **Target release:** v0.4.0 (post-training-completion)
 
 This document tracks all items needed before tagging a public release.
@@ -25,13 +25,14 @@ This document tracks all items needed before tagging a public release.
 | `CARGO_INCREMENTAL=0 make check` passes | ✅ | Documented in ROADMAP |
 | No `clippy` warnings | ✅ | CI enforces `--deny warnings` |
 | Rustdoc builds cleanly | ✅ | `make docs` passes |
+| Python lint (Ruff) clean | ✅ | `make py-lint` and `make -C python check` both green; config in `python/pyproject.toml` |
 
 ## Artifacts
 
 | Item | Status | Notes |
 |------|--------|-------|
-| PushT training artifacts on Hub | ⏳ Pending | Job `6a06f0c43308d79117b90276` still running |
-| PushT CEM planning eval | ⏳ Pending | Needs trained checkpoint |
+| PushT training artifacts on Hub | ✅ Done | Job `6a06f0c43308d79117b90276` completed (50k steps, 318 min); artifacts at `abdelstark/lewm-rs-pusht/train/pusht-full-lewm-20260515T100908Z/` |
+| PushT CEM planning eval | ⏳ Pending | Needs ONNX export from trained safetensors, then `lewm-infer bench` on 50 episodes (target ≥ 87 %) |
 | PushT model card with metrics | ⏳ Pending | Needs eval results |
 | SO-100 training artifacts on Hub | ✅ Done | `abdelstark/lewm-rs-so100/train/so100-full-20260515T122820Z/` |
 | SO-100 model card | ✅ Done | Uploaded via `scripts/upload_model_cards.py` |
@@ -48,11 +49,11 @@ This document tracks all items needed before tagging a public release.
 | README updated | ✅ Done | Reflects current state |
 | CHANGELOG updated | ✅ Done | Unreleased section current |
 | ROADMAP updated | ✅ Done | Issues #195 marked Done |
-| Paper draft | ✅ Done | `paper/lewm-rs.md` — TBD sections for PushT eval |
+| Paper draft | ✅ Done | `paper/lewm-rs.md` — §6.2 (PushT eval) and §7.3 (SO-100 warm-start) remain TBD |
 | SO-100 training report | ✅ Done | `reports/so100_training.md` |
-| PushT training report | ⏳ Pending | Needs job completion |
+| PushT training report | ✅ Done | `reports/pusht_training.md` (50k steps, 318 min, A10G-large) |
 | Model cards with eval metrics | ⏳ Pending | Needs eval runs |
-| Cost ledger final | ⏳ Pending | Update when PushT job completes |
+| Cost ledger final | ✅ Recorded | `reports/cost.md` cumulative $11.70 (PushT $7.95 + SO-100 v11a/v11b $0.76 + smokes/setup) |
 
 ## Release mechanics
 

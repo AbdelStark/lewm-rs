@@ -10,7 +10,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-
 DEFAULT_COMMIT_MESSAGE = "Upload lewm-rs training artifacts"
 DEFAULT_REPO_TYPE = "model"
 VALID_REPO_TYPES = {"model", "dataset", "space"}

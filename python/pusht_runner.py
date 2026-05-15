@@ -11,7 +11,6 @@ import sys
 from dataclasses import dataclass
 from typing import Any, TextIO
 
-
 DEFAULT_ENV_ID = "gym_pusht/PushT-v0"
 DEFAULT_IMAGE_SIZE = 224
 RGB_CHANNELS = 3

@@ -13,7 +13,6 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 STACK = ROOT / "infra" / "otel"
 ENDPOINT = "http://127.0.0.1:4317"
@@ -52,7 +51,7 @@ def main() -> int:
         return 1
 
     try:
-        run_checked(compose + ["up", "-d"])
+        run_checked([*compose, "up", "-d"])
         wait_for_url(HEALTH_URL, args.timeout)
         wait_for_metrics(args.timeout)
 
@@ -67,7 +66,7 @@ def main() -> int:
         sent_after = wait_for_increment(SPAN_SENT_METRICS, sent_before, args.timeout)
     finally:
         if args.down_after:
-            run_checked(compose + ["down"])
+            run_checked([*compose, "down"])
 
     print(
         "otel_smoke: span accepted "
@@ -88,7 +87,7 @@ def docker_compose_command() -> list[str] | None:
     ]
     try:
         subprocess.run(
-            command + ["version"],
+            [*command, "version"],
             cwd=ROOT,
             check=True,
             stdout=subprocess.DEVNULL,
