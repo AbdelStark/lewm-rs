@@ -380,7 +380,7 @@ def export_predictor_onnx(
     arch: dict[str, Any],
     output_path: Path,
     action_dim: int = 2,
-) -> None:
+) -> int:
     pred_cfg = arch["predictor"]
     history_size = pred_cfg.get("num_frames", 3)
     latent_dim = pred_cfg.get("input_dim", 192)
@@ -405,7 +405,8 @@ def export_predictor_onnx(
             dynamo=False,
             verbose=False,
         )
-    print(f"Predictor ONNX written: {output_path}")
+    print(f"Predictor ONNX written: {output_path} (action_dim={action_dim})")
+    return action_dim
 
 
 def write_metadata(output_dir: Path, info: dict) -> None:
@@ -496,7 +497,7 @@ def main(argv: list[str] | None = None) -> int:
     export_encoder_onnx(state, arch, encoder_path)
 
     print("Exporting predictor ONNX...")
-    export_predictor_onnx(state, arch, predictor_path, action_dim=args.action_dim)
+    actual_action_dim = export_predictor_onnx(state, arch, predictor_path, action_dim=args.action_dim)
 
     enc_cfg = arch["encoder"]
     pred_cfg = arch["predictor"]
@@ -509,7 +510,7 @@ def main(argv: list[str] | None = None) -> int:
             "image_size": enc_cfg.get("image_size", 224),
             "history_size": pred_cfg.get("num_frames", 3),
             "latent_dim": pred_cfg.get("input_dim", 192),
-            "action_dim": args.action_dim,
+            "action_dim": actual_action_dim,
         },
     }
     write_metadata(args.output_dir, metadata)
