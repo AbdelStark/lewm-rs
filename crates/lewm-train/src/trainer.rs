@@ -4,6 +4,7 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::time::Instant;
 
 use crate::checkpoint::{
     CHECKPOINT_SCHEMA_VERSION, CheckpointError, CheckpointPaths, CheckpointRngState,
@@ -2143,6 +2144,7 @@ fn run_pusht_full_lewm_training(
     let mut samples_seen = start.samples_seen;
     let mut grad_explosion_events = start.grad_explosion_events;
     let sigreg_weight = root.loss.lambda_sigreg.max(0.0);
+    let train_start = Instant::now();
 
     for step in (start.start_step.saturating_add(1))..=total_steps {
         let mut total_loss = 0.0;
@@ -2205,6 +2207,18 @@ fn run_pusht_full_lewm_training(
             learning_rate,
             samples_seen,
         });
+        if step == 1 || step % 100 == 0 || step == total_steps {
+            let elapsed_s = train_start.elapsed().as_secs_f64();
+            let steps_done =
+                u64::from(step).saturating_sub(u64::from(start.start_step)).max(1);
+            let secs_per_step = elapsed_s / steps_done as f64;
+            let eta_s = secs_per_step * f64::from(total_steps - step);
+            eprintln!(
+                "[pusht step {step}/{total_steps}] loss={total_loss:.6} pred={pred_loss:.6} \
+                 lr={learning_rate:.2e} grad={:.3} elapsed={elapsed_s:.0}s eta={eta_s:.0}s",
+                clip.grad_norm_post,
+            );
+        }
     }
 
     Ok(PushtFullLewmOutcome {
@@ -2268,6 +2282,7 @@ fn run_so100_full_lewm_training(
     let mut samples_seen = start.samples_seen;
     let mut grad_explosion_events = start.grad_explosion_events;
     let sigreg_weight = root.loss.lambda_sigreg.max(0.0);
+    let train_start = Instant::now();
 
     for step in (start.start_step.saturating_add(1))..=total_steps {
         let mut total_loss = 0.0;
@@ -2331,6 +2346,18 @@ fn run_so100_full_lewm_training(
             learning_rate,
             samples_seen,
         });
+        if step == 1 || step % 100 == 0 || step == total_steps {
+            let elapsed_s = train_start.elapsed().as_secs_f64();
+            let steps_done =
+                u64::from(step).saturating_sub(u64::from(start.start_step)).max(1);
+            let secs_per_step = elapsed_s / steps_done as f64;
+            let eta_s = secs_per_step * f64::from(total_steps - step);
+            eprintln!(
+                "[so100 step {step}/{total_steps}] loss={total_loss:.6} pred={pred_loss:.6} \
+                 lr={learning_rate:.2e} grad={:.3} elapsed={elapsed_s:.0}s eta={eta_s:.0}s",
+                clip.grad_norm_post,
+            );
+        }
     }
 
     Ok(PushtFullLewmOutcome {
