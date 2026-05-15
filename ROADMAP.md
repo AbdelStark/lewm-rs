@@ -1,6 +1,6 @@
 # Roadmap and Completion Backlog
 
-Updated: 2026-05-15 (v0.3.0)
+Updated: 2026-05-15 (v0.3.1)
 
 Canonical GitHub tracker: [#189](https://github.com/AbdelStark/lewm-rs/issues/189)
 
@@ -44,6 +44,7 @@ the next vertical slices needed to finish the project.
 | SO-100 full training | Completed | v11a job `6a070e02e48bea4538b9e2a5` completed (864s, 5000 steps, A10G-large); artifacts at `abdelstark/lewm-rs-so100/train/so100-full-20260515T122820Z/` (safetensors, mpk, losses, report, parity JSON) |
 | Inference/export | ONNX export complete + Tract benchmark done | `python/export_onnx.py` validated end-to-end: reference safetensors → 303 keys recovered → onnxruntime ONNX (dynamo opset 18) + Tract-compat ONNX (legacy opset 17, fixed-batch) both uploaded to `abdelstark/lewm-rs-pusht`; onnxruntime inference verified; demo Space updated (sdk_version 5.33.0); Tract CPU benchmark: 4.08s median/episode (release build p50, Apple M3 ARM, 5 CEM iterations × 1024 candidates — debug and release identical, hot path is Tract); Tract-compat files at `tract-compat/` subfolder; `onnx_export.json` action_dim bug fixed (was recording raw 2-DOF instead of inferred smoothed 10-DOF) |
 | Reports and paper | Draft complete | `paper/lewm-rs.md` (RFC 0015 structure, TBD: PushT eval sections); `reports/so100_training.md`; `reports/release_checklist.md`; `reports/cost.md` |
+| Quality gate | Passing | `CARGO_INCREMENTAL=0 make check` passes: fmt, clippy, cargo check, specs, jobs, otel, SO-100 contract, nondet lint, cost ledger, deny, audit |
 
 ## Non-Claims
 
@@ -93,8 +94,8 @@ with linked evidence:
 | In Progress | [#193](https://github.com/AbdelStark/lewm-rs/issues/193) | Run full PushT training, planning eval, and publish artifacts | Training job running: `6a06f0c43308d79117b90276` (50k steps, GHCR image, CUDA); pending: collect artifacts from `abdelstark/lewm-rs-pusht`, planning eval, model card |
 | In Progress | [#194](https://github.com/AbdelStark/lewm-rs/issues/194) | Complete SO-100 short/full training and evaluation path | v11a COMPLETED: `6a070e02e48bea4538b9e2a5` (864s, 5000 steps); artifacts at `abdelstark/lewm-rs-so100/train/so100-full-20260515T122820Z/`; model card uploaded; ONNX export skipped (SO-100 checkpoint uses bounded model, not full ViT); pending: warm-start eval, model card final pass |
 | Done | [#195](https://github.com/AbdelStark/lewm-rs/issues/195) | Finish Tract export, CPU benchmark, and demo Space validation | Tract-compat ONNX exported (opset 17, fixed-batch, causal-mask buffer); `lewm-infer bench` benchmark: ~4.1s median/episode (debug, M-series Mac); both onnxruntime and tract-compat variants uploaded to `abdelstark/lewm-rs-pusht`; demo Space `app.py` fixed (auto-detects action_dim, downloads .data files) |
-| P2 | [#196](https://github.com/AbdelStark/lewm-rs/issues/196) | Finish public reports, paper, and release evidence | CHANGELOG updated; ROADMAP updated; pending: README final pass, reports, paper PDF |
-| P2 | [#197](https://github.com/AbdelStark/lewm-rs/issues/197) | Complete release operations and security/cost controls | Tokens are rotated, billing guardrails are documented, and no secret is committed |
+| In Progress | [#196](https://github.com/AbdelStark/lewm-rs/issues/196) | Finish public reports, paper, and release evidence | CHANGELOG, ROADMAP, cost ledger, paper draft, SO-100 report, release checklist done; pending: README final pass, PushT training curves + eval sections (blocked on job completion) |
+| P2 | [#197](https://github.com/AbdelStark/lewm-rs/issues/197) | Complete release operations and security/cost controls | Billing guardrails documented; pending: HF_TOKEN rotation (user action), GHCR package permissions (user action) |
 
 ## Blockers and Required Human Actions
 
@@ -105,12 +106,11 @@ with linked evidence:
   job in the release workflow.
 - **Token rotation**: The `HF_TOKEN` in `.env` must be rotated before public release.
   Use env vars only; no live secrets in git.
-- Three training jobs running on HF (as of 2026-05-15):
-  - PushT full: `6a06f0c43308d79117b90276` (50k steps, A10G-large, GHCR image with auto-upload)
-  - SO-100 v11a: `6a070e02e48bea4538b9e2a5` (5000 steps + upload to `abdelstark/lewm-rs-so100`)
-  - SO-100 v11b: `6a070f393308d79117b902de` (5000 steps + upload, duplicate submission)
-  After completion: collect artifacts, run eval, upload model cards.
-- **SO-100 v10** (`6a0709973308d79117b902c2`) completed successfully but had no upload step; artifacts were lost.
+- **PushT full training** (`6a06f0c43308d79117b90276`) still running as of 2026-05-15; 50k steps,
+  A10G-large, GHCR image, auto-uploads to `abdelstark/lewm-rs-pusht/train/pusht-full-lewm-20260515T100908Z/`.
+  After completion: collect artifacts (train_report.json, losses.jsonl, checkpoint), update paper §6,
+  update cost ledger, run CEM eval, upload model card.
+- **4 commits** are ahead of `origin/main` and not yet pushed (pending review before release).
 
 ## Issue Hygiene
 
@@ -122,12 +122,17 @@ creating a second tracker.
 
 ## Next Logical Steps
 
-Both PushT (#193) and SO-100 (#194) training jobs are running on HF. When they
-complete:
-1. Collect artifacts from `abdelstark/lewm-rs-pusht` and `abdelstark/lewm-rs-so100`.
-2. Run `python/export_onnx.py` with the trained safetensors to produce ONNX files.
-3. Run `lewm-infer bench --checkpoint-dir <onnx_dir>` to record CPU latency.
-4. Run PushT planning eval to measure success rate.
-5. Create model cards for both repos on HuggingFace Hub.
-6. Fix GHCR permission (user action required) and tag a release.
-7. Rotate HF token before release.
+SO-100 training completed (v11a artifacts live). PushT full training still running.
+Quality gate (`make check`) is passing. 4 commits ahead of origin/main.
+
+When PushT completes (`abdelstark/lewm-rs-pusht/train/pusht-full-lewm-20260515T100908Z/`):
+1. Download `train_report.json` → update `paper/lewm-rs.md` §6 training curves and cost table.
+2. Append PushT row to `reports/cost.md` via `cost_ledger.py backfill --from <job_url>`.
+3. Run PushT planning eval: `lewm-infer bench --checkpoint-dir <onnx_dir>` for CEM success rate.
+4. Upload updated PushT model card with training metrics.
+5. Close #193.
+
+Remaining release steps (user actions required):
+6. Fix GHCR package permissions (see Blockers above).
+7. Rotate HF_TOKEN before pushing/releasing.
+8. Push 4 pending commits to origin/main, then tag release.
