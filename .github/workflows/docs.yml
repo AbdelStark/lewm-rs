@@ -39,6 +39,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Install pandoc
+        run: sudo apt-get install -y --no-install-recommends pandoc
+
       - name: Render paper when present
         run: |
           if [ -f paper/lewm-rs.md ]; then

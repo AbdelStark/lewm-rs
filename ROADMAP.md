@@ -16,7 +16,7 @@ the next vertical slices needed to finish the project.
 | GHCR training image | Published | `ghcr.io/abdelstark/lewm-rs:latest@sha256:831f685a733a801620bbfa3f7ea649a4795ed731934bcb230896d3a47428d3e9` |
 | HF Jobs short PushT run | Completed | `https://huggingface.co/jobs/abdelstark/6a05cf0ee48bea4538b9ccd6` |
 | HF artifact upload | Completed for earlier minimal short run | `abdelstark/lewm-rs-pusht/train/pusht-minimal-lewm-short-20260514T133423Z/` |
-| Full PushT training job | Running | `https://huggingface.co/jobs/abdelstark/6a06f0c43308d79117b90276`; 50k steps on a10g-large |
+| Full PushT training job | Completed | `https://huggingface.co/jobs/abdelstark/6a06f0c43308d79117b90276`; 50k steps on a10g-large; loss 0.491→3.17e-06; wall 318 min; artifacts at `abdelstark/lewm-rs-pusht/train/pusht-full-lewm-20260515T100908Z/` |
 | SO-100 training job | Running | `https://huggingface.co/jobs/abdelstark/6a070293e48bea4538b9e1fb`; 10 epochs on a10g-large; rust:1.89.0-bookworm + HDF5 compat symlink |
 | Demo Space | Created | `https://huggingface.co/spaces/abdelstark/lewm-rs-demo`; Gradio app with CEM planning via ONNX; loads model from Hub when available |
 | SO-100 processed dataset | Uploaded | `abdelstark/so100-pickplace-lewm-ready`; 1.9 GB HDF5 + stats.safetensors; 6,559 timesteps, 50 episodes at 10 fps |
@@ -91,7 +91,7 @@ with linked evidence:
 | Done | [#37](https://github.com/AbdelStark/lewm-rs/issues/37) | Add dump subcommand to convert_reference.py | `python/convert_reference.py dump` captures all per-layer activations as Safetensors; PR [#214](https://github.com/AbdelStark/lewm-rs/pull/214); numerical fixes in PR [#217](https://github.com/AbdelStark/lewm-rs/pull/217) |
 | Done | [#38](https://github.com/AbdelStark/lewm-rs/issues/38) | Implement Rust parity test suite | 10 tests for encoder/action_encoder/predictor/pred_proj/sigreg; graceful skip without dumps; PR [#215](https://github.com/AbdelStark/lewm-rs/pull/215) |
 | Done | [#39](https://github.com/AbdelStark/lewm-rs/issues/39) | Wire CI parity workflow | Cache + HF download + numerical/shape conditional; PR [#216](https://github.com/AbdelStark/lewm-rs/pull/216) |
-| In Progress | [#193](https://github.com/AbdelStark/lewm-rs/issues/193) | Run full PushT training, planning eval, and publish artifacts | Training job running: `6a06f0c43308d79117b90276` (50k steps, GHCR image, CUDA); pending: collect artifacts from `abdelstark/lewm-rs-pusht`, planning eval, model card |
+| In Progress | [#193](https://github.com/AbdelStark/lewm-rs/issues/193) | Run full PushT training, planning eval, and publish artifacts | Training COMPLETED: `6a06f0c43308d79117b90276` (50k steps, loss 0.491→3.17e-06, 318 min); artifacts at `abdelstark/lewm-rs-pusht/train/pusht-full-lewm-20260515T100908Z/`; pending: CEM planning eval, model card |
 | In Progress | [#194](https://github.com/AbdelStark/lewm-rs/issues/194) | Complete SO-100 short/full training and evaluation path | v11a COMPLETED: `6a070e02e48bea4538b9e2a5` (864s, 5000 steps); artifacts at `abdelstark/lewm-rs-so100/train/so100-full-20260515T122820Z/`; model card uploaded; ONNX export skipped (SO-100 checkpoint uses bounded model, not full ViT); pending: warm-start eval, model card final pass |
 | Done | [#195](https://github.com/AbdelStark/lewm-rs/issues/195) | Finish Tract export, CPU benchmark, and demo Space validation | Tract-compat ONNX exported (opset 17, fixed-batch, causal-mask buffer); `lewm-infer bench` benchmark: ~4.1s median/episode (debug, M-series Mac); both onnxruntime and tract-compat variants uploaded to `abdelstark/lewm-rs-pusht`; demo Space `app.py` fixed (auto-detects action_dim, downloads .data files) |
 | In Progress | [#196](https://github.com/AbdelStark/lewm-rs/issues/196) | Finish public reports, paper, and release evidence | CHANGELOG, ROADMAP, cost ledger, paper draft, SO-100 report, release checklist done; pending: README final pass, PushT training curves + eval sections (blocked on job completion) |
@@ -106,10 +106,9 @@ with linked evidence:
   job in the release workflow.
 - **Token rotation**: The `HF_TOKEN` in `.env` must be rotated before public release.
   Use env vars only; no live secrets in git.
-- **PushT full training** (`6a06f0c43308d79117b90276`) still running as of 2026-05-15; 50k steps,
-  A10G-large, GHCR image, auto-uploads to `abdelstark/lewm-rs-pusht/train/pusht-full-lewm-20260515T100908Z/`.
-  After completion: collect artifacts (train_report.json, losses.jsonl, checkpoint), update paper §6,
-  update cost ledger, run CEM eval, upload model card.
+- **CEM eval** (#193): PushT checkpoint is live at `abdelstark/lewm-rs-pusht/train/pusht-full-lewm-20260515T100908Z/`.
+  Need to run `lewm-infer bench` with the trained ONNX (requires exporting from the PushT safetensors first)
+  and measure success rate on 50 test episodes. Target ≥ 87%.
 - **4 commits** are ahead of `origin/main` and not yet pushed (pending review before release).
 
 ## Issue Hygiene
@@ -125,14 +124,13 @@ creating a second tracker.
 SO-100 training completed (v11a artifacts live). PushT full training still running.
 Quality gate (`make check`) is passing. 4 commits ahead of origin/main.
 
-When PushT completes (`abdelstark/lewm-rs-pusht/train/pusht-full-lewm-20260515T100908Z/`):
-1. Download `train_report.json` → update `paper/lewm-rs.md` §6 training curves and cost table.
-2. Append PushT row to `reports/cost.md` via `cost_ledger.py backfill --from <job_url>`.
-3. Run PushT planning eval: `lewm-infer bench --checkpoint-dir <onnx_dir>` for CEM success rate.
-4. Upload updated PushT model card with training metrics.
-5. Close #193.
+PushT training completed. Immediate next actions:
+1. Export ONNX from PushT safetensors: `python/export_onnx.py --safetensors .../step_0050000.safetensors`
+2. Run CEM planning eval with exported ONNX to measure success rate (target ≥ 87%).
+3. Upload PushT model card with training metrics.
+4. Close #193.
 
 Remaining release steps (user actions required):
-6. Fix GHCR package permissions (see Blockers above).
-7. Rotate HF_TOKEN before pushing/releasing.
-8. Push 4 pending commits to origin/main, then tag release.
+5. Fix GHCR package permissions (see Blockers above).
+6. Rotate HF_TOKEN before pushing/releasing.
+7. Tag release after CEM eval and model card are done.

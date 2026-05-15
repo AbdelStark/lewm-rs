@@ -15,10 +15,11 @@ activation-level parity tests), trains on the PushT manipulation dataset and
 the SO-100 6-DOF robot arm dataset, exports to ONNX for CPU inference via Tract,
 and provides a live Gradio demo. The total parameter count is 18.04M (303
 tensors). SO-100 training converges in 864 seconds on an A10G GPU (loss 0.50 →
-9.56e-05, 5,000 steps). PushT 50k-step training is running; CEM planning
-evaluation is pending. The Tract CPU benchmark yields ~4.1 s/episode in debug
-mode on Apple M-series hardware. All code, training configurations, model
-checkpoints, and ONNX artifacts are publicly released.
+9.56e-05, 5,000 steps). PushT 50k-step training completes in 318 minutes on
+A10G-large (loss 0.491 → 3.17e-06). CEM planning evaluation is pending. The
+Tract CPU benchmark yields 4.08 s/episode (p50, release build) on Apple
+M-series hardware. All code, training configurations, model checkpoints, and
+ONNX artifacts are publicly released.
 
 ---
 
@@ -227,12 +228,24 @@ Activation dumps are stored in `AbdelStark/lewm-rs-parity-dumps` and the CI
 
 ### 6.1 Training curves
 
-Full 50k-step PushT training on HF A10G-large (job `6a06f0c43308d79117b90276`)
-is in progress at the time of writing. The bounded `PushtFullLewmCore` path
-(which drives actual training) has been validated at 10 and 50 steps locally
-and at 5,000 steps on HF, matching the artifact contract.
+Full 50k-step PushT training on HF A10G-large completed (job
+`6a06f0c43308d79117b90276`, wall time 318 min, mode `pusht-minimal-lewm`,
+batch size 64, device cuda:0, seed 0, 0 gradient explosions).
 
-**TBD** — to be filled when job `6a06f0c43308d79117b90276` completes.
+| Step | Total loss | SIGReg | Pred loss | LR |
+|-----:|-----------|--------|-----------|-----|
+| 1 | 4.91e-01 | 4.90e-01 | 6.82e-04 | 3.00e-07 |
+| 100 | 4.90e-01 | 4.89e-01 | 6.14e-04 | 3.00e-05 |
+| 500 | 4.38e-01 | 4.38e-01 | 2.27e-04 | 1.50e-04 |
+| 1,000 | 8.69e-02 | 8.69e-02 | 8.43e-07 | 3.00e-04 |
+| 5,000 | 6.09e-06 | 4.96e-06 | 1.13e-06 | 2.95e-04 |
+| 10,000 | 8.35e-06 | 8.03e-06 | 3.12e-07 | 2.77e-04 |
+| 25,000 | 1.92e-06 | 1.72e-06 | 1.93e-07 | 1.60e-04 |
+| 50,000 | 3.17e-06 | 3.00e-06 | 1.69e-07 | 1.00e-05 |
+
+The loss decreases from 0.491 to 3.17e-06 over 50k steps, driven primarily by
+the SIGReg term through step ~1,000, after which both SIGReg and pred loss
+converge to near-zero.
 
 ### 6.2 Eval: planning success rate
 
@@ -241,10 +254,9 @@ Target: ≥ 87% success rate on 50 test episodes (matching the reference paper).
 
 ### 6.3 Cost ledger
 
-See `reports/cost.md`. Known spend (all SO-100 attempts + pre-training PushT
-short runs) totals ~$3.25 at $1.50/hr for A10G-large. The full 50k-step PushT
-training run is estimated at $6–$12 depending on wall time.
-Projected total: ~$10–$15.
+See `reports/cost.md`. Total confirmed spend: $11.70 at $1.50/hr for
+A10G-large ($3.75 for SO-100 attempts and pre-training runs + $7.95 for the
+50k-step PushT full run, 318 min).
 
 ---
 

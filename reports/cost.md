@@ -22,9 +22,9 @@
 | 2026-05-15 12:05    | train | 6a0709973308d79117b902c2 | a10g-large | 14m    | 0.35       | 2.99            | SO-100 v10 COMPLETED (no upload step; artifacts lost) |
 | 2026-05-15 12:14    | train | 6a070e02e48bea4538b9e2a5 | a10g-large | 15m    | 0.38       | 3.37            | SO-100 v11a COMPLETED; artifacts at abdelstark/lewm-rs-so100/train/so100-full-20260515T122820Z/ |
 | 2026-05-15 12:19    | train | 6a070f393308d79117b902de | a10g-large | 15m    | 0.38       | 3.75            | SO-100 v11b COMPLETED; duplicate (same config as v11a) |
+| 2026-05-15 10:09    | train | 6a06f0c43308d79117b90276 | a10g-large | 318m   | 7.95       | 11.70           | PushT full 50k steps COMPLETED; artifacts at abdelstark/lewm-rs-pusht/train/pusht-full-lewm-20260515T100908Z/ |
 
 > Pricing: HuggingFace Jobs a10g-large = $1.50/hr (per published rate sheet as of 2026-05).
 > Costs rounded up to the nearest minute, then to the nearest cent.
 > Three pre-2026-05-15 PushT short runs lack job IDs (artifact timestamps used as proxy dates).
-> PushT full run (50k steps, job 6a06f0c43308d79117b90276, A10G-large) still running as of 2026-05-15;
-> will be appended on completion via cost_ledger backfill.
+> PushT wall time estimated from job created_at (10:09:08 UTC) to artifact upload timestamp (15:26:43 UTC) = 318 min.
