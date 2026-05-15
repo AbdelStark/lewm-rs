@@ -9,11 +9,11 @@ use crate::checkpoint::{
     CHECKPOINT_SCHEMA_VERSION, CheckpointError, CheckpointPaths, CheckpointRngState,
     CheckpointWriteRequest, ParameterTensor, ParityProbe, load_checkpoint, save_checkpoint,
 };
-use crate::config::{DatasetConfig, DatasetSplit, RootConfig, TrainingConfig};
+use crate::config::{DatasetConfig, DatasetSplit, RootConfig, So100DatasetConfig, TrainingConfig};
 use crate::optim::OptimConfig;
 use crate::pusht_full::{
     PUSHT_FULL_LEWM_RUN_ID, PushtFullLewmCore, PushtFullLewmError, PushtFullLewmExample,
-    PushtFullLewmImageFeatures,
+    PushtFullLewmImageFeatures, SO100_FULL_LEWM_RUN_ID,
 };
 use crate::pusht_lewm::{
     PUSHT_ACTION_DIM, PUSHT_MINIMAL_LEWM_LATENT_DIM, PUSHT_MINIMAL_LEWM_PARAM_COUNT,
@@ -34,7 +34,8 @@ use lewm_core::{
 };
 use lewm_data::{
     DataError, PushtConfig as DataPushtConfig, PushtDataset, Sample as PushtSample,
-    SampleMeta as PushtSampleMeta, Split as DataSplit,
+    SampleMeta as PushtSampleMeta, So100Config as DataSo100Config, So100Dataset,
+    Split as DataSplit,
 };
 use rand::RngCore;
 use safetensors::tensor::{Dtype, SafeTensors};
@@ -1203,6 +1204,17 @@ pub fn write_train_artifacts(
     let output_dir = request.output_dir;
     fs::create_dir_all(output_dir).map_err(|source| io_error(output_dir, source))?;
 
+    match &request.root.dataset {
+        DatasetConfig::Pusht(_) => write_pusht_train_artifacts(request),
+        DatasetConfig::So100(_) => write_so100_train_artifacts(request),
+    }
+}
+
+fn write_pusht_train_artifacts(
+    request: TrainArtifactRequest<'_>,
+) -> Result<TrainRunReport, TrainerError> {
+    let output_dir = request.output_dir;
+
     let mut source = open_pusht_training_source(request.root, request.data_dir)?;
     let startup = detect_resume(
         output_dir,
@@ -1212,7 +1224,7 @@ pub fn write_train_artifacts(
     let mut previous_losses = Vec::new();
     let start = match startup {
         StartupMode::Fresh => {
-            write_train_run_id(output_dir)?;
+            write_train_run_id(output_dir, PUSHT_FULL_LEWM_RUN_ID)?;
             PushtFullLewmTrainingStart::fresh(request.root, request.seed)?
         },
         StartupMode::Resume(plan) => {
@@ -1233,11 +1245,13 @@ pub fn write_train_artifacts(
         return write_train_report(
             output_dir,
             request,
-            &source,
+            source.description(),
+            source.len(),
             previous_losses,
             &paths,
             start.batch_size,
             start.grad_explosion_events,
+            "pusht-full-module-lewm",
         );
     }
 
@@ -1254,22 +1268,95 @@ pub fn write_train_artifacts(
     write_train_report(
         output_dir,
         request,
-        &source,
+        source.description(),
+        source.len(),
         previous_losses,
         &paths,
         outcome.batch_size,
         outcome.grad_explosion_events,
+        "pusht-full-module-lewm",
     )
 }
 
+fn write_so100_train_artifacts(
+    request: TrainArtifactRequest<'_>,
+) -> Result<TrainRunReport, TrainerError> {
+    let output_dir = request.output_dir;
+
+    let mut source = open_so100_training_source(request.root)?;
+    let startup = detect_resume(
+        output_dir,
+        request.resume_if_present,
+        option_env!("LEWM_GIT_SHA").unwrap_or("unknown"),
+    )?;
+    let mut previous_losses = Vec::new();
+    let start = match startup {
+        StartupMode::Fresh => {
+            write_train_run_id(output_dir, SO100_FULL_LEWM_RUN_ID)?;
+            PushtFullLewmTrainingStart::fresh(request.root, request.seed)?
+        },
+        StartupMode::Resume(plan) => {
+            previous_losses = read_train_losses(output_dir)?;
+            restore_so100_full_lewm_start(
+                &plan,
+                request.root,
+                request.config_hash,
+                request.max_steps,
+                request.seed,
+                &previous_losses,
+            )?
+        },
+    };
+
+    if u64::from(start.start_step) == request.max_steps {
+        let paths = CheckpointPaths::for_step(output_dir, request.max_steps);
+        return write_train_report(
+            output_dir,
+            request,
+            source.description(),
+            source.len(),
+            previous_losses,
+            &paths,
+            start.batch_size,
+            start.grad_explosion_events,
+            "so100-full-module-lewm",
+        );
+    }
+
+    let outcome =
+        run_so100_full_lewm_training(&mut source, request.root, request.max_steps, start)?;
+    let paths = write_so100_full_lewm_checkpoint(
+        output_dir,
+        request.config_hash,
+        request.seed,
+        request.max_steps,
+        &outcome,
+    )?;
+    previous_losses.extend(outcome.losses.clone());
+    write_train_report(
+        output_dir,
+        request,
+        source.description(),
+        source.len(),
+        previous_losses,
+        &paths,
+        outcome.batch_size,
+        outcome.grad_explosion_events,
+        "so100-full-module-lewm",
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
 fn write_train_report(
     output_dir: &Path,
     request: TrainArtifactRequest<'_>,
-    source: &PushtTrainingSource,
+    data_source: String,
+    dataset_windows: usize,
     losses: Vec<TrainLossPoint>,
     paths: &CheckpointPaths,
     batch_size: usize,
     grad_explosion_events: u64,
+    mode: &str,
 ) -> Result<TrainRunReport, TrainerError> {
     let checkpoint_step = paths
         .sidecar
@@ -1283,8 +1370,8 @@ fn write_train_report(
         config_hash: request.config_hash.to_owned(),
         output_dir: output_dir.display().to_string(),
         data_dir: request.data_dir.map(|path| path.display().to_string()),
-        data_source: source.description(),
-        dataset_windows: source.len(),
+        data_source,
+        dataset_windows,
         max_steps: request.max_steps,
         steps_completed: checkpoint_step,
         batch_size,
@@ -1297,7 +1384,7 @@ fn write_train_report(
         checkpoint_complete: paths.is_complete(),
         checkpoint_files: checkpoint_file_names(paths),
         grad_explosion_events,
-        mode: "pusht-full-module-lewm".to_owned(),
+        mode: mode.to_owned(),
         losses,
     };
 
@@ -1357,6 +1444,34 @@ impl PushtTrainingSource {
                         })?;
                 Ok(sample.clone())
             },
+        }
+    }
+}
+
+#[derive(Debug)]
+enum So100TrainingSource {
+    Hdf5 {
+        dataset: Box<So100Dataset>,
+        path: PathBuf,
+    },
+}
+
+impl So100TrainingSource {
+    fn len(&self) -> usize {
+        match self {
+            Self::Hdf5 { dataset, .. } => dataset.len(),
+        }
+    }
+
+    fn description(&self) -> String {
+        match self {
+            Self::Hdf5 { path, .. } => format!("so100-hdf5:{}", path.display()),
+        }
+    }
+
+    fn get(&self, index: usize) -> Result<PushtSample, TrainerError> {
+        match self {
+            Self::Hdf5 { dataset, .. } => dataset.get(index).map_err(TrainerError::from),
         }
     }
 }
@@ -1506,10 +1621,48 @@ fn open_pusht_training_source(
     })
 }
 
-fn write_train_run_id(output_dir: &Path) -> Result<(), TrainerError> {
+fn open_so100_training_source(
+    root: &RootConfig,
+) -> Result<So100TrainingSource, TrainerError> {
+    let DatasetConfig::So100(config) = &root.dataset else {
+        return Err(TrainerError::UnsupportedTrainDataset {
+            kind: dataset_kind_name(&root.dataset).to_owned(),
+        });
+    };
+
+    let hdf5_path = config.hdf5_path.clone();
+    if !hdf5_path.exists() {
+        return Err(TrainerError::MissingTrainDataPath {
+            path: hdf5_path,
+        });
+    }
+
+    let so100_config = DataSo100Config {
+        hdf5_path: hdf5_path.clone(),
+        split: data_split(config.split),
+        horizon: config.horizon,
+        history_size: config.history_size,
+        seed: Some(config.seed),
+        camera_view: so100_camera_view(config.camera_view),
+        stats_path: None,
+    };
+    let dataset = So100Dataset::from_hdf5(so100_config)?;
+    Ok(So100TrainingSource::Hdf5 {
+        dataset: Box::new(dataset),
+        path: hdf5_path,
+    })
+}
+
+fn so100_camera_view(view: crate::config::CameraView) -> lewm_data::so100::CameraView {
+    match view {
+        crate::config::CameraView::Top => lewm_data::so100::CameraView::Top,
+        crate::config::CameraView::Wrist => lewm_data::so100::CameraView::Wrist,
+    }
+}
+
+fn write_train_run_id(output_dir: &Path, run_id: &str) -> Result<(), TrainerError> {
     let path = output_dir.join(RUN_ID_FILE);
-    fs::write(&path, format!("{PUSHT_FULL_LEWM_RUN_ID}\n"))
-        .map_err(|source| io_error(&path, source))
+    fs::write(&path, format!("{run_id}\n")).map_err(|source| io_error(&path, source))
 }
 
 fn read_train_losses(output_dir: &Path) -> Result<Vec<TrainLossPoint>, TrainerError> {
@@ -1614,6 +1767,94 @@ fn restore_pusht_full_lewm_start(
     })
 }
 
+fn restore_so100_full_lewm_start(
+    plan: &crate::resume::ResumePlan,
+    root: &RootConfig,
+    config_hash: &str,
+    max_steps: u64,
+    seed: u64,
+    previous_losses: &[TrainLossPoint],
+) -> Result<PushtFullLewmTrainingStart, TrainerError> {
+    if plan.run_id != SO100_FULL_LEWM_RUN_ID {
+        return Err(TrainerError::ResumeCheckpointInvalid {
+            reason: format!(
+                "expected run_id {SO100_FULL_LEWM_RUN_ID:?}, found {:?}",
+                plan.run_id
+            ),
+        });
+    }
+    if plan.step > max_steps {
+        return Err(TrainerError::ResumeStepBeyondTarget {
+            checkpoint_step: plan.step,
+            max_steps,
+        });
+    }
+
+    let loaded = load_checkpoint(&plan.sidecar_path)?;
+    let sidecar = &loaded.sidecar;
+    if sidecar.schema_version != CHECKPOINT_SCHEMA_VERSION {
+        return Err(TrainerError::ResumeCheckpointInvalid {
+            reason: format!(
+                "unsupported sidecar schema_version {:?}, expected {CHECKPOINT_SCHEMA_VERSION:?}",
+                sidecar.schema_version
+            ),
+        });
+    }
+    if sidecar.config_hash != config_hash {
+        return Err(TrainerError::ResumeConfigHashMismatch {
+            checkpoint: sidecar.config_hash.clone(),
+            current: config_hash.to_owned(),
+        });
+    }
+    if sidecar.rng_state.global_seed != seed {
+        return Err(TrainerError::ResumeSeedMismatch {
+            checkpoint: sidecar.rng_state.global_seed,
+            current: seed,
+        });
+    }
+    if sidecar.rng_state.step_at_save != sidecar.step {
+        return Err(TrainerError::ResumeCheckpointInvalid {
+            reason: format!(
+                "rng_state.step_at_save {} does not match sidecar step {}",
+                sidecar.rng_state.step_at_save, sidecar.step
+            ),
+        });
+    }
+    if let Some(last_loss) = previous_losses.last()
+        && last_loss.step != sidecar.step
+    {
+        return Err(TrainerError::ResumeCheckpointInvalid {
+            reason: format!(
+                "train_losses.jsonl ends at step {}, but latest checkpoint is step {}",
+                last_loss.step, sidecar.step
+            ),
+        });
+    }
+
+    let record: PushtFullLewmRecord = serde_json::from_slice(&loaded.burn_record)?;
+    validate_so100_full_lewm_record(&record, root, sidecar.step, max_steps)?;
+    let mut model = PushtFullLewmCore::new(&root.model, seed).map_err(full_lewm_error)?;
+    restore_pusht_full_lewm_model_params(&mut model, &record.params)?;
+    validate_full_lewm_safetensors(&model, &loaded.safetensors_bytes)?;
+    let rng_streams = restore_rng_streams(&plan.rng_state)?;
+
+    Ok(PushtFullLewmTrainingStart {
+        model,
+        optimizer: PushtFullLewmAdamWState {
+            step: record.adamw_step,
+            params: record.adamw_params,
+        },
+        rng_streams,
+        start_step: train_steps_as_u32(sidecar.step)?,
+        batch_size: train_batch_size(root)?,
+        samples_seen: record.samples_seen,
+        grad_explosion_events: metric_u64(
+            sidecar.metrics_last_step.get("train/grad_explosion_events"),
+        )
+        .unwrap_or(0),
+    })
+}
+
 fn validate_pusht_full_lewm_record(
     record: &PushtFullLewmRecord,
     root: &RootConfig,
@@ -1621,6 +1862,89 @@ fn validate_pusht_full_lewm_record(
     max_steps: u64,
 ) -> Result<(), TrainerError> {
     if record.kind != "lewm-rs-pusht-full-module-lewm-record" {
+        return Err(TrainerError::ResumeCheckpointInvalid {
+            reason: format!("unexpected record kind {:?}", record.kind),
+        });
+    }
+    if record.schema_version != "1.1.0" {
+        return Err(TrainerError::ResumeCheckpointInvalid {
+            reason: format!(
+                "record schema_version {:?} is not resumable; expected \"1.1.0\" with AdamW state",
+                record.schema_version
+            ),
+        });
+    }
+    if record.step != sidecar_step {
+        return Err(TrainerError::ResumeCheckpointInvalid {
+            reason: format!(
+                "record step {} does not match sidecar step {sidecar_step}",
+                record.step
+            ),
+        });
+    }
+    if record.scheduler_total_steps > max_steps {
+        return Err(TrainerError::ResumeCheckpointInvalid {
+            reason: format!(
+                "record scheduler_total_steps {} is greater than requested --max-steps {max_steps}",
+                record.scheduler_total_steps
+            ),
+        });
+    }
+    let expected_adamw_step =
+        i32::try_from(record.step).map_err(|_| TrainerError::ResumeCheckpointInvalid {
+            reason: format!("record step {} exceeds AdamW step range", record.step),
+        })?;
+    if record.adamw_step != expected_adamw_step {
+        return Err(TrainerError::ResumeCheckpointInvalid {
+            reason: format!(
+                "record adamw_step {} does not match optimizer step {}",
+                record.adamw_step, record.step
+            ),
+        });
+    }
+    let model = PushtFullLewmCore::new(&root.model, root.training.seed).map_err(full_lewm_error)?;
+    if record.params.len() != model.parameter_count() {
+        return Err(TrainerError::ResumeCheckpointInvalid {
+            reason: format!(
+                "record has {} model parameters, expected {}",
+                record.params.len(),
+                model.parameter_count()
+            ),
+        });
+    }
+    if record.adamw_params.len() != model.parameter_count() {
+        return Err(TrainerError::ResumeCheckpointInvalid {
+            reason: format!(
+                "record has {} AdamW parameter states, expected {}",
+                record.adamw_params.len(),
+                model.parameter_count()
+            ),
+        });
+    }
+    if record.params.iter().any(|value| !value.is_finite()) {
+        return Err(TrainerError::ResumeCheckpointInvalid {
+            reason: "record contains non-finite model parameters".to_owned(),
+        });
+    }
+    if record
+        .adamw_params
+        .iter()
+        .any(|state| !state.first_moment.is_finite() || !state.second_moment.is_finite())
+    {
+        return Err(TrainerError::ResumeCheckpointInvalid {
+            reason: "record contains non-finite AdamW moments".to_owned(),
+        });
+    }
+    Ok(())
+}
+
+fn validate_so100_full_lewm_record(
+    record: &PushtFullLewmRecord,
+    root: &RootConfig,
+    sidecar_step: u64,
+    max_steps: u64,
+) -> Result<(), TrainerError> {
+    if record.kind != "lewm-rs-so100-full-module-lewm-record" {
         return Err(TrainerError::ResumeCheckpointInvalid {
             reason: format!("unexpected record kind {:?}", record.kind),
         });
@@ -1835,6 +2159,132 @@ fn run_pusht_full_lewm_training(
             )?;
             let sample = source.get(dataset_index)?;
             let example = full_lewm_example_from_sample(&sample, dataset_config, &root.model)?;
+            let (sample_loss, gradients) = model
+                .loss_and_gradients(&example, sigreg_weight)
+                .map_err(full_lewm_error)?;
+            total_loss += scale_loss_for_accumulation(sample_loss.total, batch_size_u32)?;
+            pred_loss += scale_loss_for_accumulation(sample_loss.pred, batch_size_u32)?;
+            sigreg_proxy_loss +=
+                scale_loss_for_accumulation(sample_loss.sigreg_proxy, batch_size_u32)?;
+            sample_gradients.push(gradients);
+            samples_seen = samples_seen.saturating_add(1);
+        }
+        let _sigreg_rng_audit_word = rng_streams.sigreg_sketch.next_u64();
+
+        let mut gradients = accumulate_scaled_gradients(&sample_gradients, batch_size_u32)?;
+        let step_u64 = u64::from(step);
+        match guard.observe(step_u64, total_loss, &gradients) {
+            NanGuardDecision::Apply => {},
+            NanGuardDecision::Skip { artifact } | NanGuardDecision::Abort { artifact } => {
+                return Err(TrainerError::TrainGuardRejected {
+                    step: step_u64,
+                    reason: artifact.reason,
+                });
+            },
+        }
+
+        let clip = clip_global_norm(&mut gradients, root.training.grad_clip_norm)?;
+        if grad_explosion_artifact(step_u64, clip.grad_norm_pre).is_some() {
+            grad_explosion_events += 1;
+        }
+        let learning_rate = schedule.lr(step);
+        apply_pusht_full_lewm_adamw(
+            &mut model,
+            &gradients,
+            &mut optimizer,
+            learning_rate,
+            &optim_config,
+        );
+        losses.push(TrainLossPoint {
+            step: step_u64,
+            loss: total_loss,
+            pred_loss,
+            sigreg_proxy_loss,
+            grad_norm_pre: clip.grad_norm_pre,
+            grad_norm_post: clip.grad_norm_post,
+            learning_rate,
+            samples_seen,
+        });
+    }
+
+    Ok(PushtFullLewmOutcome {
+        losses,
+        model,
+        optimizer,
+        rng_streams,
+        step: max_steps,
+        batch_size,
+        samples_seen,
+        grad_explosion_events,
+    })
+}
+
+#[allow(clippy::too_many_lines)]
+fn run_so100_full_lewm_training(
+    source: &mut So100TrainingSource,
+    root: &RootConfig,
+    max_steps: u64,
+    start: PushtFullLewmTrainingStart,
+) -> Result<PushtFullLewmOutcome, TrainerError> {
+    if !root.loss.lambda_sigreg.is_finite() {
+        return Err(TrainerError::Data {
+            source: DataError::InvalidTransform(
+                "SO-100 full LeWM lambda_sigreg must be finite".to_owned(),
+            ),
+        });
+    }
+    let DatasetConfig::So100(dataset_config) = &root.dataset else {
+        return Err(TrainerError::UnsupportedTrainDataset {
+            kind: dataset_kind_name(&root.dataset).to_owned(),
+        });
+    };
+    let total_steps = train_steps_as_u32(max_steps)?;
+    if start.start_step > total_steps {
+        return Err(TrainerError::ResumeStepBeyondTarget {
+            checkpoint_step: u64::from(start.start_step),
+            max_steps,
+        });
+    }
+    let batch_size_u32 =
+        u32::try_from(start.batch_size).map_err(|_| TrainerError::InvalidTrainBatchSize {
+            batch_size: start.batch_size,
+        })?;
+    let batch_size = start.batch_size;
+    let schedule = CosineWarmup::from_parts(
+        root.training.lr_peak,
+        root.training.lr_min,
+        root.training.warmup_steps,
+        total_steps.max(root.training.warmup_steps.saturating_add(1)),
+    );
+    let optim_config = OptimConfig::new()
+        .with_beta1(root.training.betas.0)
+        .with_beta2(root.training.betas.1)
+        .with_weight_decay(root.training.weight_decay);
+    let mut model = start.model;
+    let mut optimizer = start.optimizer;
+    let mut rng_streams = start.rng_streams;
+    let mut guard = NanGuard::new();
+    let mut losses = Vec::with_capacity(usize::try_from(total_steps).unwrap_or_default());
+    let mut samples_seen = start.samples_seen;
+    let mut grad_explosion_events = start.grad_explosion_events;
+    let sigreg_weight = root.loss.lambda_sigreg.max(0.0);
+
+    for step in (start.start_step.saturating_add(1))..=total_steps {
+        let mut total_loss = 0.0;
+        let mut pred_loss = 0.0;
+        let mut sigreg_proxy_loss = 0.0;
+        let mut sample_gradients = Vec::with_capacity(batch_size);
+        for sample_offset in 0..batch_size {
+            let dataset_index = training_sample_index(
+                step,
+                sample_offset,
+                batch_size,
+                source.len(),
+                &mut rng_streams,
+            )?;
+            let sample = source.get(dataset_index)?;
+            let example =
+                full_lewm_example_from_so100_sample(&sample, dataset_config, &root.model)?;
             let (sample_loss, gradients) = model
                 .loss_and_gradients(&example, sigreg_weight)
                 .map_err(full_lewm_error)?;
@@ -2172,6 +2622,100 @@ fn full_lewm_image_features(
     })
 }
 
+fn validate_so100_lewm_sample(
+    sample: &PushtSample,
+    config: &So100DatasetConfig,
+) -> Result<(), TrainerError> {
+    if sample.action_shape.1 != config.action_dim {
+        return Err(TrainerError::Data {
+            source: DataError::InvalidTransform(format!(
+                "SO-100 full LeWM expects action dim {}, found {:?}",
+                config.action_dim, sample.action_shape
+            )),
+        });
+    }
+    if sample.frame_shape.3 != 3 {
+        return Err(TrainerError::Data {
+            source: DataError::InvalidTransform(format!(
+                "SO-100 full LeWM expects RGB frames, found {} channels",
+                sample.frame_shape.3
+            )),
+        });
+    }
+    Ok(())
+}
+
+fn full_lewm_so100_packed_action(
+    sample: &PushtSample,
+    target_index: usize,
+    action_dim: usize,
+) -> Result<Vec<f64>, TrainerError> {
+    let start = target_index
+        .checked_mul(action_dim)
+        .ok_or_else(|| TrainerError::Data {
+            source: DataError::InvalidTransform("SO-100 action offset overflow".to_owned()),
+        })?;
+    let end = start
+        .checked_add(action_dim)
+        .ok_or_else(|| TrainerError::Data {
+            source: DataError::InvalidTransform("SO-100 action range overflow".to_owned()),
+        })?;
+    let action = sample
+        .actions
+        .get(start..end)
+        .ok_or_else(|| TrainerError::Data {
+            source: DataError::InvalidTransform(format!(
+                "SO-100 full LeWM action index {target_index} out of range {:?}",
+                sample.action_shape
+            )),
+        })?;
+    let mut packed = Vec::with_capacity(action.len());
+    for value in action {
+        if !value.is_finite() {
+            return Err(TrainerError::Data {
+                source: DataError::InvalidTransform(
+                    "SO-100 action value must be finite".to_owned(),
+                ),
+            });
+        }
+        packed.push(f64::from(*value));
+    }
+    Ok(packed)
+}
+
+fn full_lewm_example_from_so100_sample(
+    sample: &PushtSample,
+    config: &So100DatasetConfig,
+    model: &lewm_core::JepaConfig,
+) -> Result<PushtFullLewmExample, TrainerError> {
+    validate_so100_lewm_sample(sample, config)?;
+    if sample.frame_shape.0 <= model.history_size {
+        return Err(TrainerError::Data {
+            source: DataError::InvalidTransform(format!(
+                "SO-100 full LeWM requires at least history_size + 1 frames, found {} frames for history_size {}",
+                sample.frame_shape.0, model.history_size
+            )),
+        });
+    }
+
+    let source = (0..model.history_size)
+        .map(|frame_index| full_lewm_image_features(sample, frame_index))
+        .collect::<Result<Vec<_>, _>>()?;
+    let target_index = model.history_size;
+    let target = vec![full_lewm_image_features(sample, target_index)?];
+    let packed_actions = vec![full_lewm_so100_packed_action(
+        sample,
+        target_index,
+        config.action_dim,
+    )?];
+
+    Ok(PushtFullLewmExample {
+        source,
+        target,
+        packed_actions,
+    })
+}
+
 fn full_lewm_packed_action(
     sample: &PushtSample,
     target_index: usize,
@@ -2452,6 +2996,56 @@ fn write_pusht_full_lewm_checkpoint(
     let request = CheckpointWriteRequest {
         output_dir,
         run_id: PUSHT_FULL_LEWM_RUN_ID,
+        step: outcome.step,
+        epoch: 0,
+        wall_time_s: 0.0,
+        git_short_sha: option_env!("LEWM_GIT_SHA").unwrap_or("unknown"),
+        config_hash,
+        rng_state: checkpoint_rng_state(seed, outcome.step, &outcome.rng_streams),
+        metrics_last_step: full_train_checkpoint_metrics(outcome),
+        burn_record: &burn_record,
+        parameters: &parameters,
+        parity: &parity,
+    };
+
+    save_checkpoint(&request).map_err(TrainerError::from)
+}
+
+fn write_so100_full_lewm_checkpoint(
+    output_dir: &Path,
+    config_hash: &str,
+    seed: u64,
+    scheduler_total_steps: u64,
+    outcome: &PushtFullLewmOutcome,
+) -> Result<CheckpointPaths, TrainerError> {
+    let parameters = outcome
+        .model
+        .parameter_specs()
+        .iter()
+        .map(|spec| full_lewm_parameter_tensor(&outcome.model, spec))
+        .collect::<Result<Vec<_>, _>>()?;
+    let parity = ParityProbe {
+        encoder_cls_l_inf: outcome.losses.last().map_or(0.0, |point| point.pred_loss),
+        predictor_l_inf: last_train_loss(&outcome.losses),
+        sigreg_value: outcome
+            .losses
+            .last()
+            .map_or(0.0, |point| point.sigreg_proxy_loss),
+    };
+    let record = PushtFullLewmRecord {
+        schema_version: "1.1.0".to_owned(),
+        kind: "lewm-rs-so100-full-module-lewm-record".to_owned(),
+        step: outcome.step,
+        params: outcome.model.flat_parameters().to_vec(),
+        adamw_step: outcome.optimizer.step,
+        adamw_params: outcome.optimizer.params.clone(),
+        samples_seen: outcome.samples_seen,
+        scheduler_total_steps,
+    };
+    let burn_record = serde_json::to_vec(&record)?;
+    let request = CheckpointWriteRequest {
+        output_dir,
+        run_id: SO100_FULL_LEWM_RUN_ID,
         step: outcome.step,
         epoch: 0,
         wall_time_s: 0.0,
@@ -2937,6 +3531,38 @@ mod tests {
                 .metrics_last_step
                 .contains_key("loss/sigreg_proxy")
         );
+        Ok(())
+    }
+
+    #[test]
+    fn so100_train_missing_hdf5_returns_missing_data_path()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let dir = TestDir::new("so100-train-missing-data")?;
+        let missing_data = dir.path().join("missing-so100.h5");
+        let mut root = crate::config::RootConfig::default();
+        root.dataset = crate::config::DatasetConfig::So100(crate::config::So100DatasetConfig {
+            hdf5_path: missing_data.clone(),
+            ..crate::config::So100DatasetConfig::default()
+        });
+
+        let err = write_train_artifacts(TrainArtifactRequest {
+            output_dir: dir.path(),
+            root: &root,
+            config_hash: "abc123",
+            data_dir: None,
+            max_steps: 10,
+            seed: 7,
+            device: "cpu",
+            resume_if_present: false,
+        })
+        .expect_err("SO-100 train without HDF5 data must fail");
+
+        match err {
+            TrainerError::MissingTrainDataPath { path } => {
+                assert_eq!(path, missing_data);
+            },
+            other => return Err(format!("unexpected error: {other}").into()),
+        }
         Ok(())
     }
 

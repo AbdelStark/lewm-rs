@@ -12,6 +12,9 @@ use lewm_core::JepaConfig;
 /// Run id stored in checkpoint sidecars for the full-module bounded path.
 pub(crate) const PUSHT_FULL_LEWM_RUN_ID: &str = "pusht-full-module-lewm-v1";
 
+/// Run id stored in checkpoint sidecars for the SO-100 full-module path.
+pub(crate) const SO100_FULL_LEWM_RUN_ID: &str = "so100-full-module-lewm-v1";
+
 const IMAGE_CHANNELS: usize = 3;
 const INIT_NOISE_SCALE: f64 = 1.0 / 4_294_967_295.0;
 

@@ -51,7 +51,7 @@ jobs:
               git config --global --add safe.directory /workspace
               apt-get update
               apt-get install -y --no-install-recommends \
-                ca-certificates cmake curl build-essential pkg-config musl-tools binutils
+                ca-certificates cmake curl git build-essential pkg-config musl-tools binutils
               rm -rf /var/lib/apt/lists/*
               curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs \
                 | sh -s -- -y --default-toolchain "${RUST_TOOLCHAIN}" \
@@ -142,7 +142,7 @@ jobs:
       - name: Prepare release notes
         run: |
           mkdir -p dist
-          awk '/^## \\[/ { seen++ } seen <= 2 { print }' CHANGELOG.md > dist/release-notes.md
+          awk '/^## \[/ { seen++ } seen <= 2 { print }' CHANGELOG.md > dist/release-notes.md
 
       - name: Upload release notes
         uses: actions/upload-artifact@v4
@@ -202,7 +202,7 @@ jobs:
               git config --global --add safe.directory /workspace
               apt-get update
               apt-get install -y --no-install-recommends \
-                ca-certificates cmake curl build-essential pkg-config musl-tools binutils
+                ca-certificates cmake curl git build-essential pkg-config musl-tools binutils
               rm -rf /var/lib/apt/lists/*
               curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs \
                 | sh -s -- -y --default-toolchain "${RUST_TOOLCHAIN}" \
