@@ -12,6 +12,9 @@ type CpuBackend = burn_ndarray::NdArray<f32>;
 
 const B: usize = 4;
 const T: usize = 4;
+/// Context frames fed to the predictor. The predictor supports num_frames=3;
+/// the 4th fixture frame is the target used for loss, not a predictor input.
+const T_CTX: usize = 3;
 const C: usize = 3;
 const H: usize = 224;
 const W: usize = 224;
@@ -39,17 +42,20 @@ fn parity_predictor_output_within_1e4() {
         &device,
     );
 
-    // Projector output (B, T, D) serves as context for the predictor.
-    let context = model.encode(pixels).expect("encode");
-    // Action embeddings (B, T, D).
-    let action_emb = model.action_encoder().forward(actions);
+    // Projector output (B, T, D); slice to first T_CTX=3 frames as history context.
+    let all_context = model.encode(pixels).expect("encode");
+    let context_history = all_context.slice([0..B, 0..T_CTX, 0..D]);
+
+    // Action embeddings: embed first T_CTX actions only.
+    let action_history = actions.slice([0..B, 0..T_CTX, 0..A]);
+    let action_emb = model.action_encoder().forward(action_history);
 
     let pred_out = model
         .predictor()
-        .forward(context, action_emb)
+        .forward(context_history, action_emb)
         .expect("predictor forward");
     let actual: Vec<f32> = pred_out
-        .reshape([B * T, D])
+        .reshape([B * T_CTX, D])
         .to_data()
         .to_vec()
         .expect("pred_out to vec");
@@ -75,12 +81,12 @@ fn parity_predictor_per_block_shape() {
     for (i, block) in dumps.predictor_blocks.iter().enumerate() {
         assert_eq!(
             block.after_mlp.shape,
-            vec![B, T, D],
+            vec![B, T_CTX, D],
             "predictor block {i} after_mlp shape mismatch (TST-0008-PRED-002)"
         );
         assert_eq!(
             block.after_attn.shape,
-            vec![B, T, D],
+            vec![B, T_CTX, D],
             "predictor block {i} after_attn shape mismatch (TST-0008-PRED-002)"
         );
     }

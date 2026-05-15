@@ -12,6 +12,8 @@ type CpuBackend = burn_ndarray::NdArray<f32>;
 
 const B: usize = 4;
 const T: usize = 4;
+/// Context frames for predictor (num_frames=3); the 4th fixture frame is the target.
+const T_CTX: usize = 3;
 const C: usize = 3;
 const H: usize = 224;
 const W: usize = 224;
@@ -39,12 +41,14 @@ fn parity_pred_proj_output_within_1e4() {
         &device,
     );
 
-    // Projector output (B, T, D) serves as context.
-    let context = model.encode(pixels).expect("encode");
+    // Slice context and actions to T_CTX=3 history frames (predictor capacity).
+    let context_history = model.encode(pixels).expect("encode").slice([0..B, 0..T_CTX, 0..D]);
+    let action_history = actions.slice([0..B, 0..T_CTX, 0..A]);
+
     // Full predict pipeline: action_encoder → predictor → pred_proj.
-    let pred_proj_out = model.predict(context, actions).expect("predict");
+    let pred_proj_out = model.predict(context_history, action_history).expect("predict");
     let actual: Vec<f32> = pred_proj_out
-        .reshape([B * T, D])
+        .reshape([B * T_CTX, D])
         .to_data()
         .to_vec()
         .expect("pred_proj_out to vec");
