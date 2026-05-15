@@ -120,6 +120,8 @@ jobs:
     runs-on: ubuntu-22.04
     env:
       HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      PARITY_DUMPS_DIR: /tmp/lewm-parity-dumps
+      REFERENCE_SF_PATH: /tmp/lewm-parity-dumps/reference_model.safetensors
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -129,16 +131,40 @@ jobs:
       - name: Install Rust
         run: rustup toolchain install "$RUST_TOOLCHAIN" --profile default
 
-      - name: Note fixture availability
-        run: |
-          if [ -n "${HF_TOKEN:-}" ]; then
-            printf '%s\n' 'HF_TOKEN available; parity fixture fetch is owned by the parity milestone.'
-          else
-            printf '%s\n' 'HF_TOKEN unavailable; running local parity test filter only.'
-          fi
+      - name: Restore parity dump cache
+        id: cache-parity
+        uses: actions/cache@v4
+        with:
+          path: /tmp/lewm-parity-dumps
+          key: parity-dumps-${{ hashFiles('tests/fixtures/parity_fixture.npz') }}
 
-      - name: Run parity test filter
-        run: cargo test --workspace --locked --features parity-fixtures parity_ -- --skip "_slow_"
+      - name: Download parity dumps from HF
+        if: steps.cache-parity.outputs.cache-hit != 'true' && env.HF_TOKEN != ''
+        run: |
+          set -euo pipefail
+          pip install --quiet "huggingface_hub>=0.23"
+          python3 - <<'PY'
+          from huggingface_hub import snapshot_download
+          snapshot_download(
+              repo_id="AbdelStark/lewm-rs-parity-dumps",
+              repo_type="dataset",
+              local_dir="/tmp/lewm-parity-dumps",
+          )
+          PY
+
+      - name: Run parity tests (numerical when dumps present, shape-only otherwise)
+        run: |
+          set -euo pipefail
+          if [ -f "${PARITY_DUMPS_DIR}/encoder/cls.safetensors" ] && \
+             [ -f "${REFERENCE_SF_PATH}" ]; then
+            printf '%s\n' "parity dumps present — running full numerical tests"
+            LEWM_PARITY_DUMPS="${PARITY_DUMPS_DIR}" \
+            LEWM_REFERENCE_SAFETENSORS="${REFERENCE_SF_PATH}" \
+            cargo test --workspace --locked --features parity-fixtures parity_ -- --skip "_slow_"
+          else
+            printf '%s\n' "parity dumps absent (HF_TOKEN required) — running shape-only parity filter"
+            cargo test --workspace --locked --features parity-fixtures parity_ -- --skip "_slow_"
+          fi
 
   deny:
     name: deny
