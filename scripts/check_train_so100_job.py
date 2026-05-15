@@ -147,6 +147,7 @@ def _validate_job(job: dict[str, object]) -> None:
             "--data-dir /tmp/data/so100",
             "--output-dir /tmp/out/so100-${SO100_VARIANT}",
             "--resume-if-present",
+            "--max-steps",
         ],
         "train_so100.yaml command",
     )

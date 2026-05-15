@@ -21,5 +21,6 @@ command: |
       --config configs/${SO100_VARIANT}.toml \
       --data-dir /tmp/data/so100 \
       --output-dir /tmp/out/so100-${SO100_VARIANT} \
-      --resume-if-present
+      --resume-if-present \
+      --max-steps ${LEWM_SO100_MAX_STEPS:-5000}
   "
