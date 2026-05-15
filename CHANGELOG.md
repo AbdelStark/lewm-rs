@@ -9,6 +9,56 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Added
 
+- `python/convert_reference.py dump` subcommand for capturing per-layer
+  activations from the locked PushT reference checkpoint as Safetensors (RFC
+  0008 §4.2); supports `--skip-sha256` and `--fixture-seed` overrides.
+- Rust parity test suite (`crates/lewm-core/tests/parity_*.rs`) with 10 tests
+  (encoder, action_encoder, predictor, pred_proj, sigreg) gated behind
+  `parity-fixtures` feature and `LEWM_PARITY_DUMPS` / `LEWM_REFERENCE_SAFETENSORS`
+  env vars; gracefully skip without dumps.
+- CI `parity` workflow caches dumps keyed on fixture hash, downloads from
+  `AbdelStark/lewm-rs-parity-dumps` when `HF_TOKEN` is available, and runs
+  full numerical tests or falls back to shape-only.
+- Numerical parity verified: all 10 activation-level parity tests pass against
+  the locked PushT reference checkpoint (L∞ < 1e-4 encoder/action_encoder/
+  predictor/pred_proj; |Δ| < 1e-3 sigreg) with LayerNorm eps=1e-12 and
+  exact-erf GELU fixes; dumps uploaded to `AbdelStark/lewm-rs-parity-dumps`.
+- `lewm_core::export::to_safetensors` deterministic Safetensors export for
+  `Jepa` parameters with BatchNorm running state and integer counters.
+- SO-100 training support in `lewm-train`: `So100Dataset`, dimension-agnostic
+  `PushtFullLewmCore` (handles 6-DOF SO-100 actions directly), full training
+  loop, checkpoint/resume, and artifact upload via `SO100_FULL_LEWM_RUN_ID`.
+- `python/decode_so100_to_h5.py`: decodes `lerobot/svla_so100_pickplace`
+  Parquet+AV1 data into RFC 0012 HDF5 at 10 fps / 224×224.
+- `python/compute_so100_stats.py`: wraps the `compute_stats` Rust binary to
+  compute SO-100 action mean/std safetensors.
+- `python/export_onnx.py`: exports a trained Burn safetensors checkpoint to
+  ONNX opset 18 (encoder + predictor) for Tract CPU inference via inverse
+  parameter-name-map transform.
+- PushT full training job submitted to HuggingFace Jobs
+  (`abdelstark/6a06f0c43308d79117b90276`; 50k steps on A10G-large).
+- SO-100 training job submitted to HuggingFace Jobs
+  (`abdelstark/6a06fe17e48bea4538b9e1cb`; 10 epochs on A10G-large).
+
+### Changed
+
+- Release workflow `build-linux-static` and `verify-reproducible` jobs: added
+  `git` to apt-get installs (required before `git config` in Ubuntu container).
+- Release workflow `release-notes` awk regex corrected from `\\[` to `\[` for
+  literal bracket match in CHANGELOG section headers.
+- Release workflow `container` job: added `packages: write` permission for
+  GHCR image push via GITHUB_TOKEN.
+
+- `lewm-infer` CPU inference runner for ONNX/NNEF graph pairs via Tract with
+  plan, bench, serve, and verify subcommands.
+- `lewm-infer` export verifier fallback ladder (ONNX → NNEF → Burn-direct)
+  with RFC 0007 L∞ tolerance and model-card section renderer.
+- `lewm-infer` CEM planner for CPU-side action search from exported graphs.
+- SO-100 processed dataset uploaded to `abdelstark/so100-pickplace-lewm-ready`
+  (1.9 GB HDF5, 6,559 timesteps, 50 episodes at 10 fps).
+
+
+
 - RFC 0013 RNG sub-stream state serialization and a nondeterminism lint for
   Rust sources.
 - RFC 0009 system metric samplers for CPU utilization, process RSS, disk usage,

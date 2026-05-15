@@ -1,6 +1,6 @@
 # Roadmap and Completion Backlog
 
-Updated: 2026-05-15 (v0.2.0)
+Updated: 2026-05-15 (v0.3.0)
 
 Canonical GitHub tracker: [#189](https://github.com/AbdelStark/lewm-rs/issues/189)
 
@@ -16,7 +16,11 @@ the next vertical slices needed to finish the project.
 | GHCR training image | Published | `ghcr.io/abdelstark/lewm-rs:latest@sha256:831f685a733a801620bbfa3f7ea649a4795ed731934bcb230896d3a47428d3e9` |
 | HF Jobs short PushT run | Completed | `https://huggingface.co/jobs/abdelstark/6a05cf0ee48bea4538b9ccd6` |
 | HF artifact upload | Completed for earlier minimal short run | `abdelstark/lewm-rs-pusht/train/pusht-minimal-lewm-short-20260514T133423Z/` |
-| Full PushT training job | Running | `https://huggingface.co/jobs/abdelstark/6a06ef5d3308d79117b9025b`; 50k steps on a10g-large; exact-erf GELU via `--set model.encoder.hidden_act=erf` |
+| Full PushT training job | Running | `https://huggingface.co/jobs/abdelstark/6a06f0c43308d79117b90276`; 50k steps on a10g-large |
+| SO-100 training job | Running | `https://huggingface.co/jobs/abdelstark/6a06fe17e48bea4538b9e1cb`; 10 epochs on a10g-large; builds lewm-train from source in rust:1.89.0-bookworm container |
+| SO-100 processed dataset | Uploaded | `abdelstark/so100-pickplace-lewm-ready`; 1.9 GB HDF5 + stats.safetensors; 6,559 timesteps, 50 episodes at 10 fps |
+| SO-100 training support | Implemented | `lewm-train` trainer dispatches on `DatasetConfig::So100`; `run_so100_full_lewm_training`; 6-DOF action packing; commit `6add7fd` |
+| ONNX export pipeline | Implemented (pending trained checkpoint) | `python/export_onnx.py` inverts param_name_map and exports encoder + predictor to ONNX opset 18 for Tract runner |
 | PushT train command | Bounded full-module host path exists | `lewm-train --config configs/pusht.toml --device cpu --output-dir /tmp/lewm-train-pusht --max-steps 10 train` |
 | PushT reference architecture | Locked | `tests/fixtures/reference_model.meta.json`; [#190](https://github.com/AbdelStark/lewm-rs/issues/190) |
 | Burn ViT encoder | Implemented | `lewm_core::vit`; RFC 0002 shape coverage; PR [#201](https://github.com/AbdelStark/lewm-rs/pull/201) |
@@ -83,23 +87,25 @@ with linked evidence:
 | Done | [#37](https://github.com/AbdelStark/lewm-rs/issues/37) | Add dump subcommand to convert_reference.py | `python/convert_reference.py dump` captures all per-layer activations as Safetensors; PR [#214](https://github.com/AbdelStark/lewm-rs/pull/214); numerical fixes in PR [#217](https://github.com/AbdelStark/lewm-rs/pull/217) |
 | Done | [#38](https://github.com/AbdelStark/lewm-rs/issues/38) | Implement Rust parity test suite | 10 tests for encoder/action_encoder/predictor/pred_proj/sigreg; graceful skip without dumps; PR [#215](https://github.com/AbdelStark/lewm-rs/pull/215) |
 | Done | [#39](https://github.com/AbdelStark/lewm-rs/issues/39) | Wire CI parity workflow | Cache + HF download + numerical/shape conditional; PR [#216](https://github.com/AbdelStark/lewm-rs/pull/216) |
-| P1 | [#193](https://github.com/AbdelStark/lewm-rs/issues/193) | Run full PushT training, planning eval, and publish artifacts | HF run, planning success report, model card, uploaded checkpoints, and cost ledger are linked |
-| P1 | [#194](https://github.com/AbdelStark/lewm-rs/issues/194) | Complete SO-100 short/full training and evaluation path | Prepared data, short/full runs, warm-start eval, report, and Hub artifacts are linked |
-| P1 | [#195](https://github.com/AbdelStark/lewm-rs/issues/195) | Finish Tract export, CPU benchmark, and demo Space validation | Export from a real trained checkpoint works; CPU benchmark and Space smoke are recorded |
-| P2 | [#196](https://github.com/AbdelStark/lewm-rs/issues/196) | Finish public reports, paper, and release evidence | README, reports, paper PDF, release checklist, and Hub/blog links match actual artifacts |
+| In Progress | [#193](https://github.com/AbdelStark/lewm-rs/issues/193) | Run full PushT training, planning eval, and publish artifacts | Training job running: `6a06f0c43308d79117b90276`; pending: collect artifacts, planning eval, model card |
+| In Progress | [#194](https://github.com/AbdelStark/lewm-rs/issues/194) | Complete SO-100 short/full training and evaluation path | Training job running: `6a06fe17e48bea4538b9e1cb`; data uploaded to `abdelstark/so100-pickplace-lewm-ready`; pending: collect artifacts, warm-start eval |
+| P1 | [#195](https://github.com/AbdelStark/lewm-rs/issues/195) | Finish Tract export, CPU benchmark, and demo Space validation | Export pipeline ready (`python/export_onnx.py`); Tract runner implemented; pending: run benchmark from trained checkpoint, create demo Space |
+| P2 | [#196](https://github.com/AbdelStark/lewm-rs/issues/196) | Finish public reports, paper, and release evidence | CHANGELOG updated; ROADMAP updated; pending: README final pass, reports, paper PDF |
 | P2 | [#197](https://github.com/AbdelStark/lewm-rs/issues/197) | Complete release operations and security/cost controls | Tokens are rotated, billing guardrails are documented, and no secret is committed |
 
 ## Blockers and Required Human Actions
 
-- Numerical parity is now green (all 10 tests pass locally, dumps live on HF). The gate before full PushT training is cleared.
-- Full PushT and SO-100 runs require HF quota and explicit cost control; they can now proceed since parity is confirmed.
-- [#198](https://github.com/AbdelStark/lewm-rs/issues/198): resolved by moving
-  the repo/toolchain contract to Rust 1.89 and adding a direct `lewm-core` Burn
-  compile smoke. Burn-backed module structs can now proceed on that toolchain.
-- The pasted HF token must be rotated before public release. The repo should
-  continue using environment variables and must not commit live secrets.
-- SO-100 raw Parquet/MP4 decode remains a Python edge-prep path for v1; Rust
-  training consumes prepared HDF5/stat artifacts.
+- **GHCR container push**: GitHub Actions GITHUB_TOKEN cannot push to the user-owned
+  `ghcr.io/abdelstark/lewm-rs` package without "Manage Actions Access" configured.
+  User must visit `https://github.com/users/abdelstark/packages/container/lewm-rs/settings`
+  and add `AbdelStark/lewm-rs` repository with Write role. This unblocks the `container`
+  job in the release workflow.
+- **Token rotation**: The `HF_TOKEN` in `.env` must be rotated before public release.
+  Use env vars only; no live secrets in git.
+- Two training jobs running on HF:
+  - PushT: `6a06f0c43308d79117b90276` (50k steps, A10G-large)
+  - SO-100: `6a06fe17e48bea4538b9e1cb` (10 epochs, A10G-large)
+  After completion: collect artifacts, run eval, upload model cards.
 
 ## Issue Hygiene
 
@@ -109,13 +115,14 @@ only with evidence in the closing comment. When an old horizontal issue conflict
 with a current vertical slice, link it to the matching R0-R7 issue instead of
 creating a second tracker.
 
-## Next Logical Step
+## Next Logical Steps
 
-Parity stack is fully green. All 10 numerical parity tests pass and dumps are
-live on `AbdelStark/lewm-rs-parity-dumps`. CI downloads them automatically when
-`HF_TOKEN` secret is set (now set). Proceed to full PushT training ([#193](https://github.com/AbdelStark/lewm-rs/issues/193)).
-4. Upload `/tmp/lewm-parity-dumps` to `AbdelStark/lewm-rs-parity-dumps` (HF dataset).
-5. Set `HF_TOKEN` in GitHub repo secrets → CI parity job will auto-download and
-   run full numerical validation on every PR.
-
-Once parity tests are green locally, proceed to full PushT training ([#193](https://github.com/AbdelStark/lewm-rs/issues/193)).
+Both PushT (#193) and SO-100 (#194) training jobs are running on HF. When they
+complete:
+1. Collect artifacts from `abdelstark/lewm-rs-pusht` and `abdelstark/lewm-rs-so100`.
+2. Run `python/export_onnx.py` with the trained safetensors to produce ONNX files.
+3. Run `lewm-infer bench --checkpoint-dir <onnx_dir>` to record CPU latency.
+4. Run PushT planning eval to measure success rate.
+5. Create model cards for both repos on HuggingFace Hub.
+6. Fix GHCR permission (user action required) and tag a release.
+7. Rotate HF token before release.
