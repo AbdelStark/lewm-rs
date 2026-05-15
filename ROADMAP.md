@@ -1,6 +1,6 @@
 # Roadmap and Completion Backlog
 
-Updated: 2026-05-15
+Updated: 2026-05-15 (v0.2.0)
 
 Canonical GitHub tracker: [#189](https://github.com/AbdelStark/lewm-rs/issues/189)
 
@@ -16,6 +16,7 @@ the next vertical slices needed to finish the project.
 | GHCR training image | Published | `ghcr.io/abdelstark/lewm-rs:latest@sha256:831f685a733a801620bbfa3f7ea649a4795ed731934bcb230896d3a47428d3e9` |
 | HF Jobs short PushT run | Completed | `https://huggingface.co/jobs/abdelstark/6a05cf0ee48bea4538b9ccd6` |
 | HF artifact upload | Completed for earlier minimal short run | `abdelstark/lewm-rs-pusht/train/pusht-minimal-lewm-short-20260514T133423Z/` |
+| Full PushT training job | Running | `https://huggingface.co/jobs/abdelstark/6a06ef5d3308d79117b9025b`; 50k steps on a10g-large; exact-erf GELU via `--set model.encoder.hidden_act=erf` |
 | PushT train command | Bounded full-module host path exists | `lewm-train --config configs/pusht.toml --device cpu --output-dir /tmp/lewm-train-pusht --max-steps 10 train` |
 | PushT reference architecture | Locked | `tests/fixtures/reference_model.meta.json`; [#190](https://github.com/AbdelStark/lewm-rs/issues/190) |
 | Burn ViT encoder | Implemented | `lewm_core::vit`; RFC 0002 shape coverage; PR [#201](https://github.com/AbdelStark/lewm-rs/pull/201) |
