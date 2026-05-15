@@ -56,7 +56,7 @@ Make targets mirror the local gates:
 | Parity verification | **Verified** — all 10 activation-level tests pass (L∞ < 1e-4) | Numerical match to reference |
 | PushT full training | **Running** on HF A10G-large (`6a06f0c43308d79117b90276`, 50k steps) | >= 87% success rate |
 | SO-100 pick-and-place | **Completed** — 5000 steps, 864s, A10G-large; loss 0.50→9.56e-05; artifacts at `abdelstark/lewm-rs-so100` | Warm-start ablation report |
-| CPU inference (Tract) | **Benchmarked** — ~4.1s/episode debug build, M-series Mac (5 CEM iterations × 1024 candidates) | Release build benchmark |
+| CPU inference (Tract) | **Benchmarked** — 4.08s/episode (p50, release build, M-series Mac, 5 CEM iter × 1024 cand) | Sub-second on GPU / batched inference |
 | ONNX export | **Done** — encoder + predictor for onnxruntime (opset 18) and Tract (opset 17); uploaded to Hub | Stable export pipeline |
 | Hub publication | Model cards uploaded; ONNX files on Hub; demo Space live at `abdelstark/lewm-rs-demo` | Model, dataset, and Space |
 

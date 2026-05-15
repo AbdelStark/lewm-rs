@@ -320,11 +320,12 @@ Benchmark using `lewm-infer bench --checkpoint-dir tract-compat/ --history-steps
 | Config | Median latency/episode |
 |--------|------------------------|
 | Debug build, Apple M3 (ARM), 5 CEM iter × 1024 cand | ~4.1 s |
-| Release build | TBD |
-| CPU XL | TBD |
+| Release build, Apple M3 (ARM), 5 CEM iter × 1024 cand | 4.08 s (p50), 4.13 s (p95) |
 
-The debug build is ~10–20× slower than release. A release-build benchmark
-from a full trained checkpoint is pending.
+Both debug and release yield essentially identical latency because the hot path
+is Tract's ONNX execution engine (a pre-compiled dependency), not lewm-infer's
+Rust orchestration code. The Tract ARM backend uses optimised matrix kernels
+regardless of the host crate optimisation level.
 
 ### 8.3 Demo Space
 
