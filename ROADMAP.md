@@ -1,6 +1,6 @@
 # Roadmap and Completion Backlog
 
-Updated: 2026-05-16
+Updated: 2026-05-15
 
 Canonical GitHub tracker: [#189](https://github.com/AbdelStark/lewm-rs/issues/189)
 
@@ -32,6 +32,7 @@ the next vertical slices needed to finish the project.
 | Python dump subcommand | Implemented | `python/convert_reference.py dump` runs locked PyTorch reference model on parity fixture and captures all per-layer activations as Safetensors; PR [#214](https://github.com/AbdelStark/lewm-rs/pull/214) |
 | Rust parity test suite | Implemented | 10 parity tests (encoder, action_encoder, predictor, pred_proj, sigreg) gated behind `parity-fixtures` + `LEWM_PARITY_DUMPS`/`LEWM_REFERENCE_SAFETENSORS` env vars; skip gracefully without dumps; PR [#215](https://github.com/AbdelStark/lewm-rs/pull/215) |
 | CI parity workflow | Implemented | `parity` job caches dumps keyed on fixture hash, downloads from `AbdelStark/lewm-rs-parity-dumps` when `HF_TOKEN` available, runs full numerical tests or falls back to shape-only; PR [#216](https://github.com/AbdelStark/lewm-rs/pull/216) |
+| Numerical parity correctness | Verified | All 10 parity tests pass (L∞ &lt; 1e-4 encoder/action_encoder/predictor/pred_proj, \|Δ\| &lt; 1e-3 sigreg); LayerNorm eps=1e-12 and exact-erf GELU fixes; dumps uploaded to `AbdelStark/lewm-rs-parity-dumps`; PR [#217](https://github.com/AbdelStark/lewm-rs/pull/217) |
 | Artifact contract | Implemented for smoke and bounded PushT train | run report, losses JSONL, checkpoint sidecar, `.mpk`, `.safetensors`, parity JSON |
 | Optional observability | Implemented as optional infra | `infra/otel/`; CI and smoke runs do not require OTLP |
 | SO-100 preparation | Partially implemented | decode/stats/config/job scaffolds exist; full hosted run evidence is pending |
@@ -39,10 +40,7 @@ the next vertical slices needed to finish the project.
 
 ## Non-Claims
 
-- The Burn ViT parity stack (modules implemented in #26–#34) has not yet been
-  validated against the reference PyTorch checkpoint via activation-level parity
-  tests. Shape/compile/skip coverage passes; numerical parity against the locked
-  weights requires the human-owned HF checkpoint download ([#20](https://github.com/AbdelStark/lewm-rs/issues/20)) to generate dumps and upload to `AbdelStark/lewm-rs-parity-dumps`.
+- The Burn ViT parity stack is now numerically validated: all 10 activation-level parity tests pass against the locked reference PyTorch checkpoint; dumps are live in `AbdelStark/lewm-rs-parity-dumps` and CI downloads them automatically when `HF_TOKEN` is set.
 - `pusht-full-module-lewm` is a config-shaped host training path, not the final
   Burn ViT parity stack. It is a narrow real training path for validating data,
   module boundaries, training, checkpoint, resume, upload, and job mechanics.
@@ -81,7 +79,7 @@ with linked evidence:
 | Done | [#192](https://github.com/AbdelStark/lewm-rs/issues/192) | Implement robust checkpoint restore and resume | Bounded full-module training can resume with model, optimizer, scheduler target, RNG, config hash, seed, and step state validated |
 | Done | [#26](https://github.com/AbdelStark/lewm-rs/issues/26)–[#34](https://github.com/AbdelStark/lewm-rs/issues/34), [#40](https://github.com/AbdelStark/lewm-rs/issues/40) | Implement Burn-backed ViT/predictor/SIGReg parity stack and Safetensors export | All `lewm-core` module issues closed; ViT, embedder, MLP, AdaLN-zero, predictor, SIGReg, prediction loss, JEPA wrapper, and Safetensors export implemented with shape and gradient coverage; parity init shape audit passes |
 | Done | [#35](https://github.com/AbdelStark/lewm-rs/issues/35) | Implement python/convert_reference.py and param_name_map.py | Scripts implemented; 303 source tensors mapped; audit, convert, verify, and dump commands available |
-| Done | [#37](https://github.com/AbdelStark/lewm-rs/issues/37) | Add dump subcommand to convert_reference.py | `python/convert_reference.py dump` captures all per-layer activations as Safetensors; PR [#214](https://github.com/AbdelStark/lewm-rs/pull/214) — numerical E2E blocked on human HF checkpoint download ([#20](https://github.com/AbdelStark/lewm-rs/issues/20)) |
+| Done | [#37](https://github.com/AbdelStark/lewm-rs/issues/37) | Add dump subcommand to convert_reference.py | `python/convert_reference.py dump` captures all per-layer activations as Safetensors; PR [#214](https://github.com/AbdelStark/lewm-rs/pull/214); numerical fixes in PR [#217](https://github.com/AbdelStark/lewm-rs/pull/217) |
 | Done | [#38](https://github.com/AbdelStark/lewm-rs/issues/38) | Implement Rust parity test suite | 10 tests for encoder/action_encoder/predictor/pred_proj/sigreg; graceful skip without dumps; PR [#215](https://github.com/AbdelStark/lewm-rs/pull/215) |
 | Done | [#39](https://github.com/AbdelStark/lewm-rs/issues/39) | Wire CI parity workflow | Cache + HF download + numerical/shape conditional; PR [#216](https://github.com/AbdelStark/lewm-rs/pull/216) |
 | P1 | [#193](https://github.com/AbdelStark/lewm-rs/issues/193) | Run full PushT training, planning eval, and publish artifacts | HF run, planning success report, model card, uploaded checkpoints, and cost ledger are linked |
@@ -92,11 +90,8 @@ with linked evidence:
 
 ## Blockers and Required Human Actions
 
-- Reference weights or exact upstream dumps may require human-owned HF access.
-  If the reference checkpoint cannot be used directly in CI, R0 must produce a
-  small derived parity fixture.
-- Full PushT and SO-100 runs require HF quota and explicit cost control. The
-  long runs should not start until the Burn parity stack is green locally.
+- Numerical parity is now green (all 10 tests pass locally, dumps live on HF). The gate before full PushT training is cleared.
+- Full PushT and SO-100 runs require HF quota and explicit cost control; they can now proceed since parity is confirmed.
 - [#198](https://github.com/AbdelStark/lewm-rs/issues/198): resolved by moving
   the repo/toolchain contract to Rust 1.89 and adding a direct `lewm-core` Burn
   compile smoke. Burn-backed module structs can now proceed on that toolchain.
@@ -115,16 +110,9 @@ creating a second tracker.
 
 ## Next Logical Step
 
-All code-only parity toolchain items (#37–#39) are merged. The remaining gate
-before full PushT training is the **human-owned HF checkpoint download**:
-
-1. **Human action required**: download the locked reference checkpoint with
-   `python/convert_reference.py audit --download` (requires HF access and
-   `HUGGING_FACE_HUB_TOKEN`; see [#20](https://github.com/AbdelStark/lewm-rs/issues/20)).
-2. Run `python/convert_reference.py convert` to produce the Burn `NamedMpk`
-   record and Safetensors mirror (`reference_model.safetensors`).
-3. Run `python/convert_reference.py dump --local-dir <checkpoint-dir> --dump-dir /tmp/lewm-parity-dumps`
-   to generate per-layer activation dumps.
+Parity stack is fully green. All 10 numerical parity tests pass and dumps are
+live on `AbdelStark/lewm-rs-parity-dumps`. CI downloads them automatically when
+`HF_TOKEN` secret is set (now set). Proceed to full PushT training ([#193](https://github.com/AbdelStark/lewm-rs/issues/193)).
 4. Upload `/tmp/lewm-parity-dumps` to `AbdelStark/lewm-rs-parity-dumps` (HF dataset).
 5. Set `HF_TOKEN` in GitHub repo secrets → CI parity job will auto-download and
    run full numerical validation on every PR.
