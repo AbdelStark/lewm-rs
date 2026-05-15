@@ -82,20 +82,20 @@ def invert_rule(rule: pnm.ParamRule, burn_dict: dict[str, np.ndarray]) -> dict[s
         assert n == 3
         stacked = burn_val.T  # [3*hidden, in]
         parts = np.split(stacked, n, axis=0)
-        return {src: part for src, part in zip(rule.sources, parts)}
+        return dict(zip(rule.sources, parts, strict=True))
 
     if t == pnm.Transform.QKV_BIAS_CONCAT:
         n = len(rule.sources)
         assert n == 3
         parts = np.split(burn_val, n, axis=0)
-        return {src: part for src, part in zip(rule.sources, parts)}
+        return dict(zip(rule.sources, parts, strict=True))
 
     raise ValueError(f"Unknown transform: {t}")
 
 
 def burn_safetensors_to_state_dict(
     burn_path: Path,
-) -> dict[str, "torch.Tensor"]:
+) -> dict[str, torch.Tensor]:
     """Load a Burn safetensors file and invert it back to a PyTorch state dict."""
     if not _ST_OK:
         raise RuntimeError("safetensors not installed; run: pip install safetensors")
@@ -130,7 +130,7 @@ class LeWMEncoderModule(nn.Module):
     Outputs: projected embedding (B, output_dim)
     """
 
-    def __init__(self, state: dict[str, "torch.Tensor"], arch: dict[str, Any]) -> None:
+    def __init__(self, state: dict[str, torch.Tensor], arch: dict[str, Any]) -> None:
         super().__init__()
         enc_cfg = arch["encoder"]
         self.patch_size: int = enc_cfg["patch_size"]
@@ -143,10 +143,10 @@ class LeWMEncoderModule(nn.Module):
 
         self._state = state
 
-    def _s(self, key: str) -> "torch.Tensor":
+    def _s(self, key: str) -> torch.Tensor:
         return self._state[key]
 
-    def forward(self, pixels: "torch.Tensor") -> "torch.Tensor":
+    def forward(self, pixels: torch.Tensor) -> torch.Tensor:
         patch_size = self.patch_size
         num_heads = self.num_heads
         num_layers = self.num_layers
@@ -228,7 +228,7 @@ class LeWMPredictorModule(nn.Module):
     Outputs: predicted embedding (B, T, output_dim)
     """
 
-    def __init__(self, state: dict[str, "torch.Tensor"], arch: dict[str, Any]) -> None:
+    def __init__(self, state: dict[str, torch.Tensor], arch: dict[str, Any]) -> None:
         super().__init__()
         pred_cfg = arch["predictor"]
         self.num_layers: int = pred_cfg["depth"]
@@ -246,12 +246,12 @@ class LeWMPredictorModule(nn.Module):
             torch.triu(torch.ones(self._T, self._T, dtype=torch.bool), diagonal=1),
         )
 
-    def _s(self, key: str) -> "torch.Tensor":
+    def _s(self, key: str) -> torch.Tensor:
         return self._state[key]
 
     def forward(
-        self, history: "torch.Tensor", actions: "torch.Tensor"
-    ) -> "torch.Tensor":
+        self, history: torch.Tensor, actions: torch.Tensor
+    ) -> torch.Tensor:
         # Action encoder
         smoother_w = self._s("action_encoder.patch_embed.weight")
         smoother_b = self._s("action_encoder.patch_embed.bias")
@@ -351,7 +351,7 @@ class LeWMPredictorModule(nn.Module):
 # ---------------------------------------------------------------------------
 
 def export_encoder_onnx(
-    state: dict[str, "torch.Tensor"],
+    state: dict[str, torch.Tensor],
     arch: dict[str, Any],
     output_path: Path,
 ) -> None:
@@ -376,7 +376,7 @@ def export_encoder_onnx(
 
 
 def export_predictor_onnx(
-    state: dict[str, "torch.Tensor"],
+    state: dict[str, torch.Tensor],
     arch: dict[str, Any],
     output_path: Path,
     action_dim: int = 2,

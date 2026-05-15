@@ -13,7 +13,6 @@ from typing import Any
 
 from convert_reference import sha256_file
 
-
 MAX_ABS_RE = re.compile(r"max_abs_diff=([0-9.eE+-]+)")
 
 

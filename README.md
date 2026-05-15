@@ -42,12 +42,13 @@ Make targets mirror the local gates:
 |--------|---------|
 | `make fmt` | Format the Rust workspace. |
 | `make lint` | Run clippy with warnings denied. |
+| `make py-lint` | Lint Python helpers with Ruff (config in `python/pyproject.toml`); falls back to `py_compile` when Ruff is not installed. |
 | `make test` | Run workspace tests with all features. |
 | `make test-fast` | Run lib/bin tests excluding `_slow_` tests. |
 | `make bench` | Run workspace benchmarks. |
 | `make docs` | Build rustdoc with warnings denied. |
-| `make check` | Run format, lint, cargo check, spec/layer checks, deny, and audit. |
-| `make accept` | Run the current release gate: check, test, docs, and available future hooks. |
+| `make check` | Run format, Rust lint, Python lint, cargo check, spec/layer checks, deny, and audit. |
+| `make accept` | Run the current release gate: check, test, docs, `python/Makefile` Python gate, and future hub-artifact / release-inventory hooks. |
 | `make clean` | Remove Cargo build outputs. |
 
 ## Results

@@ -16,7 +16,6 @@ from typing import Any
 
 import param_name_map as pnm
 
-
 DEFAULT_LOCAL_DIR = Path("/tmp/lewm-rs-reference-model")
 DEFAULT_AUDIT = Path("reports/parity/reference-key-audit.json")
 DEFAULT_CONVERSION_META = Path("reports/parity/reference-conversion.meta.json")
@@ -159,7 +158,7 @@ def main(argv: list[str] | None = None) -> int:
 def audit_command(args: argparse.Namespace) -> int:
     meta = load_reference_meta()
     source = meta["source_model"]
-    weights_path, config_path, weights_sha256 = prepare_reference_files(
+    weights_path, _config_path, weights_sha256 = prepare_reference_files(
         local_dir=args.local_dir,
         source=source,
         download=args.download,

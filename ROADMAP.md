@@ -1,6 +1,6 @@
 # Roadmap and Completion Backlog
 
-Updated: 2026-05-15 (v0.3.1)
+Updated: 2026-05-15 (v0.3.2)
 
 Canonical GitHub tracker: [#189](https://github.com/AbdelStark/lewm-rs/issues/189)
 
@@ -44,7 +44,8 @@ the next vertical slices needed to finish the project.
 | SO-100 full training | Completed | v11a job `6a070e02e48bea4538b9e2a5` completed (864s, 5000 steps, A10G-large); artifacts at `abdelstark/lewm-rs-so100/train/so100-full-20260515T122820Z/` (safetensors, mpk, losses, report, parity JSON) |
 | Inference/export | ONNX export complete + Tract benchmark done | `python/export_onnx.py` validated end-to-end: reference safetensors → 303 keys recovered → onnxruntime ONNX (dynamo opset 18) + Tract-compat ONNX (legacy opset 17, fixed-batch) both uploaded to `abdelstark/lewm-rs-pusht`; onnxruntime inference verified; demo Space updated (sdk_version 5.33.0); Tract CPU benchmark: 4.08s median/episode (release build p50, Apple M3 ARM, 5 CEM iterations × 1024 candidates — debug and release identical, hot path is Tract); Tract-compat files at `tract-compat/` subfolder; `onnx_export.json` action_dim bug fixed (was recording raw 2-DOF instead of inferred smoothed 10-DOF) |
 | Reports and paper | Complete (eval TBDs remain) | `paper/lewm-rs.md` §6.1 training curves filled; `reports/pusht_training.md`, `reports/so100_training.md`, `reports/inference.md`, `reports/cost.md` ($11.70), `reports/release_checklist.md`; `python/plot_curves.py` + CSV in `paper/figures/` |
-| Quality gate | Passing | `CARGO_INCREMENTAL=0 make check` passes: fmt, clippy, cargo check, specs, jobs, otel, SO-100 contract, nondet lint, cost ledger, deny, audit |
+| Quality gate | Passing | `CARGO_INCREMENTAL=0 make check` passes: fmt, clippy, cargo check, Python lint (`make py-lint` via Ruff), specs, jobs, otel, SO-100 contract, nondet lint, cost ledger, deny, audit |
+| Python lint baseline | Implemented | Ruff configured in `python/pyproject.toml` (E, F, W, B, UP, SIM, RUF, I); `make py-lint` from the root and `make check` inside `python/` enforce zero diagnostics across `python/` and `scripts/`; `python/Makefile` activates the optional `make accept` hook |
 
 ## Non-Claims
 
@@ -110,7 +111,8 @@ with linked evidence:
 - **CEM eval** (#193): PushT checkpoint is live at `abdelstark/lewm-rs-pusht/train/pusht-full-lewm-20260515T100908Z/`.
   Need to run `lewm-infer bench` with the trained ONNX (requires exporting from the PushT safetensors first)
   and measure success rate on 50 test episodes. Target ≥ 87%.
-- **4 commits** are ahead of `origin/main` and not yet pushed (pending review before release).
+- **SO-100 warm-start** (#194): scratch checkpoint shipped; needs the warm-started run
+  from PushT epoch-10 and Spearman delta to close the ablation.
 
 ## Issue Hygiene
 
@@ -122,16 +124,21 @@ creating a second tracker.
 
 ## Next Logical Steps
 
-SO-100 training completed (v11a artifacts live). PushT full training still running.
-Quality gate (`make check`) is passing. 4 commits ahead of origin/main.
+PushT full training (50k steps, 318 min, A10G-large) and SO-100 v11a (5000 steps,
+864s) are both complete; artifacts live on the Hub. Quality gate (`make check`)
+is passing with the Python lint surface promoted to Ruff (see
+`python/pyproject.toml`).
 
-PushT training completed. Immediate next actions:
-1. Export ONNX from PushT safetensors: `python/export_onnx.py --safetensors .../step_0050000.safetensors`
-2. Run CEM planning eval with exported ONNX to measure success rate (target ≥ 87%).
-3. Upload PushT model card with training metrics.
-4. Close #193.
+Immediate next actions:
+1. Export ONNX from the trained PushT safetensors:
+   `python/export_onnx.py --safetensors .../step_0050000.safetensors`.
+2. Run CEM planning eval with the exported ONNX and record the success rate
+   (target ≥ 87 %) — closes the acceptance criterion for #193.
+3. Upload the PushT model card with the measured eval metrics.
+4. Launch the SO-100 warm-started training arm and compute the warm-start
+   Spearman delta (closes the acceptance criterion for #194).
 
 Remaining release steps (user actions required):
 5. Fix GHCR package permissions (see Blockers above).
-6. Rotate HF_TOKEN before pushing/releasing.
-7. Tag release after CEM eval and model card are done.
+6. Rotate `HF_TOKEN` before pushing/releasing.
+7. Tag release after the CEM eval, warm-start delta, and model cards are done.

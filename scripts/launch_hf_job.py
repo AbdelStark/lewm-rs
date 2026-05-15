@@ -6,13 +6,12 @@ from __future__ import annotations
 import argparse
 import json
 import os
-from pathlib import Path
 import re
 import shlex
 import shutil
 import subprocess
 import sys
-
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 LEASH_PATH = ROOT / ".ml-intern" / "cli_agent_config.json"

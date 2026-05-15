@@ -14,7 +14,6 @@ from typing import Any
 import numpy as np
 import torch
 
-
 DEFAULT_FIXTURE = Path("tests/fixtures/parity_fixture.npz")
 DEFAULT_META = Path("tests/fixtures/parity_fixture.meta.json")
 DEFAULT_SEED = 0

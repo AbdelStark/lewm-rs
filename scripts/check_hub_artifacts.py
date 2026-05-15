@@ -15,7 +15,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-
 DEFAULT_MANIFEST = Path("conformance/hub_artifacts.json")
 HF_HOST = "huggingface.co"
 VALID_REPO_TYPES = {"model", "dataset", "space"}

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from decimal import Decimal, ROUND_CEILING
+from datetime import UTC, datetime
+from decimal import ROUND_CEILING, Decimal
 
 HF_HARDWARE_PRICE_USD_PER_HOUR = {
     "cpu-basic": Decimal("0.00"),
@@ -24,8 +24,8 @@ def parse_timestamp(value: str) -> datetime:
         normalized = f"{normalized[:-1]}+00:00"
     parsed = datetime.fromisoformat(normalized)
     if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
-    return parsed.astimezone(timezone.utc)
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
 
 
 def rounded_billable_minutes(started_at: str, ended_at: str) -> int:

@@ -12,7 +12,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import unquote
 
-
 RFC_REQUIRED = {
     "rfc",
     "title",

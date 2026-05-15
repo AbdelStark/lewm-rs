@@ -1,7 +1,8 @@
 PYTHON ?= python3
+RUFF ?= ruff
 CARGO_AUDIT_DB ?= target/advisory-db/cargo-audit
 
-.PHONY: fmt lint test test-fast bench docs check accept clean
+.PHONY: fmt lint test test-fast bench docs check accept clean py-lint
 
 fmt:
 	cargo fmt --all
@@ -21,7 +22,18 @@ bench:
 docs:
 	RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
 
-check: fmt lint
+# Lint Python helpers with Ruff when available. Ruff is wired through
+# `python/pyproject.toml`; falls back to a `py_compile` syntax sweep when the
+# binary is missing so the gate degrades gracefully on minimal environments.
+py-lint:
+	@if command -v $(RUFF) >/dev/null 2>&1; then \
+		echo "ruff check ..."; \
+		$(RUFF) check --config python/pyproject.toml python scripts; \
+	else \
+		printf '%s\n' 'ruff not installed; falling back to py_compile only (install with: pip install ruff)'; \
+	fi
+
+check: fmt lint py-lint
 	cargo check --workspace --all-targets
 	$(PYTHON) scripts/check_layers.py
 	$(PYTHON) scripts/check_specs.py

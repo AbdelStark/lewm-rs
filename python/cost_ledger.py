@@ -5,10 +5,10 @@ from __future__ import annotations
 import argparse
 import json
 import subprocess
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
-from typing import Iterable, Mapping, Sequence
 
 from hf_pricing import estimate_cost_usd, format_usd, format_wall, parse_timestamp
 

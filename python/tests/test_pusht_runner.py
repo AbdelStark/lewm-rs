@@ -7,7 +7,6 @@ import sys
 from pathlib import Path
 from typing import Any
 
-
 RUNNER = Path(__file__).resolve().parents[1] / "pusht_runner.py"
 IMAGE_SIZE = 224
 RGB_BYTES = IMAGE_SIZE * IMAGE_SIZE * 3
