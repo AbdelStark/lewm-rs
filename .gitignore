@@ -79,3 +79,4 @@ Thumbs.db
 .claude/tsc-cache/
 .claude/cache/
 .tldr/
+.agents/harness/goals/

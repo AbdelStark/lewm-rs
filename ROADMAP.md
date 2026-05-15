@@ -1,6 +1,6 @@
 # Roadmap and Completion Backlog
 
-Updated: 2026-05-14
+Updated: 2026-05-15
 
 Canonical GitHub tracker: [#189](https://github.com/AbdelStark/lewm-rs/issues/189)
 
@@ -18,9 +18,17 @@ the next vertical slices needed to finish the project.
 | HF artifact upload | Completed for earlier minimal short run | `abdelstark/lewm-rs-pusht/train/pusht-minimal-lewm-short-20260514T133423Z/` |
 | PushT train command | Bounded full-module host path exists | `lewm-train --config configs/pusht.toml --device cpu --output-dir /tmp/lewm-train-pusht --max-steps 10 train` |
 | PushT reference architecture | Locked | `tests/fixtures/reference_model.meta.json`; [#190](https://github.com/AbdelStark/lewm-rs/issues/190) |
-| PushT reference conversion artifacts | Implemented for weight artifacts | `python/param_name_map.py` locks the 303 source tensor names; `python/convert_reference.py convert` writes 255 destination tensors to Safetensors plus a Burn `NamedMpk` record; `python/verify_conversion.py` checks Safetensors-vs-record drift |
-| Core prediction loss | Implemented as MSRV-compatible kernel | `lewm_core::prediction_loss`; first slice of [#32](https://github.com/AbdelStark/lewm-rs/issues/32) |
-| Core Safetensors export | Implemented | `lewm_core::export::to_safetensors` writes deterministic `Jepa` parameter mirrors with BatchNorm state |
+| Burn ViT encoder | Implemented | `lewm_core::vit`; RFC 0002 shape coverage; PR [#201](https://github.com/AbdelStark/lewm-rs/pull/201) |
+| Burn action embedder | Implemented | `lewm_core::embedder`; Conv1d-k1 smoothing preserved; PR [#202](https://github.com/AbdelStark/lewm-rs/pull/202) |
+| Burn MLP heads (projector/pred_proj) | Implemented | `lewm_core::mlp`; feature-axis BatchNorm1d; PR [#203](https://github.com/AbdelStark/lewm-rs/pull/203) |
+| Burn AdaLN-zero conditioner | Implemented | `lewm_core::ada_ln::AdaLNZero`; zero-init modulation heads; PR [#204](https://github.com/AbdelStark/lewm-rs/pull/204) |
+| Burn autoregressive predictor | Implemented | `lewm_core::predictor::{ConditionalBlock,ArPredictor}`; PR [#205](https://github.com/AbdelStark/lewm-rs/pull/205) |
+| SIGReg loss | Implemented | `lewm_core::losses::SigReg`; RFC 0003 constants; PR [#206](https://github.com/AbdelStark/lewm-rs/pull/206) |
+| Prediction loss | Implemented | `lewm_core::losses::prediction_loss`; MSE kernel with gradient coverage; PR [#207](https://github.com/AbdelStark/lewm-rs/pull/207) |
+| JEPA top-level wrapper | Implemented | `lewm_core::Jepa`; encode/predict/rollout/criterion/cost; PR [#208](https://github.com/AbdelStark/lewm-rs/pull/208) |
+| Parity init shape audit | Implemented | `crates/lewm-core/tests/parity_init.rs`; parameter shape and count match reference metadata; PR [#209](https://github.com/AbdelStark/lewm-rs/pull/209) |
+| PushT reference conversion scripts | Implemented | `python/param_name_map.py` (303 source tensors), `python/convert_reference.py` (audit + convert commands), `python/verify_conversion.py`; PRs [#210](https://github.com/AbdelStark/lewm-rs/pull/210)–[#212](https://github.com/AbdelStark/lewm-rs/pull/212) |
+| Core Safetensors export | Implemented | `lewm_core::export::to_safetensors` writes deterministic `Jepa` parameter mirrors with BatchNorm state; PR [#213](https://github.com/AbdelStark/lewm-rs/pull/213) |
 | Artifact contract | Implemented for smoke and bounded PushT train | run report, losses JSONL, checkpoint sidecar, `.mpk`, `.safetensors`, parity JSON |
 | Optional observability | Implemented as optional infra | `infra/otel/`; CI and smoke runs do not require OTLP |
 | SO-100 preparation | Partially implemented | decode/stats/config/job scaffolds exist; full hosted run evidence is pending |
@@ -28,6 +36,10 @@ the next vertical slices needed to finish the project.
 
 ## Non-Claims
 
+- The Burn ViT parity stack (modules implemented in #26–#34) has not yet been
+  validated against the reference PyTorch checkpoint via activation-level parity
+  tests. Shape/gradient coverage passes; numerical parity against the locked
+  weights waits for [#37](https://github.com/AbdelStark/lewm-rs/issues/37).
 - `pusht-full-module-lewm` is a config-shaped host training path, not the final
   Burn ViT parity stack. It is a narrow real training path for validating data,
   module boundaries, training, checkpoint, resume, upload, and job mechanics.
@@ -64,7 +76,9 @@ with linked evidence:
 | Done | [#190](https://github.com/AbdelStark/lewm-rs/issues/190) | Lock final LeWM architecture and parity source of truth | Final module dimensions and parity fixture contract are documented; RFC 0002 open question is resolved |
 | Done | [#191](https://github.com/AbdelStark/lewm-rs/issues/191) | Replace minimal PushT core with bounded full-module LeWM training | Short CPU train can run `pusht-full-module-lewm` and preserve the artifact contract |
 | Done | [#192](https://github.com/AbdelStark/lewm-rs/issues/192) | Implement robust checkpoint restore and resume | Bounded full-module training can resume with model, optimizer, scheduler target, RNG, config hash, seed, and step state validated |
-| P0 | [#26](https://github.com/AbdelStark/lewm-rs/issues/26)-[#33](https://github.com/AbdelStark/lewm-rs/issues/33), [#38](https://github.com/AbdelStark/lewm-rs/issues/38) | Replace host full-module path with Burn-backed ViT/predictor/SIGReg parity stack | `lewm-core::Jepa` modules train with autodiff and pass reference parity fixtures; [#32](https://github.com/AbdelStark/lewm-rs/issues/32) has an MSRV-compatible prediction-loss kernel started; [#38](https://github.com/AbdelStark/lewm-rs/issues/38) now needs generated activation dumps and Rust parity tests |
+| Done | [#26](https://github.com/AbdelStark/lewm-rs/issues/26)–[#34](https://github.com/AbdelStark/lewm-rs/issues/34), [#40](https://github.com/AbdelStark/lewm-rs/issues/40) | Implement Burn-backed ViT/predictor/SIGReg parity stack and Safetensors export | All `lewm-core` module issues closed; ViT, embedder, MLP, AdaLN-zero, predictor, SIGReg, prediction loss, JEPA wrapper, and Safetensors export implemented with shape and gradient coverage; parity init shape audit passes |
+| Done | [#35](https://github.com/AbdelStark/lewm-rs/issues/35) | Implement python/convert_reference.py and param_name_map.py | Scripts implemented; 303 source tensors mapped; audit, convert, and verify commands available; full E2E validation against live checkpoint tracks with [#37](https://github.com/AbdelStark/lewm-rs/issues/37) |
+| P0 | [#37](https://github.com/AbdelStark/lewm-rs/issues/37), [#38](https://github.com/AbdelStark/lewm-rs/issues/38), [#39](https://github.com/AbdelStark/lewm-rs/issues/39) | Generate reference activation dumps, implement Rust parity tests, wire CI workflow | Per-layer dumps uploaded to `AbdelStark/lewm-rs-parity-dumps`; Rust tests pass for encoder/predictor/sigreg/action-encoder/MLP; parity workflow runs on every PR — blocked on human-owned HF access for reference checkpoint ([#20](https://github.com/AbdelStark/lewm-rs/issues/20), [#37](https://github.com/AbdelStark/lewm-rs/issues/37)) |
 | P1 | [#193](https://github.com/AbdelStark/lewm-rs/issues/193) | Run full PushT training, planning eval, and publish artifacts | HF run, planning success report, model card, uploaded checkpoints, and cost ledger are linked |
 | P1 | [#194](https://github.com/AbdelStark/lewm-rs/issues/194) | Complete SO-100 short/full training and evaluation path | Prepared data, short/full runs, warm-start eval, report, and Hub artifacts are linked |
 | P1 | [#195](https://github.com/AbdelStark/lewm-rs/issues/195) | Finish Tract export, CPU benchmark, and demo Space validation | Export from a real trained checkpoint works; CPU benchmark and Space smoke are recorded |
@@ -96,9 +110,19 @@ creating a second tracker.
 
 ## Next Logical Step
 
-Continue [#38](https://github.com/AbdelStark/lewm-rs/issues/38): use the
-converted reference Burn record to generate small activation parity dumps,
-upload them to `abdelstark/lewm-rs-parity-dumps`, and then enable the Rust
-parity fixture tests for encoder, action encoder, predictor, projector,
-pred_proj, and SIGReg. Hosted GPU time should still wait until the Burn parity
-stack is green locally.
+Complete parity validation ([#37](https://github.com/AbdelStark/lewm-rs/issues/37)
+→ [#38](https://github.com/AbdelStark/lewm-rs/issues/38)):
+
+1. **Human action required**: download the reference checkpoint with
+   `python/convert_reference.py audit --download` (requires HF access and
+   `HUGGING_FACE_HUB_TOKEN`; see [#20](https://github.com/AbdelStark/lewm-rs/issues/20)).
+2. Run `python/convert_reference.py convert` to produce the Burn record and
+   Safetensors mirror.
+3. Run `python/build_parity_fixture.py` to generate per-layer activation dumps
+   and upload to `abdelstark/lewm-rs-parity-dumps` ([#37](https://github.com/AbdelStark/lewm-rs/issues/37)).
+4. Enable the Rust parity fixture tests for encoder, action encoder, predictor,
+   projector, pred_proj, and SIGReg ([#38](https://github.com/AbdelStark/lewm-rs/issues/38)).
+5. Wire the CI parity workflow to cache dumps and run on every PR
+   ([#39](https://github.com/AbdelStark/lewm-rs/issues/39)).
+
+Hosted GPU time should still wait until the Burn parity stack is green locally.
