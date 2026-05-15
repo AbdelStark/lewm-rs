@@ -1,4 +1,9 @@
 //! Build a Burn `NamedMpkFileRecorder` record from converted reference tensors.
+//!
+//! NOTE: The Safetensors→Burn loader logic here is kept in-place for backwards
+//! compatibility. A backend-generic re-implementation lives in
+//! [`lewm_core::import`] and is used by the inference runners. The duplication
+//! will converge in a follow-up cleanup.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;

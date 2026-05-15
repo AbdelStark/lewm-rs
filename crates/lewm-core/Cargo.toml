@@ -23,6 +23,7 @@ libm = { workspace = true }
 rand = { workspace = true }
 rand_chacha = { workspace = true }
 rand_distr = { workspace = true }
+safetensors = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
@@ -34,7 +35,6 @@ burn-ndarray = { workspace = true }
 criterion = { workspace = true }
 insta = { workspace = true }
 proptest = { workspace = true }
-safetensors = { workspace = true }
 toml = { workspace = true }
 
 [[bench]]

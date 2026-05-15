@@ -17,6 +17,7 @@ pub mod config;
 pub mod embedder;
 pub mod errors;
 pub mod export;
+pub mod import;
 pub mod init;
 pub mod jepa;
 pub mod losses;
@@ -33,6 +34,10 @@ pub use crate::config::{
 };
 pub use crate::embedder::Embedder;
 pub use crate::errors::LewmCoreError;
+pub use crate::import::{
+    ImportError, LoadedTensor, MissingPolicy, apply_tensors_to_jepa, load_jepa_from_safetensors,
+    load_jepa_from_safetensors_with_config, load_safetensors_tensors, parse_safetensors_bytes,
+};
 pub use crate::init::{InitTensor, ModelInitRng, model_init_rng, ones, trunc_normal, zeros};
 pub use crate::jepa::{Jepa, JepaLosses};
 pub use crate::losses::{
