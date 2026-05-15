@@ -10,9 +10,10 @@
 `lewm-rs` is a Rust workspace for reproducing LeWorldModel training, planning,
 CPU inference, and artifact publication. The Burn-backed parity stack is
 numerically verified against the locked PushT reference checkpoint (all 10
-activation-level parity tests pass, L∞ < 1e-4). SO-100 training completed
-(5000 steps, 864s, A10G-large). PushT 50k-step training is running on HF.
-ONNX export and Tract CPU inference are working end-to-end.
+activation-level parity tests pass, L∞ < 1e-4). PushT 50k-step training
+completed (loss 0.491 → 3.17e-06, 318 min, A10G-large). SO-100 training
+completed (5000 steps, 864s, loss 0.50 → 9.56e-05). ONNX export and Tract
+CPU inference are working end-to-end (4.08 s/episode, p50, release build).
 
 The binding product and engineering contract lives in [`PRD.md`](PRD.md) and
 [`specs/`](specs/). The current execution backlog is
@@ -54,14 +55,22 @@ Make targets mirror the local gates:
 | Result | Current state | Target |
 |--------|---------------|--------|
 | Parity verification | **Verified** — all 10 activation-level tests pass (L∞ < 1e-4) | Numerical match to reference |
-| PushT full training | **Running** on HF A10G-large (`6a06f0c43308d79117b90276`, 50k steps) | >= 87% success rate |
-| SO-100 pick-and-place | **Completed** — 5000 steps, 864s, A10G-large; loss 0.50→9.56e-05; artifacts at `abdelstark/lewm-rs-so100` | Warm-start ablation report |
-| CPU inference (Tract) | **Benchmarked** — 4.08s/episode (p50, release build, M-series Mac, 5 CEM iter × 1024 cand) | Sub-second on GPU / batched inference |
-| ONNX export | **Done** — encoder + predictor for onnxruntime (opset 18) and Tract (opset 17); uploaded to Hub | Stable export pipeline |
-| Hub publication | Model cards uploaded; ONNX files on Hub; demo Space live at `abdelstark/lewm-rs-demo` | Model, dataset, and Space |
+| PushT full training | **Completed** — 50k steps, 318 min, A10G-large; loss 0.491→3.17e-06; artifacts at [`abdelstark/lewm-rs-pusht`](https://huggingface.co/abdelstark/lewm-rs-pusht) | CEM success rate ≥ 87% (eval pending) |
+| SO-100 pick-and-place | **Completed** — 5000 steps, 864s, A10G-large; loss 0.50→9.56e-05; artifacts at [`abdelstark/lewm-rs-so100`](https://huggingface.co/abdelstark/lewm-rs-so100) | Warm-start ablation (pending) |
+| CPU inference (Tract) | **Benchmarked** — 4.08s/episode (p50, release build, M-series Mac, 5 CEM iter × 1024 cand) | Sub-second on GPU / batched |
+| ONNX export | **Done** — encoder + predictor for onnxruntime (opset 18) and Tract (opset 17); at [`abdelstark/lewm-rs-pusht`](https://huggingface.co/abdelstark/lewm-rs-pusht) | Stable export pipeline |
+| Hub publication | Model cards + checkpoints + ONNX on Hub; demo at [`abdelstark/lewm-rs-demo`](https://huggingface.co/spaces/abdelstark/lewm-rs-demo) | Model, dataset, Space |
 
-PushT CEM success rate and SO-100 warm-start metrics will be added once eval
-passes run after training completes.
+## Reports and paper
+
+| Document | Link |
+|----------|------|
+| Paper writeup | [`paper/lewm-rs.md`](paper/lewm-rs.md) |
+| PushT training report | [`reports/pusht_training.md`](reports/pusht_training.md) |
+| SO-100 training report | [`reports/so100_training.md`](reports/so100_training.md) |
+| Inference + export report | [`reports/inference.md`](reports/inference.md) |
+| Cost ledger | [`reports/cost.md`](reports/cost.md) — confirmed $11.70 total |
+| Release checklist | [`reports/release_checklist.md`](reports/release_checklist.md) |
 
 ## Architecture at a glance
 

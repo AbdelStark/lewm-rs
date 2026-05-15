@@ -17,11 +17,11 @@ the next vertical slices needed to finish the project.
 | HF Jobs short PushT run | Completed | `https://huggingface.co/jobs/abdelstark/6a05cf0ee48bea4538b9ccd6` |
 | HF artifact upload | Completed for earlier minimal short run | `abdelstark/lewm-rs-pusht/train/pusht-minimal-lewm-short-20260514T133423Z/` |
 | Full PushT training job | Completed | `https://huggingface.co/jobs/abdelstark/6a06f0c43308d79117b90276`; 50k steps on a10g-large; loss 0.491→3.17e-06; wall 318 min; artifacts at `abdelstark/lewm-rs-pusht/train/pusht-full-lewm-20260515T100908Z/` |
-| SO-100 training job | Running | `https://huggingface.co/jobs/abdelstark/6a070293e48bea4538b9e1fb`; 10 epochs on a10g-large; rust:1.89.0-bookworm + HDF5 compat symlink |
+| SO-100 training job | Completed | v11a `6a070e02e48bea4538b9e2a5`: 864s, 5000 steps, loss 0.50→9.56e-05; artifacts at `abdelstark/lewm-rs-so100/train/so100-full-20260515T122820Z/` |
 | Demo Space | Created | `https://huggingface.co/spaces/abdelstark/lewm-rs-demo`; Gradio app with CEM planning via ONNX; loads model from Hub when available |
 | SO-100 processed dataset | Uploaded | `abdelstark/so100-pickplace-lewm-ready`; 1.9 GB HDF5 + stats.safetensors; 6,559 timesteps, 50 episodes at 10 fps |
 | SO-100 training support | Implemented | `lewm-train` trainer dispatches on `DatasetConfig::So100`; `run_so100_full_lewm_training`; 6-DOF action packing; commit `6add7fd` |
-| ONNX export pipeline | Implemented (pending trained checkpoint) | `python/export_onnx.py` inverts param_name_map and exports encoder + predictor to ONNX opset 18 for Tract runner |
+| ONNX export pipeline | Implemented and validated | `python/export_onnx.py` exports encoder + predictor to opset 18 (onnxruntime) and opset 17 (Tract-compat); both uploaded to `abdelstark/lewm-rs-pusht`; `action_dim=10` bug fixed |
 | PushT train command | Bounded full-module host path exists | `lewm-train --config configs/pusht.toml --device cpu --output-dir /tmp/lewm-train-pusht --max-steps 10 train` |
 | PushT reference architecture | Locked | `tests/fixtures/reference_model.meta.json`; [#190](https://github.com/AbdelStark/lewm-rs/issues/190) |
 | Burn ViT encoder | Implemented | `lewm_core::vit`; RFC 0002 shape coverage; PR [#201](https://github.com/AbdelStark/lewm-rs/pull/201) |
@@ -43,7 +43,7 @@ the next vertical slices needed to finish the project.
 | Optional observability | Implemented as optional infra | `infra/otel/`; CI and smoke runs do not require OTLP |
 | SO-100 full training | Completed | v11a job `6a070e02e48bea4538b9e2a5` completed (864s, 5000 steps, A10G-large); artifacts at `abdelstark/lewm-rs-so100/train/so100-full-20260515T122820Z/` (safetensors, mpk, losses, report, parity JSON) |
 | Inference/export | ONNX export complete + Tract benchmark done | `python/export_onnx.py` validated end-to-end: reference safetensors → 303 keys recovered → onnxruntime ONNX (dynamo opset 18) + Tract-compat ONNX (legacy opset 17, fixed-batch) both uploaded to `abdelstark/lewm-rs-pusht`; onnxruntime inference verified; demo Space updated (sdk_version 5.33.0); Tract CPU benchmark: 4.08s median/episode (release build p50, Apple M3 ARM, 5 CEM iterations × 1024 candidates — debug and release identical, hot path is Tract); Tract-compat files at `tract-compat/` subfolder; `onnx_export.json` action_dim bug fixed (was recording raw 2-DOF instead of inferred smoothed 10-DOF) |
-| Reports and paper | Draft complete | `paper/lewm-rs.md` (RFC 0015 structure, TBD: PushT eval sections); `reports/so100_training.md`; `reports/release_checklist.md`; `reports/cost.md` |
+| Reports and paper | Complete (eval TBDs remain) | `paper/lewm-rs.md` §6.1 training curves filled; `reports/pusht_training.md`, `reports/so100_training.md`, `reports/inference.md`, `reports/cost.md` ($11.70), `reports/release_checklist.md`; `python/plot_curves.py` + CSV in `paper/figures/` |
 | Quality gate | Passing | `CARGO_INCREMENTAL=0 make check` passes: fmt, clippy, cargo check, specs, jobs, otel, SO-100 contract, nondet lint, cost ledger, deny, audit |
 
 ## Non-Claims
@@ -58,9 +58,10 @@ the next vertical slices needed to finish the project.
   sidecar, `.mpk`, `.safetensors`, config hash, seed, step, AdamW, and RNG
   validation before continuing from the next step.
 - Tract CPU benchmark: 4.08s/episode median (release build, Apple M3 ARM); debug and release are identical because the hot path is Tract's pre-compiled ONNX engine.
-- Demo Space fixed and rebuilding with gradio sdk_version 5.33.0 (Python 3.13 compat); functional state pending post-rebuild verification.
-- Paper draft created (`paper/lewm-rs.md`); PushT training curves and CEM eval sections are TBD pending job completion.
-- Blog post and final release evidence are not complete.
+- PushT CEM planning success rate has not been measured (eval pending).
+- SO-100 warm-start ablation (init from PushT vs. random) has not been run.
+- Blog post has not been written.
+- Demo Space functional state pending verification after rebuild with sdk_version 5.33.0.
 
 ## Definition of Full Completion
 
@@ -94,7 +95,7 @@ with linked evidence:
 | In Progress | [#193](https://github.com/AbdelStark/lewm-rs/issues/193) | Run full PushT training, planning eval, and publish artifacts | Training COMPLETED: `6a06f0c43308d79117b90276` (50k steps, loss 0.491→3.17e-06, 318 min); artifacts at `abdelstark/lewm-rs-pusht/train/pusht-full-lewm-20260515T100908Z/`; pending: CEM planning eval, model card |
 | In Progress | [#194](https://github.com/AbdelStark/lewm-rs/issues/194) | Complete SO-100 short/full training and evaluation path | v11a COMPLETED: `6a070e02e48bea4538b9e2a5` (864s, 5000 steps); artifacts at `abdelstark/lewm-rs-so100/train/so100-full-20260515T122820Z/`; model card uploaded; ONNX export skipped (SO-100 checkpoint uses bounded model, not full ViT); pending: warm-start eval, model card final pass |
 | Done | [#195](https://github.com/AbdelStark/lewm-rs/issues/195) | Finish Tract export, CPU benchmark, and demo Space validation | Tract-compat ONNX exported (opset 17, fixed-batch, causal-mask buffer); `lewm-infer bench` benchmark: ~4.1s median/episode (debug, M-series Mac); both onnxruntime and tract-compat variants uploaded to `abdelstark/lewm-rs-pusht`; demo Space `app.py` fixed (auto-detects action_dim, downloads .data files) |
-| In Progress | [#196](https://github.com/AbdelStark/lewm-rs/issues/196) | Finish public reports, paper, and release evidence | CHANGELOG, ROADMAP, cost ledger, paper draft, SO-100 report, release checklist done; pending: README final pass, PushT training curves + eval sections (blocked on job completion) |
+| Done | [#196](https://github.com/AbdelStark/lewm-rs/issues/196) | Finish public reports, paper, and release evidence | All reports done: pusht_training.md, so100_training.md, inference.md, cost.md ($11.70), release_checklist.md; paper §6.1 training curves filled; README final pass; cross-links done; pandoc CI works; CEM eval §6.2 and SO-100 warm-start §7.3 remain TBD |
 | P2 | [#197](https://github.com/AbdelStark/lewm-rs/issues/197) | Complete release operations and security/cost controls | Billing guardrails documented; pending: HF_TOKEN rotation (user action), GHCR package permissions (user action) |
 
 ## Blockers and Required Human Actions
