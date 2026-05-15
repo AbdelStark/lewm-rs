@@ -20,6 +20,7 @@ import param_name_map as pnm
 DEFAULT_LOCAL_DIR = Path("/tmp/lewm-rs-reference-model")
 DEFAULT_AUDIT = Path("reports/parity/reference-key-audit.json")
 DEFAULT_CONVERSION_META = Path("reports/parity/reference-conversion.meta.json")
+DEFAULT_PARITY_FIXTURE = pnm.REFERENCE_META_PATH.parent / "parity_fixture.npz"
 STATE_DICT_CANDIDATES = ("state_dict", "model", "model_state_dict", "module")
 
 
@@ -100,6 +101,47 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         action="store_true",
         help="Write only Safetensors and metadata; intended for unit tests and debugging.",
     )
+    dump = subcommands.add_parser(
+        "dump",
+        help=(
+            "Run the locked reference model on the parity fixture and capture "
+            "per-layer activations (RFC 0008 §4.2)."
+        ),
+    )
+    dump.add_argument(
+        "--local-dir",
+        type=Path,
+        default=DEFAULT_LOCAL_DIR,
+        help=f"Directory containing config.json and weights.pt. Default: {DEFAULT_LOCAL_DIR}",
+    )
+    dump.add_argument(
+        "--dump-dir",
+        type=Path,
+        required=True,
+        help="Destination directory for per-layer activation dumps.",
+    )
+    dump.add_argument(
+        "--fixture",
+        type=Path,
+        default=DEFAULT_PARITY_FIXTURE,
+        help=f"Path to parity fixture .npz. Default: {DEFAULT_PARITY_FIXTURE}",
+    )
+    dump.add_argument(
+        "--download",
+        action="store_true",
+        help="Use the hf CLI to download the locked config and weights before dumping.",
+    )
+    dump.add_argument(
+        "--skip-sha256",
+        action="store_true",
+        help="Skip the 72 MB weights.pt SHA-256 check.",
+    )
+    dump.add_argument(
+        "--fixture-seed",
+        type=int,
+        default=0,
+        help="RNG seed used to sample the SIGReg projection matrix P. Default: 0",
+    )
     return parser.parse_args(argv)
 
 
@@ -109,6 +151,8 @@ def main(argv: list[str] | None = None) -> int:
         return audit_command(args)
     if args.command == "convert":
         return convert_command(args)
+    if args.command == "dump":
+        return dump_command(args)
     raise AssertionError(f"unhandled command: {args.command}")
 
 
@@ -469,6 +513,394 @@ def build_conversion_meta(
         },
         "tensors": tensors,
     }
+
+
+def dump_command(args: argparse.Namespace) -> int:
+    """Capture per-layer activations per RFC 0008 §4.2."""
+    try:
+        import platform
+
+        import numpy as np
+        import torch
+        import torch.nn.functional as F  # noqa: F401 – used in helpers via torch.nn.functional
+    except ImportError as exc:
+        raise SystemExit(
+            "PyTorch and NumPy are required for the dump command; "
+            "install torch or activate an environment that has it."
+        ) from exc
+
+    meta = load_reference_meta()
+    source = meta["source_model"]
+    arch = meta["locked_architecture"]
+
+    weights_path, _config_path, weights_sha256 = prepare_reference_files(
+        local_dir=args.local_dir,
+        source=source,
+        download=args.download,
+        skip_sha256=args.skip_sha256,
+    )
+    state = load_torch_state_dict(weights_path)
+    state = {k: v.float().detach().cpu() for k, v in state.items()}
+
+    fixture_path: Path = args.fixture
+    if not fixture_path.is_file():
+        raise SystemExit(
+            f"parity fixture not found: {fixture_path}; "
+            "generate it with python/build_parity_fixture.py"
+        )
+    npz = np.load(fixture_path)
+    pixels_np = npz["pixels"].astype(np.float32)    # (B, T, C, H, W)
+    actions_np = npz["actions"].astype(np.float32)   # (B, T, A)
+    fixture_hash = sha256_file(fixture_path)
+
+    pixels = torch.from_numpy(pixels_np)
+    actions = torch.from_numpy(actions_np)
+    B, T, C, H, W = pixels.shape
+
+    dump_dir: Path = args.dump_dir
+    dump_dir.mkdir(parents=True, exist_ok=True)
+
+    _save_dump(dump_dir / "inputs/pixels.safetensors", pixels_np)
+    _save_dump(dump_dir / "inputs/actions.safetensors", actions_np)
+
+    enc_cfg = arch["encoder"]
+    pixels_flat = pixels.reshape(B * T, C, H, W)
+    cls_out = _encoder_forward(state, pixels_flat, enc_cfg, dump_dir)
+
+    proj_out = _mlp_bn_forward(
+        state, "projector", cls_out,
+        dump_dir / "projector/output.safetensors",
+    )
+
+    ae_out = _action_encoder_forward(
+        state, actions,
+        dump_dir / "action_encoder/output.safetensors",
+    )
+
+    pred_cfg = arch["predictor"]
+    context = proj_out.reshape(B, T, -1)
+    pred_out = _predictor_forward(state, context, ae_out, pred_cfg, dump_dir)
+
+    pred_flat = pred_out.reshape(B * T, -1)
+    _mlp_bn_forward(
+        state, "pred_proj", pred_flat,
+        dump_dir / "pred_proj/output.safetensors",
+    )
+
+    _sigreg_forward(
+        proj_out.reshape(B, T, -1).numpy(),
+        seed=args.fixture_seed,
+        dump_dir=dump_dir,
+    )
+
+    meta_payload: dict[str, Any] = {
+        "schema_version": "1.0",
+        "weights_sha256": weights_sha256 or "skipped",
+        "torch_version": torch.__version__,
+        "transformers_version": None,
+        "python_version": platform.python_version(),
+        "numpy_version": np.__version__,
+        "cuda_version": getattr(torch.version, "cuda", None),
+        "fixture_seed": int(args.fixture_seed),
+        "fixture_hash": fixture_hash,
+        "dump_dir": str(dump_dir.resolve()),
+        "batch": B,
+        "time_steps": T,
+    }
+    write_json(dump_dir / "meta.json", meta_payload)
+
+    print(f"parity dumps written to {dump_dir}")
+    return 0
+
+
+def _save_dump(path: Path, array: Any) -> None:
+    """Write a single numpy array as a Safetensors file with key 'data'."""
+    import numpy as np
+
+    arr = np.asarray(array, dtype=np.float32)
+    write_safetensors(path, {"data": arr})
+
+
+def _encoder_forward(
+    state: dict[str, Any],
+    pixels: Any,
+    cfg: dict[str, Any],
+    dump_dir: Path,
+) -> Any:
+    """ViT encoder forward with intermediate dumps.
+
+    pixels: (B*T, C, H, W) torch tensor
+    Returns: cls (B*T, D) torch tensor
+    """
+    import torch
+    import torch.nn.functional as F
+
+    patch_size: int = cfg["patch_size"]
+    num_heads: int = cfg["num_attention_heads"]
+    num_layers: int = cfg["num_hidden_layers"]
+
+    patch_w = state["encoder.embeddings.patch_embeddings.projection.weight"]
+    patch_b = state["encoder.embeddings.patch_embeddings.projection.bias"]
+    D = patch_w.shape[0]
+
+    x = F.conv2d(pixels, patch_w, patch_b, stride=patch_size)  # (BT, D, H/P, W/P)
+    x = x.flatten(2).transpose(1, 2)                            # (BT, num_patches, D)
+    _save_dump(dump_dir / "encoder/after_patch_embed.safetensors", x.numpy())
+
+    cls_token = state["encoder.embeddings.cls_token"]           # (1, 1, D)
+    BT = x.shape[0]
+    x = torch.cat([cls_token.expand(BT, -1, -1), x], dim=1)   # (BT, P+1, D)
+    _save_dump(dump_dir / "encoder/after_cls_concat.safetensors", x.numpy())
+
+    pos_embed = state["encoder.embeddings.position_embeddings"]  # (1, P+1, D)
+    x = x + pos_embed
+    _save_dump(dump_dir / "encoder/after_pos_embed.safetensors", x.numpy())
+
+    blocks_dir = dump_dir / "encoder/blocks"
+    blocks_dir.mkdir(parents=True, exist_ok=True)
+    head_dim = D // num_heads
+
+    for i in range(num_layers):
+        src = f"encoder.encoder.layer.{i}"
+
+        ln1_w = state[f"{src}.layernorm_before.weight"]
+        ln1_b = state[f"{src}.layernorm_before.bias"]
+        normed = F.layer_norm(x, [D], ln1_w, ln1_b)
+
+        q_w = state[f"{src}.attention.attention.query.weight"]
+        k_w = state[f"{src}.attention.attention.key.weight"]
+        v_w = state[f"{src}.attention.attention.value.weight"]
+        q_b = state[f"{src}.attention.attention.query.bias"]
+        k_b = state[f"{src}.attention.attention.key.bias"]
+        v_b = state[f"{src}.attention.attention.value.bias"]
+
+        q = F.linear(normed, q_w, q_b)
+        k = F.linear(normed, k_w, k_b)
+        v = F.linear(normed, v_w, v_b)
+
+        N = q.shape[1]
+        q = q.reshape(BT, N, num_heads, head_dim).transpose(1, 2)  # (BT, H, N, d)
+        k = k.reshape(BT, N, num_heads, head_dim).transpose(1, 2)
+        v = v.reshape(BT, N, num_heads, head_dim).transpose(1, 2)
+
+        attn = (q @ k.transpose(-2, -1)) * (head_dim ** -0.5)
+        attn = F.softmax(attn, dim=-1)
+        attn_out = (attn @ v).transpose(1, 2).reshape(BT, N, D)
+
+        out_w = state[f"{src}.attention.output.dense.weight"]
+        out_b = state[f"{src}.attention.output.dense.bias"]
+        x = x + F.linear(attn_out, out_w, out_b)
+        _save_dump(blocks_dir / f"{i:02d}_after_attn.safetensors", x.numpy())
+
+        ln2_w = state[f"{src}.layernorm_after.weight"]
+        ln2_b = state[f"{src}.layernorm_after.bias"]
+        normed2 = F.layer_norm(x, [D], ln2_w, ln2_b)
+
+        fc1_w = state[f"{src}.intermediate.dense.weight"]
+        fc1_b = state[f"{src}.intermediate.dense.bias"]
+        fc2_w = state[f"{src}.output.dense.weight"]
+        fc2_b = state[f"{src}.output.dense.bias"]
+        mlp = F.gelu(F.linear(normed2, fc1_w, fc1_b))
+        x = x + F.linear(mlp, fc2_w, fc2_b)
+        _save_dump(blocks_dir / f"{i:02d}_after_mlp.safetensors", x.numpy())
+
+    fn_w = state["encoder.layernorm.weight"]
+    fn_b = state["encoder.layernorm.bias"]
+    x = F.layer_norm(x, [D], fn_w, fn_b)
+    _save_dump(dump_dir / "encoder/after_final_norm.safetensors", x.numpy())
+
+    cls = x[:, 0, :]
+    _save_dump(dump_dir / "encoder/cls.safetensors", cls.numpy())
+    return cls
+
+
+def _mlp_bn_forward(
+    state: dict[str, Any],
+    prefix: str,
+    x: Any,
+    out_path: Path,
+) -> Any:
+    """MLP-with-BatchNorm1d forward (projector / pred_proj) in eval mode.
+
+    Input x: (N, D) torch tensor  →  output (N, output_dim) torch tensor.
+    """
+    import torch.nn.functional as F
+
+    fc1_w = state[f"{prefix}.net.0.weight"]
+    fc1_b = state[f"{prefix}.net.0.bias"]
+    bn_w = state[f"{prefix}.net.1.weight"]
+    bn_b = state[f"{prefix}.net.1.bias"]
+    bn_mean = state[f"{prefix}.net.1.running_mean"]
+    bn_var = state[f"{prefix}.net.1.running_var"]
+    fc2_w = state[f"{prefix}.net.3.weight"]
+    fc2_b = state[f"{prefix}.net.3.bias"]
+
+    out = F.gelu(F.batch_norm(F.linear(x, fc1_w, fc1_b), bn_mean, bn_var, bn_w, bn_b, training=False))
+    out = F.linear(out, fc2_w, fc2_b)
+    _save_dump(out_path, out.numpy())
+    return out
+
+
+def _action_encoder_forward(
+    state: dict[str, Any],
+    actions: Any,
+    out_path: Path,
+) -> Any:
+    """Action encoder forward (smoother + 2-layer MLP with SiLU).
+
+    actions: (B, T, A) torch tensor  →  output (B, T, emb_dim) torch tensor.
+    """
+    import torch.nn.functional as F
+
+    smoother_w = state["action_encoder.patch_embed.weight"]   # (smoothed, input, 1)
+    smoother_b = state["action_encoder.patch_embed.bias"]
+    fc1_w = state["action_encoder.embed.0.weight"]
+    fc1_b = state["action_encoder.embed.0.bias"]
+    fc2_w = state["action_encoder.embed.2.weight"]
+    fc2_b = state["action_encoder.embed.2.bias"]
+
+    x = F.conv1d(actions.permute(0, 2, 1), smoother_w.squeeze(-1), smoother_b).permute(0, 2, 1)
+    out = F.linear(F.silu(F.linear(x, fc1_w, fc1_b)), fc2_w, fc2_b)
+    _save_dump(out_path, out.numpy())
+    return out
+
+
+def _predictor_forward(
+    state: dict[str, Any],
+    context: Any,
+    conditioning: Any,
+    cfg: dict[str, Any],
+    dump_dir: Path,
+) -> Any:
+    """Autoregressive predictor forward with AdaLN-zero and causal attention.
+
+    context:     (B, T, D) torch tensor (projected encoder embeddings)
+    conditioning:(B, T, D) torch tensor (action encoder embeddings)
+    Returns:     (B, T, D) torch tensor
+    """
+    import torch
+    import torch.nn.functional as F
+
+    num_layers: int = cfg["depth"]
+    num_heads: int = cfg["heads"]
+    head_dim: int = cfg["dim_head"]
+    inner_dim: int = cfg["attention_inner_dim"]
+
+    pos_embed = state["predictor.pos_embedding"]
+    B, T, D = context.shape
+
+    tokens = context + pos_embed[:, :T, :]
+    _save_dump(dump_dir / "predictor/after_pos_add.safetensors", tokens.numpy())
+
+    blocks_dir = dump_dir / "predictor/blocks"
+    blocks_dir.mkdir(parents=True, exist_ok=True)
+
+    causal_mask = torch.triu(torch.ones(T, T, dtype=torch.bool), diagonal=1)
+
+    for i in range(num_layers):
+        src = f"predictor.transformer.layers.{i}"
+
+        adaln_w = state[f"{src}.adaLN_modulation.1.weight"]
+        adaln_b = state[f"{src}.adaLN_modulation.1.bias"]
+        mods = F.linear(F.silu(conditioning), adaln_w, adaln_b)
+        shift_msa, scale_msa, gate_msa, shift_mlp, scale_mlp, gate_mlp = mods.chunk(6, dim=-1)
+
+        normed = F.layer_norm(tokens, [D])
+        attn_input = normed * (1.0 + scale_msa) + shift_msa
+
+        attn_norm_w = state[f"{src}.attn.norm.weight"]
+        attn_norm_b = state[f"{src}.attn.norm.bias"]
+        x = F.layer_norm(attn_input, [D], attn_norm_w, attn_norm_b)
+
+        qkv_w = state[f"{src}.attn.to_qkv.weight"]
+        qkv = F.linear(x, qkv_w)
+        q, k, v = qkv.chunk(3, dim=-1)
+
+        q = q.reshape(B, T, num_heads, head_dim).transpose(1, 2)
+        k = k.reshape(B, T, num_heads, head_dim).transpose(1, 2)
+        v = v.reshape(B, T, num_heads, head_dim).transpose(1, 2)
+
+        attn_w = (q @ k.transpose(-2, -1)) * (head_dim ** -0.5)
+        attn_w = attn_w.masked_fill(causal_mask.unsqueeze(0).unsqueeze(0), float("-inf"))
+        attn_w = F.softmax(attn_w, dim=-1)
+        attn_out = (attn_w @ v).transpose(1, 2).reshape(B, T, inner_dim)
+
+        proj_w = state[f"{src}.attn.to_out.0.weight"]
+        proj_b = state[f"{src}.attn.to_out.0.bias"]
+        attn_out = F.linear(attn_out, proj_w, proj_b)
+        tokens = tokens + gate_msa * attn_out
+        _save_dump(blocks_dir / f"{i:02d}_after_attn.safetensors", tokens.numpy())
+
+        normed2 = F.layer_norm(tokens, [D])
+        mlp_input = normed2 * (1.0 + scale_mlp) + shift_mlp
+
+        mlp_norm_w = state[f"{src}.mlp.net.0.weight"]
+        mlp_norm_b = state[f"{src}.mlp.net.0.bias"]
+        x_mlp = F.layer_norm(mlp_input, [D], mlp_norm_w, mlp_norm_b)
+
+        fc1_w = state[f"{src}.mlp.net.1.weight"]
+        fc1_b = state[f"{src}.mlp.net.1.bias"]
+        fc2_w = state[f"{src}.mlp.net.4.weight"]
+        fc2_b = state[f"{src}.mlp.net.4.bias"]
+        x_mlp = F.linear(F.gelu(F.linear(x_mlp, fc1_w, fc1_b)), fc2_w, fc2_b)
+        tokens = tokens + gate_mlp * x_mlp
+        _save_dump(blocks_dir / f"{i:02d}_after_mlp.safetensors", tokens.numpy())
+
+    final_norm_w = state["predictor.transformer.norm.weight"]
+    final_norm_b = state["predictor.transformer.norm.bias"]
+    output = F.layer_norm(tokens, [D], final_norm_w, final_norm_b)
+    _save_dump(dump_dir / "predictor/output.safetensors", output.numpy())
+    return output
+
+
+def _sigreg_forward(
+    embeddings: Any,
+    *,
+    seed: int,
+    dump_dir: Path,
+) -> None:
+    """Compute SIGReg with a numpy-sampled projection and write dumps.
+
+    embeddings: (B, T, D) numpy array (projector outputs)
+    Writes:
+      sigreg/projection_seed_{seed}.safetensors  (K, D)
+      sigreg/empirical_c_s.safetensors           (2, J, K) [0]=cos, [1]=sin
+      sigreg/value.safetensors                   (1,) scalar
+    """
+    import numpy as np
+
+    K = 1024   # DEFAULT_SIGREG_NUM_PROJ
+    J = 17     # DEFAULT_SIGREG_KNOTS
+    T_MAX = 3.0
+
+    B_T, D = int(embeddings.shape[0] * embeddings.shape[1]), int(embeddings.shape[2])
+    flat = embeddings.reshape(B_T, D).astype(np.float32)
+
+    rng = np.random.default_rng(seed)
+    raw = rng.standard_normal((K, D)).astype(np.float32)
+    norms = np.linalg.norm(raw, axis=1, keepdims=True)
+    P = (raw / norms).astype(np.float32)
+    _save_dump(dump_dir / f"sigreg/projection_seed_{seed}.safetensors", P)
+
+    projected = flat @ P.T  # (N, K)
+
+    step = T_MAX / (J - 1)
+    t_grid = np.linspace(0.0, T_MAX, J, dtype=np.float32)
+    phi = np.exp(-0.5 * t_grid ** 2).astype(np.float32)
+    trap = np.full(J, step, dtype=np.float32)
+    trap[0] = step / 2.0
+    trap[-1] = step / 2.0
+
+    arg = t_grid.reshape(J, 1, 1) * projected.T.reshape(1, K, B_T)  # (J, K, N)
+    cos_stats = np.cos(arg).mean(axis=-1).astype(np.float32)          # (J, K)
+    sin_stats = np.sin(arg).mean(axis=-1).astype(np.float32)          # (J, K)
+    empirical_cs = np.stack([cos_stats, sin_stats], axis=0)            # (2, J, K)
+    _save_dump(dump_dir / "sigreg/empirical_c_s.safetensors", empirical_cs)
+
+    residual = (cos_stats - phi.reshape(-1, 1)) ** 2 + sin_stats ** 2
+    weights = (phi * trap).reshape(-1, 1)
+    loss_val = float((residual * weights).sum(axis=0).mean())
+    _save_dump(dump_dir / "sigreg/value.safetensors", np.array([loss_val], dtype=np.float32))
 
 
 def require_file(path: Path, hint: str) -> None:
