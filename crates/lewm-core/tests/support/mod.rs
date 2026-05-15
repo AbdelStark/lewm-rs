@@ -520,7 +520,7 @@ pub(crate) fn try_load_reference_model(
 ) -> Option<lewm_core::Jepa<CpuBackend>> {
     use burn::module::{ModuleMapper, Param};
     use burn::tensor::{Int, Tensor, TensorData};
-    use lewm_core::{Jepa, JepaConfig};
+    use lewm_core::{GeluVariant, Jepa, JepaConfig};
 
     let path_str = match std::env::var(REFERENCE_SF_ENV) {
         Ok(s) => s,
@@ -624,7 +624,9 @@ pub(crate) fn try_load_reference_model(
         }
     }
 
-    let model = Jepa::<CpuBackend>::init(JepaConfig::default(), device)
+    let mut cfg = JepaConfig::default();
+    cfg.encoder.hidden_act = GeluVariant::Erf;
+    let model = Jepa::<CpuBackend>::init(cfg, device)
         .map_err(|err| eprintln!("[parity] failed to init model: {err}"))
         .ok()?;
     let mut mapper = TensorMapper {

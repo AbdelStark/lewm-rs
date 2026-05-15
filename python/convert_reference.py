@@ -578,15 +578,19 @@ def dump_command(args: argparse.Namespace) -> int:
     )
 
     pred_cfg = arch["predictor"]
-    context = proj_out.reshape(B, T, -1)
-    pred_out = _predictor_forward(state, context, ae_out, pred_cfg, dump_dir)
+    history_size: int = pred_cfg["num_frames"]  # T_ctx = 3 (predictor capacity)
+    # Predictor uses the first T_ctx frames as context; the last frame is the target.
+    context_history = proj_out.reshape(B, T, -1)[:, :history_size, :]
+    ae_history = ae_out[:, :history_size, :]
+    pred_out = _predictor_forward(state, context_history, ae_history, pred_cfg, dump_dir)
 
-    pred_flat = pred_out.reshape(B * T, -1)
+    pred_flat = pred_out.reshape(B * history_size, -1)
     _mlp_bn_forward(
         state, "pred_proj", pred_flat,
         dump_dir / "pred_proj/output.safetensors",
     )
 
+    # SIGReg uses the full projector output (all T frames).
     _sigreg_forward(
         proj_out.reshape(B, T, -1).numpy(),
         seed=args.fixture_seed,
@@ -665,7 +669,7 @@ def _encoder_forward(
 
         ln1_w = state[f"{src}.layernorm_before.weight"]
         ln1_b = state[f"{src}.layernorm_before.bias"]
-        normed = F.layer_norm(x, [D], ln1_w, ln1_b)
+        normed = F.layer_norm(x, [D], ln1_w, ln1_b, eps=1e-12)  # HF ViT eps
 
         q_w = state[f"{src}.attention.attention.query.weight"]
         k_w = state[f"{src}.attention.attention.key.weight"]
@@ -694,7 +698,7 @@ def _encoder_forward(
 
         ln2_w = state[f"{src}.layernorm_after.weight"]
         ln2_b = state[f"{src}.layernorm_after.bias"]
-        normed2 = F.layer_norm(x, [D], ln2_w, ln2_b)
+        normed2 = F.layer_norm(x, [D], ln2_w, ln2_b, eps=1e-12)  # HF ViT eps
 
         fc1_w = state[f"{src}.intermediate.dense.weight"]
         fc1_b = state[f"{src}.intermediate.dense.bias"]
@@ -706,7 +710,7 @@ def _encoder_forward(
 
     fn_w = state["encoder.layernorm.weight"]
     fn_b = state["encoder.layernorm.bias"]
-    x = F.layer_norm(x, [D], fn_w, fn_b)
+    x = F.layer_norm(x, [D], fn_w, fn_b, eps=1e-12)  # HF ViT eps
     _save_dump(dump_dir / "encoder/after_final_norm.safetensors", x.numpy())
 
     cls = x[:, 0, :]
@@ -759,7 +763,7 @@ def _action_encoder_forward(
     fc2_w = state["action_encoder.embed.2.weight"]
     fc2_b = state["action_encoder.embed.2.bias"]
 
-    x = F.conv1d(actions.permute(0, 2, 1), smoother_w.squeeze(-1), smoother_b).permute(0, 2, 1)
+    x = F.conv1d(actions.permute(0, 2, 1), smoother_w, smoother_b).permute(0, 2, 1)
     out = F.linear(F.silu(F.linear(x, fc1_w, fc1_b)), fc2_w, fc2_b)
     _save_dump(out_path, out.numpy())
     return out
