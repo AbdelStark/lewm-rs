@@ -45,7 +45,7 @@ jobs:
       - name: Render paper when present
         run: |
           if [ -f paper/lewm-rs.md ]; then
-            pandoc paper/lewm-rs.md -o paper/lewm-rs.pdf
+            pandoc paper/lewm-rs.md -o paper/lewm-rs.html --standalone
           else
             printf '%s\n' 'paper build skipped: paper/lewm-rs.md not present'
           fi

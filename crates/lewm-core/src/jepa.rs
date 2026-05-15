@@ -483,7 +483,7 @@ impl<B: Backend> Jepa<B> {
         &self.pred_proj
     }
 
-    /// Return the SIGReg sub-module.
+    /// Return the `SIGReg` sub-module.
     #[cfg(feature = "parity-fixtures")]
     pub fn sigreg(&self) -> &SigReg<B> {
         &self.sigreg
