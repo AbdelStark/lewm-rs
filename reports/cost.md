@@ -7,7 +7,7 @@
 |---------------------|-------|-------------------|--------------|--------|-----------:|----------------:|-------|
 | 2026-05-14 13:34    | smoke | 6a05cf0ee48bea4538b9ccd6 | a10g-large | ~10 min | ~$0.83 | ~$0.83 | Short PushT smoke run |
 | 2026-05-14T17:xx    | train | 6a06ef5d3308d79117b9025b | a10g-large | ~50 min | ~$4.17 | ~$5.00 | Full PushT training attempt v1 |
-| 2026-05-15T09:27    | train | 6a06f0c43308d79117b90276 | a10g-large | running | TBD | TBD | Full PushT 50k steps (in progress) |
+| 2026-05-15T09:27    | train | 6a06f0c43308d79117b90276 | a10g-large | running (>3h) | TBD | TBD | Full PushT 50k steps (still running as of 2026-05-15T12:30) |
 | 2026-05-15T11:05    | train | 6a06fe17e48bea4538b9e1cb | a10g-large | ~1 min  | ~$0.08 | TBD | SO-100 v1 (failed: rustup path) |
 | 2026-05-15T11:06    | train | 6a0700da3308d79117b9029c | a10g-large | ~2 min  | ~$0.17 | TBD | SO-100 v2 (failed: cargo not found) |
 | 2026-05-15T11:06    | train | 6a0701143308d79117b9029e | a10g-large | ~2 min  | ~$0.17 | TBD | SO-100 v3 (failed: HDF5 path) |
@@ -18,8 +18,8 @@
 | 2026-05-15T11:45    | train | 6a0707653308d79117b902b4 | a10g-large | ~5 min  | ~$0.42 | TBD | SO-100 v8 (failed: cmake not installed, hdf5-metno-src fallback) |
 | 2026-05-15T11:52    | train | 6a0708903308d79117b902bc | a10g-large | ~10 min | ~$0.83 | TBD | SO-100 v9 (failed: --data-dir before train subcommand, not valid for SO-100) |
 | 2026-05-15T12:05    | train | 6a0709973308d79117b902c2 | a10g-large | ~14 min | ~$1.19 | TBD | SO-100 v10 COMPLETED (no upload step; artifacts lost) |
-| 2026-05-15T12:14    | train | 6a070e02e48bea4538b9e2a5 | a10g-large | running | TBD | TBD | SO-100 v11a rust:bookworm + upload step (running) |
-| 2026-05-15T12:19    | train | 6a070f393308d79117b902de | a10g-large | running | TBD | TBD | SO-100 v11b duplicate submission (hf jobs run blocking) |
+| 2026-05-15T12:14    | train | 6a070e02e48bea4538b9e2a5 | a10g-large | 864s (~14 min) | ~$1.20 | TBD | SO-100 v11a COMPLETED; artifacts at abdelstark/lewm-rs-so100/train/so100-full-20260515T122820Z/ |
+| 2026-05-15T12:19    | train | 6a070f393308d79117b902de | a10g-large | 860s (~14 min) | ~$1.20 | TBD | SO-100 v11b COMPLETED; duplicate artifacts (same run parameters as v11a) |
 
 > Prices estimated at ~$5/hr for A10G-large based on HF Jobs published pricing.
 > Exact figures will be updated when jobs complete and actual billed amounts are available.
