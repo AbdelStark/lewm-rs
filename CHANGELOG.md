@@ -9,6 +9,32 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Added
 
+- SO-100 full training completed: v11a job `6a070e02e48bea4538b9e2a5` (5000 steps,
+  864s, A10G-large); artifacts at `abdelstark/lewm-rs-so100/train/so100-full-20260515T122820Z/`
+  (safetensors, mpk, losses, report, parity JSON); model card uploaded.
+- Tract-compatible ONNX export: `python/export_onnx.py` updated to opset 17 +
+  `dynamo=False` (legacy TorchScript exporter) + fixed-batch mode (no dynamic_axes)
+  for Tract 0.22.1 compatibility; pre-registers causal mask as `nn.Module` buffer
+  to avoid dynamic `torch.ones(T,T)` in the ONNX graph; infers `action_dim`
+  automatically from smoother Conv1d weight shape.
+- Tract CPU benchmark: `lewm-infer bench` produces ~4.1s median per planning
+  episode (debug build, M-series Mac, 5 CEM iterations × 1024 candidates,
+  H=3 history steps, action dim=10); Tract-compat ONNX files uploaded to
+  `abdelstark/lewm-rs-pusht/tract-compat/`.
+- Demo Space live at `abdelstark/lewm-rs-demo` (Gradio, onnxruntime CEM planning,
+  auto-detects action_dim from predictor input shape, downloads `.onnx.data`
+  external weight files alongside `.onnx`).
+- Model cards uploaded to `abdelstark/lewm-rs-pusht` and `abdelstark/lewm-rs-so100`.
+
+### Changed
+
+- `python/export_onnx.py`: switched ONNX opset 18 → 17 and `dynamo=True` →
+  `dynamo=False` for Tract compatibility; removed `dynamic_axes`; causal mask
+  is now a pre-registered buffer in `LeWMPredictorModule.__init__`.
+- `lewm-infer` `bench` subcommand: default `--history-steps` changed from 2 to
+  3 to match predictor's fixed `T=num_frames` from config (was causing a Tract
+  shape clash at runtime).
+
 - `python/convert_reference.py dump` subcommand for capturing per-layer
   activations from the locked PushT reference checkpoint as Safetensors (RFC
   0008 §4.2); supports `--skip-sha256` and `--fixture-seed` overrides.

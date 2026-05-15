@@ -8,15 +8,11 @@
 ## What
 
 `lewm-rs` is a Rust workspace for reproducing LeWorldModel training, planning,
-CPU inference, and artifact publication. The stack is past bootstrap and
-currently running full training on HuggingFace Jobs:
-
-- **PushT** (50k steps, A10G-large): job `6a06f0c43308d79117b90276`
-- **SO-100** (10 epochs, A10G-large): job `6a0701143308d79117b9029e`
-
-The Burn-backed parity stack is numerically verified against the locked
-PushT reference checkpoint: all 10 activation-level parity tests pass (L∞ < 1e-4).
-SO-100 data (50 episodes, 6-DOF arm actions) is prepared and uploaded to HF.
+CPU inference, and artifact publication. The Burn-backed parity stack is
+numerically verified against the locked PushT reference checkpoint (all 10
+activation-level parity tests pass, L∞ < 1e-4). SO-100 training completed
+(5000 steps, 864s, A10G-large). PushT 50k-step training is running on HF.
+ONNX export and Tract CPU inference are working end-to-end.
 
 The binding product and engineering contract lives in [`PRD.md`](PRD.md) and
 [`specs/`](specs/). The current execution backlog is
@@ -25,8 +21,8 @@ The binding product and engineering contract lives in [`PRD.md`](PRD.md) and
 land at
 [abdelstark/lewm-rs-pusht](https://huggingface.co/abdelstark/lewm-rs-pusht)
 and
-[abdelstark/lewm-rs-so100](https://huggingface.co/abdelstark/lewm-rs-so100);
-the demo Space will be at
+[abdelstark/lewm-rs-so100](https://huggingface.co/abdelstark/lewm-rs-so100).
+The demo Space is live at
 [abdelstark/lewm-rs-demo](https://huggingface.co/spaces/abdelstark/lewm-rs-demo).
 
 ## Quickstart
@@ -59,12 +55,13 @@ Make targets mirror the local gates:
 |--------|---------------|--------|
 | Parity verification | **Verified** — all 10 activation-level tests pass (L∞ < 1e-4) | Numerical match to reference |
 | PushT full training | **Running** on HF A10G-large (`6a06f0c43308d79117b90276`) | >= 87% success rate |
-| SO-100 pick-and-place | **Running** on HF A10G-large (`6a0701143308d79117b9029e`) | Warm-start ablation report |
-| CPU inference (Tract) | Export pipeline ready; benchmark pending trained checkpoint | Sub-second cost computation |
-| Hub publication | SO-100 data uploaded; model artifacts pending training completion | Model, dataset, and Space |
+| SO-100 pick-and-place | **Completed** — 5000 steps, 864s, A10G-large; artifacts at `abdelstark/lewm-rs-so100` | Warm-start ablation report |
+| CPU inference (Tract) | **Benchmarked** — ~4.1s/episode (debug build, M-series Mac, 5 CEM iter × 1024 candidates) | Sub-second cost computation (release build) |
+| ONNX export | **Done** — encoder + predictor for onnxruntime and Tract; uploaded to Hub | Stable export pipeline |
+| Hub publication | Model cards uploaded; ONNX files on Hub; demo Space live | Model, dataset, and Space |
 
-Final metrics will link to model cards and reports once the training jobs
-complete and the evaluation milestones land.
+PushT success-rate and SO-100 warm-start metrics will be linked once the eval
+passes complete after training finishes.
 
 ## Architecture at a glance
 
