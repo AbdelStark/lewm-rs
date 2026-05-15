@@ -433,6 +433,58 @@ impl<B: Backend> Jepa<B> {
                 reason: "horizon must be greater than history_size".to_owned(),
             })
     }
+
+    /// Encode pixels and return raw encoder CLS tokens before the projector.
+    ///
+    /// Output shape: `(B, T, encoder_hidden_size)`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`LewmCoreError::InvalidShape`] when pixel dimensions do not
+    /// match the configured encoder.
+    #[cfg(feature = "parity-fixtures")]
+    pub fn encode_cls_raw(&self, pixels: Tensor<B, 5>) -> Result<Tensor<B, 3>, LewmCoreError> {
+        let [batch_size, steps, channels, height, width] = pixels.dims();
+        self.validate_pixels(batch_size, steps, channels, height, width)?;
+        let flat_batch =
+            checked_mul(batch_size, steps, "JEPA encode_cls_raw batch*time overflowed")?;
+        let hidden_size = self.config.0.encoder.hidden_size;
+        let encoder_output =
+            self.encoder
+                .forward(pixels.reshape([flat_batch, channels, height, width]));
+        let cls = Vit::cls_from(&encoder_output);
+        Ok(cls.reshape([batch_size, steps, hidden_size]))
+    }
+
+    /// Return the action encoder sub-module.
+    #[cfg(feature = "parity-fixtures")]
+    pub fn action_encoder(&self) -> &Embedder<B> {
+        &self.action_encoder
+    }
+
+    /// Return the autoregressive predictor sub-module.
+    #[cfg(feature = "parity-fixtures")]
+    pub fn predictor(&self) -> &ArPredictor<B> {
+        &self.predictor
+    }
+
+    /// Return the target projector sub-module.
+    #[cfg(feature = "parity-fixtures")]
+    pub fn projector(&self) -> &Mlp<B> {
+        &self.projector
+    }
+
+    /// Return the prediction projector sub-module.
+    #[cfg(feature = "parity-fixtures")]
+    pub fn pred_proj(&self) -> &Mlp<B> {
+        &self.pred_proj
+    }
+
+    /// Return the SIGReg sub-module.
+    #[cfg(feature = "parity-fixtures")]
+    pub fn sigreg(&self) -> &SigReg<B> {
+        &self.sigreg
+    }
 }
 
 fn checked_mul(left: usize, right: usize, reason: &str) -> Result<usize, LewmCoreError> {

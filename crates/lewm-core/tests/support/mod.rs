@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::fmt;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 const FIXTURE_PATH: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -401,4 +401,255 @@ fn read_u64_le(bytes: &[u8], offset: usize) -> Result<u64, FixtureError> {
         bytes[offset + 6],
         bytes[offset + 7],
     ]))
+}
+
+// ── Parity dump loading ─────────────────────────────────────────────────────
+
+const DUMPS_DIR_ENV: &str = "LEWM_PARITY_DUMPS";
+const REFERENCE_SF_ENV: &str = "LEWM_REFERENCE_SAFETENSORS";
+
+pub(crate) struct DumpTensor {
+    pub(crate) shape: Vec<usize>,
+    pub(crate) values: Vec<f32>,
+}
+
+pub(crate) struct BlockDumps {
+    pub(crate) after_attn: DumpTensor,
+    pub(crate) after_mlp: DumpTensor,
+}
+
+pub(crate) struct ParityDumps {
+    pub(crate) encoder_cls: DumpTensor,
+    pub(crate) projector_output: DumpTensor,
+    pub(crate) action_encoder_output: DumpTensor,
+    pub(crate) predictor_output: DumpTensor,
+    pub(crate) pred_proj_output: DumpTensor,
+    pub(crate) sigreg_projection: DumpTensor,
+    pub(crate) sigreg_value: f32,
+    pub(crate) encoder_blocks: Vec<BlockDumps>,
+    pub(crate) predictor_blocks: Vec<BlockDumps>,
+}
+
+/// Load parity dumps from `LEWM_PARITY_DUMPS` directory.
+/// Returns `None` and prints a skip message when the env var is absent.
+pub(crate) fn try_load_dumps() -> Option<ParityDumps> {
+    let dir = match std::env::var(DUMPS_DIR_ENV) {
+        Ok(s) => PathBuf::from(s),
+        Err(_) => {
+            eprintln!("[parity] skipping numerical tests: {DUMPS_DIR_ENV} not set");
+            return None;
+        },
+    };
+
+    macro_rules! load {
+        ($rel:expr) => {
+            match load_dump_safetensors(&dir.join($rel)) {
+                Ok(t) => t,
+                Err(e) => {
+                    eprintln!("[parity] failed to load {}: {e}", $rel);
+                    return None;
+                },
+            }
+        };
+    }
+
+    let sigreg_val_tensor = load!("sigreg/value.safetensors");
+    let sigreg_value = sigreg_val_tensor.values.first().copied().unwrap_or(f32::NAN);
+
+    let mut encoder_blocks = Vec::new();
+    for i in 0..12_usize {
+        encoder_blocks.push(BlockDumps {
+            after_attn: load!(format!("encoder/blocks/{i:02}_after_attn.safetensors")),
+            after_mlp: load!(format!("encoder/blocks/{i:02}_after_mlp.safetensors")),
+        });
+    }
+
+    let mut predictor_blocks = Vec::new();
+    for i in 0..6_usize {
+        predictor_blocks.push(BlockDumps {
+            after_attn: load!(format!("predictor/blocks/{i:02}_after_attn.safetensors")),
+            after_mlp: load!(format!("predictor/blocks/{i:02}_after_mlp.safetensors")),
+        });
+    }
+
+    Some(ParityDumps {
+        encoder_cls: load!("encoder/cls.safetensors"),
+        projector_output: load!("projector/output.safetensors"),
+        action_encoder_output: load!("action_encoder/output.safetensors"),
+        predictor_output: load!("predictor/output.safetensors"),
+        pred_proj_output: load!("pred_proj/output.safetensors"),
+        sigreg_projection: load!("sigreg/projection_seed_0.safetensors"),
+        sigreg_value,
+        encoder_blocks,
+        predictor_blocks,
+    })
+}
+
+fn load_dump_safetensors(path: &Path) -> Result<DumpTensor, FixtureError> {
+    let bytes = fs::read(path).map_err(|err| {
+        FixtureError(format!("failed to read {}: {err}", path.display()))
+    })?;
+    let st = safetensors::SafeTensors::deserialize(&bytes)
+        .map_err(|err| FixtureError(format!("safetensors error at {}: {err}", path.display())))?;
+    let view = st.tensor("data").map_err(|err| {
+        FixtureError(format!("missing 'data' tensor in {}: {err}", path.display()))
+    })?;
+    let shape = view.shape().to_vec();
+    let data = view.data();
+    if data.len() % 4 != 0 {
+        return Err(FixtureError(format!(
+            "F32 data not 4-byte aligned in {}",
+            path.display()
+        )));
+    }
+    let values = data
+        .chunks_exact(4)
+        .map(|chunk| f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))
+        .collect();
+    Ok(DumpTensor { shape, values })
+}
+
+type CpuBackend = burn_ndarray::NdArray<f32>;
+
+use burn::prelude::Module;
+
+/// Load the reference `Jepa` model from `LEWM_REFERENCE_SAFETENSORS`.
+/// Returns `None` and prints a skip message when the env var is absent.
+pub(crate) fn try_load_reference_model(
+    device: &burn_ndarray::NdArrayDevice,
+) -> Option<lewm_core::Jepa<CpuBackend>> {
+    use burn::module::{ModuleMapper, Param};
+    use burn::tensor::{Int, Tensor, TensorData};
+    use lewm_core::{Jepa, JepaConfig};
+
+    let path_str = match std::env::var(REFERENCE_SF_ENV) {
+        Ok(s) => s,
+        Err(_) => {
+            eprintln!("[parity] skipping numerical tests: {REFERENCE_SF_ENV} not set");
+            return None;
+        },
+    };
+
+    let bytes = fs::read(&path_str)
+        .map_err(|err| eprintln!("[parity] cannot read {path_str}: {err}"))
+        .ok()?;
+    let st = safetensors::SafeTensors::deserialize(&bytes)
+        .map_err(|err| eprintln!("[parity] safetensors error: {err}"))
+        .ok()?;
+
+    let mut float_map: HashMap<String, (Vec<usize>, Vec<f32>)> = HashMap::new();
+    let mut int_map: HashMap<String, (Vec<usize>, Vec<i64>)> = HashMap::new();
+
+    for (name, view) in st.iter() {
+        match view.dtype() {
+            safetensors::Dtype::F32 => {
+                let shape = view.shape().to_vec();
+                let values = view
+                    .data()
+                    .chunks_exact(4)
+                    .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]))
+                    .collect();
+                float_map.insert(name.to_owned(), (shape, values));
+            },
+            safetensors::Dtype::I64 => {
+                let shape = view.shape().to_vec();
+                let values = view
+                    .data()
+                    .chunks_exact(8)
+                    .map(|c| {
+                        i64::from_le_bytes([c[0], c[1], c[2], c[3], c[4], c[5], c[6], c[7]])
+                    })
+                    .collect();
+                int_map.insert(name.to_owned(), (shape, values));
+            },
+            _ => {},
+        }
+    }
+
+    struct TensorMapper<'a> {
+        float_map: &'a HashMap<String, (Vec<usize>, Vec<f32>)>,
+        int_map: &'a HashMap<String, (Vec<usize>, Vec<i64>)>,
+        device: burn_ndarray::NdArrayDevice,
+        stack: Vec<String>,
+    }
+
+    impl ModuleMapper<CpuBackend> for TensorMapper<'_> {
+        fn enter_module(&mut self, name: &str, _container_type: &str) {
+            self.stack.push(name.to_owned());
+        }
+
+        fn exit_module(&mut self, _name: &str, _container_type: &str) {
+            self.stack.pop();
+        }
+
+        fn map_float<const D: usize>(
+            &mut self,
+            param: Param<Tensor<CpuBackend, D>>,
+        ) -> Param<Tensor<CpuBackend, D>> {
+            let name = self.stack.join(".");
+            if name.starts_with("sigreg.consts.") {
+                return param;
+            }
+            let Some((shape, values)) = self.float_map.get(&name) else {
+                return param;
+            };
+            let Ok(shape_arr): Result<[usize; D], _> = shape.clone().try_into() else {
+                return param;
+            };
+            let (id, _old, mapper) = param.consume();
+            let tensor = Tensor::<CpuBackend, D>::from_data(
+                TensorData::new(values.clone(), shape_arr),
+                &self.device,
+            );
+            Param::from_mapped_value(id, tensor, mapper)
+        }
+
+        fn map_int<const D: usize>(
+            &mut self,
+            param: Param<Tensor<CpuBackend, D, Int>>,
+        ) -> Param<Tensor<CpuBackend, D, Int>> {
+            let name = self.stack.join(".");
+            let Some((shape, values)) = self.int_map.get(&name) else {
+                return param;
+            };
+            let Ok(shape_arr): Result<[usize; D], _> = shape.clone().try_into() else {
+                return param;
+            };
+            let (id, _old, mapper) = param.consume();
+            let tensor = Tensor::<CpuBackend, D, Int>::from_data(
+                TensorData::new(values.clone(), shape_arr),
+                &self.device,
+            );
+            Param::from_mapped_value(id, tensor, mapper)
+        }
+    }
+
+    let model = Jepa::<CpuBackend>::init(JepaConfig::default(), device)
+        .map_err(|err| eprintln!("[parity] failed to init model: {err}"))
+        .ok()?;
+    let mut mapper = TensorMapper {
+        float_map: &float_map,
+        int_map: &int_map,
+        device: device.clone(),
+        stack: Vec::new(),
+    };
+    Some(model.map(&mut mapper))
+}
+
+pub(crate) fn tensor_from_dump<const D: usize>(
+    dump: &DumpTensor,
+    shape: [usize; D],
+    device: &burn_ndarray::NdArrayDevice,
+) -> burn::tensor::Tensor<CpuBackend, D> {
+    use burn::tensor::{Tensor, TensorData};
+    Tensor::<CpuBackend, D>::from_data(TensorData::new(dump.values.clone(), shape), device)
+}
+
+/// Compute the L-infinity norm between two flat value slices.
+pub(crate) fn linf(actual: &[f32], expected: &[f32]) -> f32 {
+    actual
+        .iter()
+        .zip(expected)
+        .map(|(a, b)| (a - b).abs())
+        .fold(0.0_f32, f32::max)
 }
