@@ -113,13 +113,15 @@ creating a second tracker.
 Complete parity validation ([#37](https://github.com/AbdelStark/lewm-rs/issues/37)
 → [#38](https://github.com/AbdelStark/lewm-rs/issues/38)):
 
-1. **Human action required**: download the reference checkpoint with
+1. **Human action required**: download the locked reference checkpoint with
    `python/convert_reference.py audit --download` (requires HF access and
    `HUGGING_FACE_HUB_TOKEN`; see [#20](https://github.com/AbdelStark/lewm-rs/issues/20)).
-2. Run `python/convert_reference.py convert` to produce the Burn record and
-   Safetensors mirror.
-3. Run `python/build_parity_fixture.py` to generate per-layer activation dumps
-   and upload to `abdelstark/lewm-rs-parity-dumps` ([#37](https://github.com/AbdelStark/lewm-rs/issues/37)).
+2. Run `python/convert_reference.py convert` to produce the Burn `NamedMpk`
+   record and Safetensors mirror.
+3. Implement `python/convert_reference.py --intermediate-checks --dump-dir`
+   (per RFC 0008 §4.2) to run the reference PyTorch model on the parity fixture
+   and capture per-layer activations; upload to
+   `AbdelStark/lewm-rs-parity-dumps` ([#37](https://github.com/AbdelStark/lewm-rs/issues/37)).
 4. Enable the Rust parity fixture tests for encoder, action encoder, predictor,
    projector, pred_proj, and SIGReg ([#38](https://github.com/AbdelStark/lewm-rs/issues/38)).
 5. Wire the CI parity workflow to cache dumps and run on every PR
