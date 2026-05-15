@@ -42,7 +42,8 @@ the next vertical slices needed to finish the project.
 | Artifact contract | Implemented for smoke and bounded PushT train | run report, losses JSONL, checkpoint sidecar, `.mpk`, `.safetensors`, parity JSON |
 | Optional observability | Implemented as optional infra | `infra/otel/`; CI and smoke runs do not require OTLP |
 | SO-100 full training | Completed | v11a job `6a070e02e48bea4538b9e2a5` completed (864s, 5000 steps, A10G-large); artifacts at `abdelstark/lewm-rs-so100/train/so100-full-20260515T122820Z/` (safetensors, mpk, losses, report, parity JSON) |
-| Inference/export | ONNX export complete + Tract benchmark done | `python/export_onnx.py` validated end-to-end: reference safetensors → 303 keys recovered → onnxruntime ONNX (dynamo opset 18) + Tract-compat ONNX (legacy opset 17, fixed-batch) both uploaded to `abdelstark/lewm-rs-pusht`; onnxruntime inference verified; demo Space app.py fixed; Tract CPU benchmark: ~4.1s median per planning episode (debug build, M-series Mac, 5 CEM iterations × 1024 candidates); Tract-compat files at `tract-compat/` subfolder |
+| Inference/export | ONNX export complete + Tract benchmark done | `python/export_onnx.py` validated end-to-end: reference safetensors → 303 keys recovered → onnxruntime ONNX (dynamo opset 18) + Tract-compat ONNX (legacy opset 17, fixed-batch) both uploaded to `abdelstark/lewm-rs-pusht`; onnxruntime inference verified; demo Space updated (sdk_version 5.33.0); Tract CPU benchmark: ~4.1s median per planning episode (debug build, M-series Mac, 5 CEM iterations × 1024 candidates); Tract-compat files at `tract-compat/` subfolder |
+| Reports and paper | Draft complete | `paper/lewm-rs.md` (RFC 0015 structure, TBD: PushT eval sections); `reports/so100_training.md`; `reports/release_checklist.md`; `reports/cost.md` |
 
 ## Non-Claims
 
@@ -51,13 +52,14 @@ the next vertical slices needed to finish the project.
   Burn ViT parity stack. It is a narrow real training path for validating data,
   module boundaries, training, checkpoint, resume, upload, and job mechanics.
 - PushT planning success rate has not been measured for a trained Rust model.
-- SO-100 full training and evaluation have not been run to a publishable report.
+- SO-100 full training completed (v11a: 5000 steps, 864s, loss 0.50→9.56e-05); warm-start evaluation has not been run.
 - Resume is implemented for the bounded `pusht-full-module-lewm` path, including
   sidecar, `.mpk`, `.safetensors`, config hash, seed, step, AdamW, and RNG
   validation before continuing from the next step.
-- Tract inference has not yet been benchmarked from a real trained checkpoint,
-  and the demo Space is not release-validated.
-- Paper, blog, and release evidence are not complete.
+- Tract CPU benchmark: ~4.1s/episode in **debug build** on M-series Mac (release build latency not yet measured).
+- Demo Space fixed and rebuilding with gradio sdk_version 5.33.0 (Python 3.13 compat); functional state pending post-rebuild verification.
+- Paper draft created (`paper/lewm-rs.md`); PushT training curves and CEM eval sections are TBD pending job completion.
+- Blog post and final release evidence are not complete.
 
 ## Definition of Full Completion
 
