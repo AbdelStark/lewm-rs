@@ -371,6 +371,12 @@ def export_predictor_onnx(
     history_size = pred_cfg.get("num_frames", 3)
     latent_dim = pred_cfg.get("input_dim", 192)
     dummy_history = torch.zeros(1, history_size, latent_dim)
+    # Infer actual action_dim from the smoother Conv1d weight (in_channels axis).
+    # The reference model uses smoothed_dim=10 as its input_dim, so the smoother
+    # weight is [out, in=10, 1].  A Burn-trained model uses in=action_dim (e.g. 2).
+    smoother_w = state.get("action_encoder.patch_embed.weight")
+    if smoother_w is not None:
+        action_dim = int(smoother_w.shape[1])
     dummy_actions = torch.zeros(1, history_size, action_dim)
     module = LeWMPredictorModule(state, arch)
     module.eval()
