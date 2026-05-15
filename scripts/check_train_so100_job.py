@@ -38,9 +38,22 @@ def _parse_job(path: Path) -> dict[str, object]:
             env[key] = value
             continue
 
-        if raw_line.startswith("  ") and section == "command":
-            command_lines.append(raw_line.strip())
-            continue
+        if section == "command":
+            # Collect all lines that are not a new top-level YAML key.
+            # A top-level key is a non-indented line with the form "key: value"
+            # or "key:" where the key contains no spaces.  Heredoc content
+            # (e.g. Python inline scripts) may lack colons or start at col 0.
+            stripped = raw_line.strip()
+            is_new_top_key = (
+                not raw_line.startswith(" ")
+                and ":" in raw_line
+                and " " not in raw_line.split(":")[0]
+                and not raw_line.startswith("-")
+            )
+            if not is_new_top_key:
+                command_lines.append(stripped)
+                continue
+            # Fall through to handle the new key below.
 
         section = None
         key, value = _split_key_value(raw_line, path)
@@ -113,8 +126,8 @@ def _validate_job(job: dict[str, object]) -> None:
     _require(job["timeout"] == "6h", "train_so100.yaml must use timeout 6h")
     _require(job["namespace"] == "abdelstark", "train_so100.yaml namespace must be abdelstark")
     _require(
-        job["image"] == "ghcr.io/abdelstark/lewm-rs:latest",
-        "train_so100.yaml image must be ghcr.io/abdelstark/lewm-rs:latest",
+        job["image"] == "rust:1.89.0-bookworm",
+        "train_so100.yaml image must be rust:1.89.0-bookworm (builds from source)",
     )
 
     env = job["env"]
@@ -123,30 +136,26 @@ def _validate_job(job: dict[str, object]) -> None:
         "RUST_LOG",
         "HF_TOKEN",
         "HF_HOME",
-        "TRACKIO_PROJECT",
-        "TRACKIO_RUN",
-        "OTEL_EXPORTER_OTLP_ENDPOINT",
-        "SO100_VARIANT",
+        "HDF5_DIR",
+        "LEWM_SO100_MAX_STEPS",
     ):
         _require(key in env, f"train_so100.yaml env missing {key}")
     _require(
-        env["OTEL_EXPORTER_OTLP_ENDPOINT"] == "${OTEL_ENDPOINT:-}",
-        "OTEL_EXPORTER_OTLP_ENDPOINT must default to empty for optional OTEL",
+        env["LEWM_SO100_MAX_STEPS"].strip('"') == "5000",
+        "LEWM_SO100_MAX_STEPS default must be 5000",
     )
-    _require(env["SO100_VARIANT"] == "so100", "SO100_VARIANT default must be so100")
 
     command = str(job["command"])
     _expect_contains(
         command,
         [
+            "cargo build --locked --release -p lewm-train",
             "hf download abdelstark/so100-pickplace-lewm-ready",
             "--repo-type dataset",
             "--local-dir /tmp/data/so100",
-            "lewm-train train",
-            "--config configs/${SO100_VARIANT}.toml",
-            "--data-dir /tmp/data/so100",
-            "--output-dir /tmp/out/so100-${SO100_VARIANT}",
-            "--resume-if-present",
+            "./target/release/lewm-train",
+            "--config configs/so100.toml",
+            "--output-dir /tmp/out/so100",
             "--max-steps",
         ],
         "train_so100.yaml command",

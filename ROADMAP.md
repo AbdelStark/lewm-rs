@@ -42,7 +42,7 @@ the next vertical slices needed to finish the project.
 | Artifact contract | Implemented for smoke and bounded PushT train | run report, losses JSONL, checkpoint sidecar, `.mpk`, `.safetensors`, parity JSON |
 | Optional observability | Implemented as optional infra | `infra/otel/`; CI and smoke runs do not require OTLP |
 | SO-100 full training | Completed | v11a job `6a070e02e48bea4538b9e2a5` completed (864s, 5000 steps, A10G-large); artifacts at `abdelstark/lewm-rs-so100/train/so100-full-20260515T122820Z/` (safetensors, mpk, losses, report, parity JSON) |
-| Inference/export | ONNX export complete + Tract benchmark done | `python/export_onnx.py` validated end-to-end: reference safetensors → 303 keys recovered → onnxruntime ONNX (dynamo opset 18) + Tract-compat ONNX (legacy opset 17, fixed-batch) both uploaded to `abdelstark/lewm-rs-pusht`; onnxruntime inference verified; demo Space updated (sdk_version 5.33.0); Tract CPU benchmark: ~4.1s median per planning episode (debug build, M-series Mac, 5 CEM iterations × 1024 candidates); Tract-compat files at `tract-compat/` subfolder |
+| Inference/export | ONNX export complete + Tract benchmark done | `python/export_onnx.py` validated end-to-end: reference safetensors → 303 keys recovered → onnxruntime ONNX (dynamo opset 18) + Tract-compat ONNX (legacy opset 17, fixed-batch) both uploaded to `abdelstark/lewm-rs-pusht`; onnxruntime inference verified; demo Space updated (sdk_version 5.33.0); Tract CPU benchmark: 4.08s median/episode (release build p50, Apple M3 ARM, 5 CEM iterations × 1024 candidates — debug and release identical, hot path is Tract); Tract-compat files at `tract-compat/` subfolder; `onnx_export.json` action_dim bug fixed (was recording raw 2-DOF instead of inferred smoothed 10-DOF) |
 | Reports and paper | Draft complete | `paper/lewm-rs.md` (RFC 0015 structure, TBD: PushT eval sections); `reports/so100_training.md`; `reports/release_checklist.md`; `reports/cost.md` |
 
 ## Non-Claims
@@ -56,7 +56,7 @@ the next vertical slices needed to finish the project.
 - Resume is implemented for the bounded `pusht-full-module-lewm` path, including
   sidecar, `.mpk`, `.safetensors`, config hash, seed, step, AdamW, and RNG
   validation before continuing from the next step.
-- Tract CPU benchmark: ~4.1s/episode in **debug build** on M-series Mac (release build latency not yet measured).
+- Tract CPU benchmark: 4.08s/episode median (release build, Apple M3 ARM); debug and release are identical because the hot path is Tract's pre-compiled ONNX engine.
 - Demo Space fixed and rebuilding with gradio sdk_version 5.33.0 (Python 3.13 compat); functional state pending post-rebuild verification.
 - Paper draft created (`paper/lewm-rs.md`); PushT training curves and CEM eval sections are TBD pending job completion.
 - Blog post and final release evidence are not complete.

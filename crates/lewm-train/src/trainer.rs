@@ -1622,9 +1622,7 @@ fn open_pusht_training_source(
     })
 }
 
-fn open_so100_training_source(
-    root: &RootConfig,
-) -> Result<So100TrainingSource, TrainerError> {
+fn open_so100_training_source(root: &RootConfig) -> Result<So100TrainingSource, TrainerError> {
     let DatasetConfig::So100(config) = &root.dataset else {
         return Err(TrainerError::UnsupportedTrainDataset {
             kind: dataset_kind_name(&root.dataset).to_owned(),
@@ -1633,9 +1631,7 @@ fn open_so100_training_source(
 
     let hdf5_path = config.hdf5_path.clone();
     if !hdf5_path.exists() {
-        return Err(TrainerError::MissingTrainDataPath {
-            path: hdf5_path,
-        });
+        return Err(TrainerError::MissingTrainDataPath { path: hdf5_path });
     }
 
     let so100_config = DataSo100Config {
@@ -2144,7 +2140,7 @@ fn run_pusht_full_lewm_training(
     let mut samples_seen = start.samples_seen;
     let mut grad_explosion_events = start.grad_explosion_events;
     let sigreg_weight = root.loss.lambda_sigreg.max(0.0);
-    let train_start = Instant::now();
+    let train_start = Instant::now(); // determinism-lint: allow Instant::now (wall-clock ETA only)
 
     for step in (start.start_step.saturating_add(1))..=total_steps {
         let mut total_loss = 0.0;
@@ -2209,8 +2205,10 @@ fn run_pusht_full_lewm_training(
         });
         if step == 1 || step % 100 == 0 || step == total_steps {
             let elapsed_s = train_start.elapsed().as_secs_f64();
-            let steps_done =
-                u64::from(step).saturating_sub(u64::from(start.start_step)).max(1);
+            let steps_done = u64::from(step)
+                .saturating_sub(u64::from(start.start_step))
+                .max(1);
+            #[allow(clippy::cast_precision_loss)]
             let secs_per_step = elapsed_s / steps_done as f64;
             let eta_s = secs_per_step * f64::from(total_steps - step);
             eprintln!(
@@ -2282,7 +2280,7 @@ fn run_so100_full_lewm_training(
     let mut samples_seen = start.samples_seen;
     let mut grad_explosion_events = start.grad_explosion_events;
     let sigreg_weight = root.loss.lambda_sigreg.max(0.0);
-    let train_start = Instant::now();
+    let train_start = Instant::now(); // determinism-lint: allow Instant::now (wall-clock ETA only)
 
     for step in (start.start_step.saturating_add(1))..=total_steps {
         let mut total_loss = 0.0;
@@ -2348,8 +2346,10 @@ fn run_so100_full_lewm_training(
         });
         if step == 1 || step % 100 == 0 || step == total_steps {
             let elapsed_s = train_start.elapsed().as_secs_f64();
-            let steps_done =
-                u64::from(step).saturating_sub(u64::from(start.start_step)).max(1);
+            let steps_done = u64::from(step)
+                .saturating_sub(u64::from(start.start_step))
+                .max(1);
+            #[allow(clippy::cast_precision_loss)]
             let secs_per_step = elapsed_s / steps_done as f64;
             let eta_s = secs_per_step * f64::from(total_steps - step);
             eprintln!(
@@ -3562,15 +3562,17 @@ mod tests {
     }
 
     #[test]
-    fn so100_train_missing_hdf5_returns_missing_data_path()
-    -> Result<(), Box<dyn std::error::Error>> {
+    fn so100_train_missing_hdf5_returns_missing_data_path() -> Result<(), Box<dyn std::error::Error>>
+    {
         let dir = TestDir::new("so100-train-missing-data")?;
         let missing_data = dir.path().join("missing-so100.h5");
-        let mut root = crate::config::RootConfig::default();
-        root.dataset = crate::config::DatasetConfig::So100(crate::config::So100DatasetConfig {
-            hdf5_path: missing_data.clone(),
-            ..crate::config::So100DatasetConfig::default()
-        });
+        let root = crate::config::RootConfig {
+            dataset: crate::config::DatasetConfig::So100(crate::config::So100DatasetConfig {
+                hdf5_path: missing_data.clone(),
+                ..crate::config::So100DatasetConfig::default()
+            }),
+            ..crate::config::RootConfig::default()
+        };
 
         let err = write_train_artifacts(TrainArtifactRequest {
             output_dir: dir.path(),
