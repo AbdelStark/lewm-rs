@@ -241,7 +241,10 @@ Target: ≥ 87% success rate on 50 test episodes (matching the reference paper).
 
 ### 6.3 Cost ledger
 
-See `reports/cost.md`. Estimated total compute: ~$15–30 for full PushT training.
+See `reports/cost.md`. Known spend (all SO-100 attempts + pre-training PushT
+short runs) totals ~$3.25 at $1.50/hr for A10G-large. The full 50k-step PushT
+training run is estimated at $6–$12 depending on wall time.
+Projected total: ~$10–$15.
 
 ---
 
@@ -271,12 +274,13 @@ by `python/compute_so100_stats.py` and stored as `stats.safetensors`.
 
 | Step | Total loss | SIGReg | Pred loss | LR |
 |------|-----------|--------|-----------|-----|
-| 1 | 0.5002 | 4.999e-01 | 2.40e-04 | 6e-07 |
-| 100 | 0.4999 | 4.999e-01 | 1e-06 | 6e-05 |
-| 500 | 0.4625 | 4.624e-01 | 2e-06 | 3e-04 |
-| 1,000 | 0.2034 | 2.033e-01 | 8e-06 | 2.91e-04 |
-| 2,500 | 0.0004 | 3.69e-04 | 1e-06 | 1.80e-04 |
-| 5,000 | 9.56e-05 | 9.50e-05 | 1e-06 | 1e-05 |
+| 1 | 5.002e-01 | 4.999e-01 | 2.40e-04 | 6.00e-07 |
+| 50 | 5.000e-01 | 4.999e-01 | 1.60e-05 | 3.00e-05 |
+| 100 | 4.999e-01 | 4.999e-01 | 1.28e-06 | 6.00e-05 |
+| 500 | 4.625e-01 | 4.624e-01 | 1.98e-06 | 3.00e-04 |
+| 1,000 | 2.034e-01 | 2.033e-01 | 8.05e-06 | 2.91e-04 |
+| 2,500 | 3.70e-04 | 3.69e-04 | 1.44e-06 | 1.80e-04 |
+| 5,000 | 9.56e-05 | 9.50e-05 | 5.34e-07 | 1.00e-05 |
 
 ### 7.3 Warm-start evaluation
 

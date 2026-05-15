@@ -54,14 +54,14 @@ Make targets mirror the local gates:
 | Result | Current state | Target |
 |--------|---------------|--------|
 | Parity verification | **Verified** — all 10 activation-level tests pass (L∞ < 1e-4) | Numerical match to reference |
-| PushT full training | **Running** on HF A10G-large (`6a06f0c43308d79117b90276`) | >= 87% success rate |
-| SO-100 pick-and-place | **Completed** — 5000 steps, 864s, A10G-large; artifacts at `abdelstark/lewm-rs-so100` | Warm-start ablation report |
-| CPU inference (Tract) | **Benchmarked** — ~4.1s/episode (debug build, M-series Mac, 5 CEM iter × 1024 candidates) | Sub-second cost computation (release build) |
-| ONNX export | **Done** — encoder + predictor for onnxruntime and Tract; uploaded to Hub | Stable export pipeline |
-| Hub publication | Model cards uploaded; ONNX files on Hub; demo Space live | Model, dataset, and Space |
+| PushT full training | **Running** on HF A10G-large (`6a06f0c43308d79117b90276`, 50k steps) | >= 87% success rate |
+| SO-100 pick-and-place | **Completed** — 5000 steps, 864s, A10G-large; loss 0.50→9.56e-05; artifacts at `abdelstark/lewm-rs-so100` | Warm-start ablation report |
+| CPU inference (Tract) | **Benchmarked** — ~4.1s/episode debug build, M-series Mac (5 CEM iterations × 1024 candidates) | Release build benchmark |
+| ONNX export | **Done** — encoder + predictor for onnxruntime (opset 18) and Tract (opset 17); uploaded to Hub | Stable export pipeline |
+| Hub publication | Model cards uploaded; ONNX files on Hub; demo Space live at `abdelstark/lewm-rs-demo` | Model, dataset, and Space |
 
-PushT success-rate and SO-100 warm-start metrics will be linked once the eval
-passes complete after training finishes.
+PushT CEM success rate and SO-100 warm-start metrics will be added once eval
+passes run after training completes.
 
 ## Architecture at a glance
 
