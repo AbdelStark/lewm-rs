@@ -446,12 +446,15 @@ impl<B: Backend> Jepa<B> {
     pub fn encode_cls_raw(&self, pixels: Tensor<B, 5>) -> Result<Tensor<B, 3>, LewmCoreError> {
         let [batch_size, steps, channels, height, width] = pixels.dims();
         self.validate_pixels(batch_size, steps, channels, height, width)?;
-        let flat_batch =
-            checked_mul(batch_size, steps, "JEPA encode_cls_raw batch*time overflowed")?;
+        let flat_batch = checked_mul(
+            batch_size,
+            steps,
+            "JEPA encode_cls_raw batch*time overflowed",
+        )?;
         let hidden_size = self.config.0.encoder.hidden_size;
-        let encoder_output =
-            self.encoder
-                .forward(pixels.reshape([flat_batch, channels, height, width]));
+        let encoder_output = self
+            .encoder
+            .forward(pixels.reshape([flat_batch, channels, height, width]));
         let cls = Vit::cls_from(&encoder_output);
         Ok(cls.reshape([batch_size, steps, hidden_size]))
     }

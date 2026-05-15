@@ -42,11 +42,16 @@ fn parity_pred_proj_output_within_1e4() {
     );
 
     // Slice context and actions to T_CTX=3 history frames (predictor capacity).
-    let context_history = model.encode(pixels).expect("encode").slice([0..B, 0..T_CTX, 0..D]);
+    let context_history = model
+        .encode(pixels)
+        .expect("encode")
+        .slice([0..B, 0..T_CTX, 0..D]);
     let action_history = actions.slice([0..B, 0..T_CTX, 0..A]);
 
     // Full predict pipeline: action_encoder → predictor → pred_proj.
-    let pred_proj_out = model.predict(context_history, action_history).expect("predict");
+    let pred_proj_out = model
+        .predict(context_history, action_history)
+        .expect("predict");
     let actual: Vec<f32> = pred_proj_out
         .reshape([B * T_CTX, D])
         .to_data()

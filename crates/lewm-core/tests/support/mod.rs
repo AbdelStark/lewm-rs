@@ -460,7 +460,11 @@ pub(crate) fn try_load_dumps() -> Option<ParityDumps> {
     }
 
     let sigreg_val_tensor = load!("sigreg/value.safetensors");
-    let sigreg_value = sigreg_val_tensor.values.first().copied().unwrap_or(f32::NAN);
+    let sigreg_value = sigreg_val_tensor
+        .values
+        .first()
+        .copied()
+        .unwrap_or(f32::NAN);
 
     let mut encoder_blocks = Vec::new();
     for i in 0..12_usize {
@@ -493,13 +497,15 @@ pub(crate) fn try_load_dumps() -> Option<ParityDumps> {
 
 #[cfg(feature = "parity-fixtures")]
 fn load_dump_safetensors(path: &Path) -> Result<DumpTensor, FixtureError> {
-    let bytes = fs::read(path).map_err(|err| {
-        FixtureError(format!("failed to read {}: {err}", path.display()))
-    })?;
+    let bytes = fs::read(path)
+        .map_err(|err| FixtureError(format!("failed to read {}: {err}", path.display())))?;
     let st = safetensors::SafeTensors::deserialize(&bytes)
         .map_err(|err| FixtureError(format!("safetensors error at {}: {err}", path.display())))?;
     let view = st.tensor("data").map_err(|err| {
-        FixtureError(format!("missing 'data' tensor in {}: {err}", path.display()))
+        FixtureError(format!(
+            "missing 'data' tensor in {}: {err}",
+            path.display()
+        ))
     })?;
     let shape = view.shape().to_vec();
     let data = view.data();
@@ -624,9 +630,7 @@ pub(crate) fn try_load_reference_model(
                 let values = view
                     .data()
                     .chunks_exact(8)
-                    .map(|c| {
-                        i64::from_le_bytes([c[0], c[1], c[2], c[3], c[4], c[5], c[6], c[7]])
-                    })
+                    .map(|c| i64::from_le_bytes([c[0], c[1], c[2], c[3], c[4], c[5], c[6], c[7]]))
                     .collect();
                 int_map.insert(name.to_owned(), (shape, values));
             },
