@@ -1,4 +1,4 @@
-//! TST-0008-SIGREG-001: SIGReg parity test (RFC 0008 §5.3).
+//! `TST-0008-SIGREG-001`: `SigReg` parity test (RFC 0008 §5.3).
 
 #![cfg(feature = "parity-fixtures")]
 
@@ -23,7 +23,7 @@ const TOL: f32 = 1e-3;
 fn parity_sigreg_value_within_1e3() {
     let device = NdArrayDevice::default();
     let (Some(model), Some(dumps), Ok(fixture)) = (
-        support::try_load_reference_model(&device),
+        support::try_load_reference_model(device),
         support::try_load_dumps(),
         support::load_fixture(),
     ) else {
@@ -39,7 +39,7 @@ fn parity_sigreg_value_within_1e3() {
     let embeddings = model.encode(pixels).expect("encode");
 
     // Load the reference projection matrix (K, D) recorded at seed=0.
-    let projection = support::tensor_from_dump::<2>(&dumps.sigreg_projection, [K, D], &device);
+    let projection = support::tensor_from_dump::<2>(&dumps.sigreg_projection, [K, D], device);
 
     let value = model
         .sigreg()

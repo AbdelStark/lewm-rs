@@ -20,7 +20,7 @@ const TOL: f32 = 1e-4;
 fn parity_action_encoder_output_within_1e4() {
     let device = NdArrayDevice::default();
     let (Some(model), Some(dumps), Ok(fixture)) = (
-        support::try_load_reference_model(&device),
+        support::try_load_reference_model(device),
         support::try_load_dumps(),
         support::load_fixture(),
     ) else {

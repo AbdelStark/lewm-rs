@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 use std::fmt;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
+#[cfg(feature = "parity-fixtures")]
+use std::path::PathBuf;
 
 const FIXTURE_PATH: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -405,19 +407,24 @@ fn read_u64_le(bytes: &[u8], offset: usize) -> Result<u64, FixtureError> {
 
 // ── Parity dump loading ─────────────────────────────────────────────────────
 
+#[cfg(feature = "parity-fixtures")]
 const DUMPS_DIR_ENV: &str = "LEWM_PARITY_DUMPS";
+#[cfg(feature = "parity-fixtures")]
 const REFERENCE_SF_ENV: &str = "LEWM_REFERENCE_SAFETENSORS";
 
+#[cfg(feature = "parity-fixtures")]
 pub(crate) struct DumpTensor {
     pub(crate) shape: Vec<usize>,
     pub(crate) values: Vec<f32>,
 }
 
+#[cfg(feature = "parity-fixtures")]
 pub(crate) struct BlockDumps {
     pub(crate) after_attn: DumpTensor,
     pub(crate) after_mlp: DumpTensor,
 }
 
+#[cfg(feature = "parity-fixtures")]
 pub(crate) struct ParityDumps {
     pub(crate) encoder_cls: DumpTensor,
     pub(crate) projector_output: DumpTensor,
@@ -432,14 +439,13 @@ pub(crate) struct ParityDumps {
 
 /// Load parity dumps from `LEWM_PARITY_DUMPS` directory.
 /// Returns `None` and prints a skip message when the env var is absent.
+#[cfg(feature = "parity-fixtures")]
 pub(crate) fn try_load_dumps() -> Option<ParityDumps> {
-    let dir = match std::env::var(DUMPS_DIR_ENV) {
-        Ok(s) => PathBuf::from(s),
-        Err(_) => {
-            eprintln!("[parity] skipping numerical tests: {DUMPS_DIR_ENV} not set");
-            return None;
-        },
+    let Ok(dir_str) = std::env::var(DUMPS_DIR_ENV) else {
+        eprintln!("[parity] skipping numerical tests: {DUMPS_DIR_ENV} not set");
+        return None;
     };
+    let dir = PathBuf::from(dir_str);
 
     macro_rules! load {
         ($rel:expr) => {
@@ -485,6 +491,7 @@ pub(crate) fn try_load_dumps() -> Option<ParityDumps> {
     })
 }
 
+#[cfg(feature = "parity-fixtures")]
 fn load_dump_safetensors(path: &Path) -> Result<DumpTensor, FixtureError> {
     let bytes = fs::read(path).map_err(|err| {
         FixtureError(format!("failed to read {}: {err}", path.display()))
@@ -509,25 +516,86 @@ fn load_dump_safetensors(path: &Path) -> Result<DumpTensor, FixtureError> {
     Ok(DumpTensor { shape, values })
 }
 
+#[cfg(feature = "parity-fixtures")]
 type CpuBackend = burn_ndarray::NdArray<f32>;
 
+#[cfg(feature = "parity-fixtures")]
 use burn::prelude::Module;
+
+#[cfg(feature = "parity-fixtures")]
+struct TensorMapper<'a> {
+    float_map: &'a HashMap<String, (Vec<usize>, Vec<f32>)>,
+    int_map: &'a HashMap<String, (Vec<usize>, Vec<i64>)>,
+    device: burn_ndarray::NdArrayDevice,
+    stack: Vec<String>,
+}
+
+#[cfg(feature = "parity-fixtures")]
+impl burn::module::ModuleMapper<CpuBackend> for TensorMapper<'_> {
+    fn enter_module(&mut self, name: &str, _container_type: &str) {
+        self.stack.push(name.to_owned());
+    }
+
+    fn exit_module(&mut self, _name: &str, _container_type: &str) {
+        self.stack.pop();
+    }
+
+    fn map_float<const D: usize>(
+        &mut self,
+        param: burn::module::Param<burn::tensor::Tensor<CpuBackend, D>>,
+    ) -> burn::module::Param<burn::tensor::Tensor<CpuBackend, D>> {
+        use burn::tensor::TensorData;
+        let name = self.stack.join(".");
+        if name.starts_with("sigreg.consts.") {
+            return param;
+        }
+        let Some((shape, values)) = self.float_map.get(&name) else {
+            return param;
+        };
+        let Ok(shape_arr): Result<[usize; D], _> = shape.clone().try_into() else {
+            return param;
+        };
+        let (id, _old, mapper) = param.consume();
+        let tensor = burn::tensor::Tensor::<CpuBackend, D>::from_data(
+            TensorData::new(values.clone(), shape_arr),
+            &self.device,
+        );
+        burn::module::Param::from_mapped_value(id, tensor, mapper)
+    }
+
+    fn map_int<const D: usize>(
+        &mut self,
+        param: burn::module::Param<burn::tensor::Tensor<CpuBackend, D, burn::tensor::Int>>,
+    ) -> burn::module::Param<burn::tensor::Tensor<CpuBackend, D, burn::tensor::Int>> {
+        use burn::tensor::TensorData;
+        let name = self.stack.join(".");
+        let Some((shape, values)) = self.int_map.get(&name) else {
+            return param;
+        };
+        let Ok(shape_arr): Result<[usize; D], _> = shape.clone().try_into() else {
+            return param;
+        };
+        let (id, _old, mapper) = param.consume();
+        let tensor = burn::tensor::Tensor::<CpuBackend, D, burn::tensor::Int>::from_data(
+            TensorData::new(values.clone(), shape_arr),
+            &self.device,
+        );
+        burn::module::Param::from_mapped_value(id, tensor, mapper)
+    }
+}
 
 /// Load the reference `Jepa` model from `LEWM_REFERENCE_SAFETENSORS`.
 /// Returns `None` and prints a skip message when the env var is absent.
+#[cfg(feature = "parity-fixtures")]
+#[allow(clippy::too_many_lines)]
 pub(crate) fn try_load_reference_model(
-    device: &burn_ndarray::NdArrayDevice,
+    device: burn_ndarray::NdArrayDevice,
 ) -> Option<lewm_core::Jepa<CpuBackend>> {
-    use burn::module::{ModuleMapper, Param};
-    use burn::tensor::{Int, Tensor, TensorData};
     use lewm_core::{GeluVariant, Jepa, JepaConfig};
 
-    let path_str = match std::env::var(REFERENCE_SF_ENV) {
-        Ok(s) => s,
-        Err(_) => {
-            eprintln!("[parity] skipping numerical tests: {REFERENCE_SF_ENV} not set");
-            return None;
-        },
+    let Ok(path_str) = std::env::var(REFERENCE_SF_ENV) else {
+        eprintln!("[parity] skipping numerical tests: {REFERENCE_SF_ENV} not set");
+        return None;
     };
 
     let bytes = fs::read(&path_str)
@@ -566,88 +634,32 @@ pub(crate) fn try_load_reference_model(
         }
     }
 
-    struct TensorMapper<'a> {
-        float_map: &'a HashMap<String, (Vec<usize>, Vec<f32>)>,
-        int_map: &'a HashMap<String, (Vec<usize>, Vec<i64>)>,
-        device: burn_ndarray::NdArrayDevice,
-        stack: Vec<String>,
-    }
-
-    impl ModuleMapper<CpuBackend> for TensorMapper<'_> {
-        fn enter_module(&mut self, name: &str, _container_type: &str) {
-            self.stack.push(name.to_owned());
-        }
-
-        fn exit_module(&mut self, _name: &str, _container_type: &str) {
-            self.stack.pop();
-        }
-
-        fn map_float<const D: usize>(
-            &mut self,
-            param: Param<Tensor<CpuBackend, D>>,
-        ) -> Param<Tensor<CpuBackend, D>> {
-            let name = self.stack.join(".");
-            if name.starts_with("sigreg.consts.") {
-                return param;
-            }
-            let Some((shape, values)) = self.float_map.get(&name) else {
-                return param;
-            };
-            let Ok(shape_arr): Result<[usize; D], _> = shape.clone().try_into() else {
-                return param;
-            };
-            let (id, _old, mapper) = param.consume();
-            let tensor = Tensor::<CpuBackend, D>::from_data(
-                TensorData::new(values.clone(), shape_arr),
-                &self.device,
-            );
-            Param::from_mapped_value(id, tensor, mapper)
-        }
-
-        fn map_int<const D: usize>(
-            &mut self,
-            param: Param<Tensor<CpuBackend, D, Int>>,
-        ) -> Param<Tensor<CpuBackend, D, Int>> {
-            let name = self.stack.join(".");
-            let Some((shape, values)) = self.int_map.get(&name) else {
-                return param;
-            };
-            let Ok(shape_arr): Result<[usize; D], _> = shape.clone().try_into() else {
-                return param;
-            };
-            let (id, _old, mapper) = param.consume();
-            let tensor = Tensor::<CpuBackend, D, Int>::from_data(
-                TensorData::new(values.clone(), shape_arr),
-                &self.device,
-            );
-            Param::from_mapped_value(id, tensor, mapper)
-        }
-    }
-
     let mut cfg = JepaConfig::default();
     cfg.encoder.hidden_act = GeluVariant::Erf;
-    let model = Jepa::<CpuBackend>::init(cfg, device)
+    let model = Jepa::<CpuBackend>::init(cfg, &device)
         .map_err(|err| eprintln!("[parity] failed to init model: {err}"))
         .ok()?;
     let mut mapper = TensorMapper {
         float_map: &float_map,
         int_map: &int_map,
-        device: device.clone(),
+        device,
         stack: Vec::new(),
     };
     Some(model.map(&mut mapper))
 }
 
+#[cfg(feature = "parity-fixtures")]
 pub(crate) fn tensor_from_dump<const D: usize>(
     dump: &DumpTensor,
     shape: [usize; D],
-    device: &burn_ndarray::NdArrayDevice,
+    device: burn_ndarray::NdArrayDevice,
 ) -> burn::tensor::Tensor<CpuBackend, D> {
     use burn::tensor::{Tensor, TensorData};
-    Tensor::<CpuBackend, D>::from_data(TensorData::new(dump.values.clone(), shape), device)
+    Tensor::<CpuBackend, D>::from_data(TensorData::new(dump.values.clone(), shape), &device)
 }
 
 /// Compute the L-infinity norm between two flat value slices.
+#[cfg(feature = "parity-fixtures")]
 pub(crate) fn linf(actual: &[f32], expected: &[f32]) -> f32 {
     actual
         .iter()

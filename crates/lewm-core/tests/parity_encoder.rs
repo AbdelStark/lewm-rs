@@ -22,7 +22,7 @@ const TOL: f32 = 1e-4;
 fn parity_encoder_projector_output_within_1e4() {
     let device = NdArrayDevice::default();
     let (Some(model), Some(dumps), Ok(fixture)) = (
-        support::try_load_reference_model(&device),
+        support::try_load_reference_model(device),
         support::try_load_dumps(),
         support::load_fixture(),
     ) else {
@@ -51,7 +51,7 @@ fn parity_encoder_projector_output_within_1e4() {
 fn parity_encoder_cls_raw_within_1e4() {
     let device = NdArrayDevice::default();
     let (Some(model), Some(dumps), Ok(fixture)) = (
-        support::try_load_reference_model(&device),
+        support::try_load_reference_model(device),
         support::try_load_dumps(),
         support::load_fixture(),
     ) else {
@@ -80,7 +80,7 @@ fn parity_encoder_cls_raw_within_1e4() {
 fn parity_encoder_per_block_within_1e4() {
     let device = NdArrayDevice::default();
     let (Some(model), Some(dumps), Ok(fixture)) = (
-        support::try_load_reference_model(&device),
+        support::try_load_reference_model(device),
         support::try_load_dumps(),
         support::load_fixture(),
     ) else {

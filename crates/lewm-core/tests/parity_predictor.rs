@@ -26,7 +26,7 @@ const TOL: f32 = 1e-4;
 fn parity_predictor_output_within_1e4() {
     let device = NdArrayDevice::default();
     let (Some(model), Some(dumps), Ok(fixture)) = (
-        support::try_load_reference_model(&device),
+        support::try_load_reference_model(device),
         support::try_load_dumps(),
         support::load_fixture(),
     ) else {
@@ -71,7 +71,7 @@ fn parity_predictor_output_within_1e4() {
 fn parity_predictor_per_block_shape() {
     let device = NdArrayDevice::default();
     let (Some(_model), Some(dumps), Ok(_fixture)) = (
-        support::try_load_reference_model(&device),
+        support::try_load_reference_model(device),
         support::try_load_dumps(),
         support::load_fixture(),
     ) else {
