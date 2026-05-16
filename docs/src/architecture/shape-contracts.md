@@ -34,8 +34,8 @@ shapes are:
    fc1 → BN1d → GELU → fc2            (B, T+1, 192)            f32   ◀ z_proj, target arm
 
    ── action encoder ──
-   actions.transpose                  (B, A, T_raw)            f32
-   Conv1d (kernel=5)                  (B, 10, T_raw-4) = (B, 10, T)
+   actions.transpose                  (B, input_dim, T)        f32
+   Conv1d (kernel=1)                  (B, 10, T)               f32
    transpose                          (B, T, 10)
    MLP (10 → 768 → 192)               (B, T, 192)              f32   ◀ a_emb
 
@@ -98,23 +98,30 @@ indices `1..T+1`) serve as the prediction loss target.
 
 ### 2.3 Action encoder edges
 
-Let $T_{\text{raw}}$ denote the raw action-stream length in one
-training window. With Conv1d kernel size $k = 5$ and stride $1$, the
-smoothed stream has length $T_{\text{raw}} - 4$. The data pipeline
-guarantees $T_{\text{raw}} = T + 4$, so the smoothed stream is
-$T$-aligned with the encoder's history.
+The encoder consumes a $T$-aligned action stream. The data pipeline
+delivers `input_dim` channels per time step:
+
+- **PushT.** `frameskip = 5` consecutive raw 2-D actions are packed
+  into one 10-D vector by the data loader, so `input_dim = 10`.
+- **SO-100.** The 6-DOF action stream is already at the model's step
+  rate; no packing is needed, so `input_dim = 6`.
+
+Either way the encoder Conv1d is **kernel = 1**, **stride = 1**: a
+per-timestep linear lift from `input_dim` to 10 channels that
+preserves the $T$ axis.
 
 | From | To | Shape |
 |------|----|-------|
-| batch.actions | transpose for Conv1d | $(B, A, T_{\text{raw}})$ |
-| Conv1d (in=A, out=10, k=5, stride=1) | output | $(B, 10, T_{\text{raw}} - 4) = (B, 10, T)$ |
+| `batch.actions` | transpose for Conv1d | $(B, \text{input\_dim}, T)$ |
+| Conv1d (`input_dim` → 10, `k=1`, stride=1) | output | $(B, 10, T)$ |
 | transpose back | MLP input | $(B, T, 10)$ |
-| fc1 + SiLU | | $(B, T, 768)$ |
-| fc2 | a_emb | $(B, T, 192)$ |
+| `fc1` + SiLU | | $(B, T, 768)$ |
+| `fc2` | `a_emb` | $(B, T, 192)$ |
 
-In `lewm-rs` v1 the LeWM defaults pin $T = 3$ and $T_{\text{raw}} = 7$,
-which yields smoothed length $T_{\text{raw}} - 4 = 3 = T$. See
-[`crates/lewm-data/src/transform/window.rs`].
+In `lewm-rs` v1 the LeWM defaults pin $T = 3$. The trainer is
+responsible for delivering the encoder a $T$-aligned action tensor;
+see `crates/lewm-train/src/config.rs` for the
+`raw_action_dim × frameskip = input_dim` contract.
 
 ### 2.4 Predictor edges
 

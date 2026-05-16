@@ -119,18 +119,28 @@ modulation vectors per block contribute $\sim 0.22$ M per block.
 
 ## 4. Action encoder tensor breakdown
 
-| Path | Shape | Count |
-|------|------:|------:|
-| `action_enc.smoother.weight` (PushT) | $10 \times 2 \times 5$ | 100 |
-| `action_enc.smoother.bias` | $10$ | 10 |
-| `action_enc.fc1.weight` | $768 \times 10$ | 7 680 |
-| `action_enc.fc1.bias` | $768$ | 768 |
-| `action_enc.fc2.weight` | $192 \times 768$ | 147 456 |
-| `action_enc.fc2.bias` | $192$ | 192 |
-| **Action encoder total (PushT)** | | **156 206** |
+Burn's Conv1d weight follows `(out_channels, in_channels, kernel)`. The
+encoder consumes the action stream at the predictor's step rate; the
+two reference tasks reach this rate by different paths:
 
-For SO-100, `smoother.weight` has shape $10 \times 6 \times 5 = 300$,
-so the total is 156 406.
+- **PushT.** The data plane packs `frameskip = 5` consecutive 2-D raw
+  actions into one 10-D vector, so the encoder receives `input_dim =
+  10` (see `crates/lewm-train/src/config.rs::pusht_contract_errors`).
+- **SO-100.** The 6-DOF action arrives at the model's rate already, so
+  the encoder receives `input_dim = 6`.
+
+The downstream MLP (`fc1`, `fc2`) is shape-identical in both tasks
+because `smoothed_dim = 10` is locked.
+
+| Path | Shape (PushT) | Count (PushT) | Shape (SO-100) | Count (SO-100) |
+|------|--------------:|--------------:|---------------:|---------------:|
+| `action_enc.smoother.weight` | $10 \times 10 \times 1$ | 100 | $10 \times 6 \times 1$ | 60 |
+| `action_enc.smoother.bias`   | $10$            | 10 | $10$            | 10 |
+| `action_enc.fc1.weight`      | $768 \times 10$ | 7 680 | $768 \times 10$ | 7 680 |
+| `action_enc.fc1.bias`        | $768$           | 768 | $768$           | 768 |
+| `action_enc.fc2.weight`      | $192 \times 768$ | 147 456 | $192 \times 768$ | 147 456 |
+| `action_enc.fc2.bias`        | $192$           | 192 | $192$           | 192 |
+| **Action encoder total**     |                  | **156 206** |                | **156 166** |
 
 ## 5. Projector / pred-proj breakdown
 

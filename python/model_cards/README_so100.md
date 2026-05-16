@@ -25,7 +25,7 @@ This checkpoint is trained on `abdelstark/so100-pickplace-lewm-ready` (1.9 GB HD
 |--------|-------|
 | Steps | 5,000 |
 | Wall time | 864 s (~14 min) on A10G-large |
-| Initial loss | 0.500 |
+| Initial loss | 0.5002 |
 | Final loss | 9.56e-05 |
 | Gradient explosions | 0 |
 | Job | `abdelstark/6a070e02e48bea4538b9e2a5` (v11a) |

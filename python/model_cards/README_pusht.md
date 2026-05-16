@@ -24,7 +24,7 @@ This checkpoint achieves **numerical parity** with the reference PyTorch impleme
 |--------|-------|
 | Steps | 50,000 |
 | Wall time | 318 min on A10G-large |
-| Initial loss | 0.491 |
+| Initial loss | 0.4912 |
 | Final loss | 3.17e-06 |
 | Gradient explosions | 0 |
 | Job | `abdelstark/6a06f0c43308d79117b90276` |

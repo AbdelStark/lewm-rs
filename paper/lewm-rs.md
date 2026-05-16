@@ -14,9 +14,9 @@ numerical parity with the original PyTorch reference (L∞ < 1e-4 on all 10
 activation-level parity tests), trains on the PushT manipulation dataset and
 the SO-100 6-DOF robot arm dataset, exports to ONNX for CPU inference via Tract,
 and provides a live Gradio demo. The total parameter count is 18.04M (303
-tensors). SO-100 training converges in 864 seconds on an A10G GPU (loss 0.50 →
+tensors). SO-100 training converges in 864 seconds on an A10G GPU (loss 0.5002 →
 9.56e-05, 5,000 steps). PushT 50k-step training completes in 318 minutes on
-A10G-large (loss 0.491 → 3.17e-06). CEM planning evaluation is pending. The
+A10G-large (loss 0.4912 → 3.17e-06). CEM planning evaluation is pending. The
 Tract CPU benchmark yields 4.08 s/episode (p50, release build) on Apple
 M-series hardware. All code, training configurations, model checkpoints, and
 ONNX artifacts are publicly released.
@@ -134,13 +134,19 @@ the corresponding smoothed action embeddings to the next-step latent prediction:
 
 ### 3.3 Action encoder (RFC 0002)
 
-Raw 2-DOF PushT actions (or 7-DOF SO-100 actions) pass through a Conv1d
-smoother with frameskip=5, producing a 10-dim smoothed representation, then
-a 2-layer SiLU MLP to 192 dims:
+The encoder consumes a $T$-aligned action stream. The two reference
+tasks reach the model's step rate by different paths: PushT raw 2-DOF
+actions are frameskip-packed (`frameskip = 5`) by the data plane into
+a 10-D vector before they enter the encoder, while SO-100 6-DOF
+actions are already at the model rate. The encoder applies a kernel-1
+Conv1d (a per-timestep linear lift) followed by a 2-layer SiLU MLP to
+192 dims:
 
 ```
-raw_action (A,) → Conv1d-k1 (10,) → SiLU → Linear (192*4,) → SiLU → Linear (192,)
+actions (T, input_dim) → Conv1d-k1 (T, 10) → SiLU MLP (T, 192*4) → Linear (T, 192)
 ```
+
+with `input_dim = 10` for PushT and `input_dim = 6` for SO-100.
 
 ### 3.4 SIGReg (RFC 0003)
 
@@ -243,7 +249,7 @@ batch size 64, device cuda:0, seed 0, 0 gradient explosions).
 | 25,000 | 1.92e-06 | 1.72e-06 | 1.93e-07 | 1.60e-04 |
 | 50,000 | 3.17e-06 | 3.00e-06 | 1.69e-07 | 1.00e-05 |
 
-The loss decreases from 0.491 to 3.17e-06 over 50k steps, driven primarily by
+The loss decreases from 0.4912 to 3.17e-06 over 50k steps, driven primarily by
 the SIGReg term through step ~1,000, after which both SIGReg and pred loss
 converge to near-zero.
 
@@ -368,11 +374,11 @@ symbolic shape annotations (`Min(3, history)`) that Tract's shape inference
 rejects. The legacy TorchScript exporter with fixed shapes is required.
 
 **Bounded model gap**: The training loop uses `PushtFullLewmCore`, a simplified
-14-parameter Rust model. The full Burn ViT (`lewm_core::Jepa`, 303 parameters,
-parity-validated) is not yet wired into the training loop. The ONNX export
-therefore uses the PyTorch reference weights converted to Burn format, not
-a natively Rust-trained ViT checkpoint. Closing this gap is the primary
-remaining engineering work.
+$\sim 14$-tensor Rust core. The full Burn ViT (`lewm_core::Jepa`, 303 parameter
+tensors / 18.04 M parameters, parity-validated) is not yet wired into the
+training loop. The ONNX export therefore uses the PyTorch reference weights
+converted to Burn format, not a natively Rust-trained ViT checkpoint. Closing
+this gap is the primary remaining engineering work.
 
 ---
 
@@ -424,9 +430,9 @@ Rust baseline for world-model research on manipulation tasks.
 | Predictor depth | 6 | 6 |
 | Predictor heads | 16 | 16 |
 | Predictor mlp | 2048 | 2048 |
-| Action dim (raw) | 2 | 7 |
-| Action frameskip | 5 | 5 |
-| Action input dim | 10 | 10 |
+| Action dim (raw) | 2 | 6 |
+| Action frameskip | 5 | — |
+| Action input dim | 10 | 6 |
 | Action emb dim | 192 | 192 |
 | Projector hidden | 2048 | 2048 |
 | SIGReg knots | 17 | 17 |

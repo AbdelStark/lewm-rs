@@ -11,9 +11,9 @@
 CPU inference, and artifact publication. The Burn-backed parity stack is
 numerically verified against the locked PushT reference checkpoint (all 10
 activation-level parity tests pass, L∞ < 1e-4). PushT 50k-step training
-completed (loss 0.491 → 3.17e-06, 318 min, A10G-large). SO-100 training
-completed (5000 steps, 864s, loss 0.50 → 9.56e-05). ONNX export and Tract
-CPU inference are working end-to-end (4.08 s/episode, p50, release build).
+completed (loss 0.4912 → 3.17e-06, 318 min, A10G-large). SO-100 training
+completed (5000 steps, 864s, loss 0.5002 → 9.56e-05). ONNX export and
+Tract CPU inference run end-to-end (4.08 s/episode, p50, release build).
 
 The binding product and engineering contract lives in [`PRD.md`](PRD.md) and
 [`specs/`](specs/). The pedagogical companion — a comprehensive,
@@ -61,8 +61,8 @@ Make targets mirror the local gates:
 | Result | Current state | Target |
 |--------|---------------|--------|
 | Parity verification | **Verified** — all 10 activation-level tests pass (L∞ < 1e-4) | Numerical match to reference |
-| PushT full training | **Completed** — 50k steps, 318 min, A10G-large; loss 0.491→3.17e-06; artifacts at [`abdelstark/lewm-rs-pusht`](https://huggingface.co/abdelstark/lewm-rs-pusht) | CEM success rate ≥ 87% (eval pending) |
-| SO-100 pick-and-place | **Completed** — 5000 steps, 864s, A10G-large; loss 0.50→9.56e-05; artifacts at [`abdelstark/lewm-rs-so100`](https://huggingface.co/abdelstark/lewm-rs-so100) | Warm-start ablation (pending) |
+| PushT full training | **Completed** — 50k steps, 318 min, A10G-large; loss 0.4912→3.17e-06; artifacts at [`abdelstark/lewm-rs-pusht`](https://huggingface.co/abdelstark/lewm-rs-pusht) | CEM success rate ≥ 87% (eval pending) |
+| SO-100 pick-and-place | **Completed** — 5000 steps, 864s, A10G-large; loss 0.5002→9.56e-05; artifacts at [`abdelstark/lewm-rs-so100`](https://huggingface.co/abdelstark/lewm-rs-so100) | Warm-start ablation (pending) |
 | CPU inference (Tract) | **Benchmarked** — 4.08s/episode (p50, release build, M-series Mac, 5 CEM iter × 1024 cand) | Sub-second on GPU / batched |
 | CPU inference (Burn `NdArray`) | **Implemented** — `lewm-infer --backend burn-cpu` runs the in-Rust `Jepa<B>` module directly from Safetensors weights (CLS-projected encoder, 192-dim latent) | Latency baseline vs. Tract |
 | GPU inference (Burn CUDA) | **Implemented** — `lewm-infer --backend burn-cuda` (feature `burn-cuda`) runs the same `Jepa<B>` module on NVIDIA GPUs; built and CI-checked | Measured A10G/CUDA latency |

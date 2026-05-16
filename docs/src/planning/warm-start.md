@@ -16,7 +16,7 @@ Two SO-100 training runs are compared:
 | Run | Initialisation |
 |-----|----------------|
 | **From scratch** | Truncated-normal init, `σ = 0.02`, for every parameter. |
-| **From PushT** | Load the PushT step-50000 checkpoint's `vit`, `projector`, `predictor`, `pred_proj`; randomly init `action_enc` (its `smoother.weight` has a different input-channel dim, 2 → 6, so it must be re-init). |
+| **From PushT** | Load the PushT step-50000 checkpoint's `vit`, `projector`, `predictor`, `pred_proj`; randomly init `action_enc` (its `smoother.weight` has a different input-channel dim: PushT uses pre-packed 10-D actions while SO-100 uses raw 6-D actions, so the parameter shape differs and the tensor must be re-init). |
 
 Both runs use the same SO-100 config (`configs/so100.toml`), same seed
 (0), same 5 000-step budget, and the same dataset split. The only
@@ -69,15 +69,16 @@ parameters trigger an error rather than a silent random-init fallback
 — this is critical for reproducibility.
 
 The action encoder is *not* in `warm_start_components` because its
-`smoother.weight` has a different shape (`(10, 6, 5)` vs `(10, 2, 5)`).
-It is randomly initialised, like every other component would be in a
-from-scratch run.
+`smoother.weight` has a different shape between the two tasks:
+`(10, 6, 1)` for SO-100 (raw 6-DOF input) vs `(10, 10, 1)` for PushT
+(pre-packed 2-DOF × frameskip = 10-D input). It is randomly initialised,
+like every other component would be in a from-scratch run.
 
 ## 5. Status
 
 | Item | Status |
 |------|--------|
-| From-scratch SO-100 checkpoint | <span class="lewm-badge lewm-badge--done">Done</span> (5 000 steps, loss 0.50 → 9.56e-05) |
+| From-scratch SO-100 checkpoint | <span class="lewm-badge lewm-badge--done">Done</span> (5 000 steps, loss 0.5002 → 9.56e-05) |
 | Warm-start SO-100 training | <span class="lewm-badge lewm-badge--todo">Planned</span> |
 | Warm-start eval / comparison | <span class="lewm-badge lewm-badge--todo">Planned</span> |
 

@@ -31,14 +31,14 @@ four and provides forward, rollout, and cost entry points.
 ## 2. The composition
 
 ```text
-              pixels                 raw actions
-        (B, T+1, 3, 224, 224)        (B, T_raw, A)
+              pixels             packed actions (from data plane)
+        (B, T+1, 3, 224, 224)         (B, T, A_p = 10)
                   │                       │
                   ▼                       ▼
               ┌───────┐              ┌────────────┐
               │  Vit  │              │  Embedder  │
               │       │              │            │
-              │ HF    │              │ Conv1d k=5 │
+              │ HF    │              │ Conv1d k=1 │
               │ ViT-T │              │ + SiLU MLP │
               └───┬───┘              └─────┬──────┘
                   │                        │
@@ -128,7 +128,7 @@ rollout.
 | $H, W$ | Image size | 224, 224 |
 | $D$ | Embedding / token dim | 192 |
 | $A$ | Raw action dim | 2 (PushT) / 6 (SO-100) |
-| $A_p$ | Packed action dim | 10 (Conv1d smoother output) |
+| $A_p$ | Packed action dim | 10 (frameskip × raw dim: $5 \cdot 2$) |
 | $E_a$ | Action embedding dim | 192 (matches $D$) |
 | $K$ | SIGReg random projections | 1024 |
 | $J$ | SIGReg quadrature knots | 17 |
@@ -146,8 +146,8 @@ The following pages drill into each module:
   embeddings, attention, MLP, the 12-layer stack, the CLS read-off.
 - **[The autoregressive predictor](./predictor.md)** — AdaLN-zero
   blocks, causal mask, the 6-block stack.
-- **[The action encoder](./action-encoder.md)** — Conv1d smoother, MLP
-  lift to embedding dim.
+- **[The action encoder](./action-encoder.md)** — Conv1d (k=1) lift +
+  2-layer SiLU MLP from packed actions to the predictor's embedding dim.
 - **[Projector and pred-proj MLPs](./projector.md)** — the two MLPs
   that bracket SIGReg.
 - **[The `Jepa` wrapper and rollout](./jepa-wrapper.md)** — the

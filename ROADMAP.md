@@ -16,8 +16,8 @@ the next vertical slices needed to finish the project.
 | GHCR training image | Published | `ghcr.io/abdelstark/lewm-rs:latest@sha256:831f685a733a801620bbfa3f7ea649a4795ed731934bcb230896d3a47428d3e9` |
 | HF Jobs short PushT run | Completed | `https://huggingface.co/jobs/abdelstark/6a05cf0ee48bea4538b9ccd6` |
 | HF artifact upload | Completed for earlier minimal short run | `abdelstark/lewm-rs-pusht/train/pusht-minimal-lewm-short-20260514T133423Z/` |
-| Full PushT training job | Completed | `https://huggingface.co/jobs/abdelstark/6a06f0c43308d79117b90276`; 50k steps on a10g-large; loss 0.491→3.17e-06; wall 318 min; artifacts at `abdelstark/lewm-rs-pusht/train/pusht-full-lewm-20260515T100908Z/` |
-| SO-100 training job | Completed | v11a `6a070e02e48bea4538b9e2a5`: 864s, 5000 steps, loss 0.50→9.56e-05; artifacts at `abdelstark/lewm-rs-so100/train/so100-full-20260515T122820Z/` |
+| Full PushT training job | Completed | `https://huggingface.co/jobs/abdelstark/6a06f0c43308d79117b90276`; 50k steps on A10G-large; loss 0.4912→3.17e-06; wall 318 min; artifacts at `abdelstark/lewm-rs-pusht/train/pusht-full-lewm-20260515T100908Z/` |
+| SO-100 training job | Completed | v11a `6a070e02e48bea4538b9e2a5`: 864s, 5000 steps, loss 0.5002→9.56e-05; artifacts at `abdelstark/lewm-rs-so100/train/so100-full-20260515T122820Z/` |
 | Demo Space | Created | `https://huggingface.co/spaces/abdelstark/lewm-rs-demo`; Gradio app with CEM planning via ONNX; loads model from Hub when available |
 | SO-100 processed dataset | Uploaded | `abdelstark/so100-pickplace-lewm-ready`; 1.9 GB HDF5 + stats.safetensors; 6,559 timesteps, 50 episodes at 10 fps |
 | SO-100 training support | Implemented | `lewm-train` trainer dispatches on `DatasetConfig::So100`; `run_so100_full_lewm_training`; 6-DOF action packing; commit `6add7fd` |
@@ -38,7 +38,7 @@ the next vertical slices needed to finish the project.
 | Python dump subcommand | Implemented | `python/convert_reference.py dump` runs locked PyTorch reference model on parity fixture and captures all per-layer activations as Safetensors; PR [#214](https://github.com/AbdelStark/lewm-rs/pull/214) |
 | Rust parity test suite | Implemented | 10 parity tests (encoder, action_encoder, predictor, pred_proj, sigreg) gated behind `parity-fixtures` + `LEWM_PARITY_DUMPS`/`LEWM_REFERENCE_SAFETENSORS` env vars; skip gracefully without dumps; PR [#215](https://github.com/AbdelStark/lewm-rs/pull/215) |
 | CI parity workflow | Implemented | `parity` job caches dumps keyed on fixture hash, downloads from `AbdelStark/lewm-rs-parity-dumps` when `HF_TOKEN` available, runs full numerical tests or falls back to shape-only; PR [#216](https://github.com/AbdelStark/lewm-rs/pull/216) |
-| Numerical parity correctness | Verified | All 10 parity tests pass (L∞ &lt; 1e-4 encoder/action_encoder/predictor/pred_proj, \|Δ\| &lt; 1e-3 sigreg); LayerNorm eps=1e-12 and exact-erf GELU fixes; dumps uploaded to `AbdelStark/lewm-rs-parity-dumps`; PR [#217](https://github.com/AbdelStark/lewm-rs/pull/217) |
+| Numerical parity correctness | Verified | All 10 parity tests pass (`L∞ < 1e-4` on encoder/action_encoder/predictor/pred_proj, `|Δ| < 1e-3` on sigreg); LayerNorm eps=1e-12 and exact-erf GELU fixes; dumps uploaded to `AbdelStark/lewm-rs-parity-dumps`; PR [#217](https://github.com/AbdelStark/lewm-rs/pull/217) |
 | Artifact contract | Implemented for smoke and bounded PushT train | run report, losses JSONL, checkpoint sidecar, `.mpk`, `.safetensors`, parity JSON |
 | Optional observability | Implemented as optional infra | `infra/otel/`; CI and smoke runs do not require OTLP |
 | SO-100 full training | Completed | v11a job `6a070e02e48bea4538b9e2a5` completed (864s, 5000 steps, A10G-large); artifacts at `abdelstark/lewm-rs-so100/train/so100-full-20260515T122820Z/` (safetensors, mpk, losses, report, parity JSON) |
@@ -57,7 +57,7 @@ the next vertical slices needed to finish the project.
   Burn ViT parity stack. It is a narrow real training path for validating data,
   module boundaries, training, checkpoint, resume, upload, and job mechanics.
 - PushT planning success rate has not been measured for a trained Rust model.
-- SO-100 full training completed (v11a: 5000 steps, 864s, loss 0.50→9.56e-05); warm-start evaluation has not been run.
+- SO-100 full training completed (v11a: 5000 steps, 864s, loss 0.5002→9.56e-05); warm-start evaluation has not been run.
 - Resume is implemented for the bounded `pusht-full-module-lewm` path, including
   sidecar, `.mpk`, `.safetensors`, config hash, seed, step, AdamW, and RNG
   validation before continuing from the next step.
@@ -96,7 +96,7 @@ with linked evidence:
 | Done | [#37](https://github.com/AbdelStark/lewm-rs/issues/37) | Add dump subcommand to convert_reference.py | `python/convert_reference.py dump` captures all per-layer activations as Safetensors; PR [#214](https://github.com/AbdelStark/lewm-rs/pull/214); numerical fixes in PR [#217](https://github.com/AbdelStark/lewm-rs/pull/217) |
 | Done | [#38](https://github.com/AbdelStark/lewm-rs/issues/38) | Implement Rust parity test suite | 10 tests for encoder/action_encoder/predictor/pred_proj/sigreg; graceful skip without dumps; PR [#215](https://github.com/AbdelStark/lewm-rs/pull/215) |
 | Done | [#39](https://github.com/AbdelStark/lewm-rs/issues/39) | Wire CI parity workflow | Cache + HF download + numerical/shape conditional; PR [#216](https://github.com/AbdelStark/lewm-rs/pull/216) |
-| In Progress | [#193](https://github.com/AbdelStark/lewm-rs/issues/193) | Run full PushT training, planning eval, and publish artifacts | Training COMPLETED: `6a06f0c43308d79117b90276` (50k steps, loss 0.491→3.17e-06, 318 min); artifacts at `abdelstark/lewm-rs-pusht/train/pusht-full-lewm-20260515T100908Z/`; pending: CEM planning eval, model card |
+| In Progress | [#193](https://github.com/AbdelStark/lewm-rs/issues/193) | Run full PushT training, planning eval, and publish artifacts | Training COMPLETED: `6a06f0c43308d79117b90276` (50k steps, loss 0.4912→3.17e-06, 318 min); artifacts at `abdelstark/lewm-rs-pusht/train/pusht-full-lewm-20260515T100908Z/`; pending: CEM planning eval, model card |
 | In Progress | [#194](https://github.com/AbdelStark/lewm-rs/issues/194) | Complete SO-100 short/full training and evaluation path | v11a COMPLETED: `6a070e02e48bea4538b9e2a5` (864s, 5000 steps); artifacts at `abdelstark/lewm-rs-so100/train/so100-full-20260515T122820Z/`; model card uploaded; ONNX export skipped (SO-100 checkpoint uses bounded model, not full ViT); pending: warm-start eval, model card final pass |
 | Done | [#195](https://github.com/AbdelStark/lewm-rs/issues/195) | Finish Tract export, CPU benchmark, and demo Space validation | Tract-compat ONNX exported (opset 17, fixed-batch, causal-mask buffer); `lewm-infer bench` benchmark: ~4.1s median/episode (debug, M-series Mac); both onnxruntime and tract-compat variants uploaded to `abdelstark/lewm-rs-pusht`; demo Space `app.py` fixed (auto-detects action_dim, downloads .data files) |
 | Done | [#196](https://github.com/AbdelStark/lewm-rs/issues/196) | Finish public reports, paper, and release evidence | All reports done: pusht_training.md, so100_training.md, inference.md, cost.md ($11.70), release_checklist.md; paper §6.1 training curves filled; README final pass; cross-links done; pandoc CI works; CEM eval §6.2 and SO-100 warm-start §7.3 remain TBD |
