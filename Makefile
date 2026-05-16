@@ -2,7 +2,7 @@ PYTHON ?= python3
 RUFF ?= ruff
 CARGO_AUDIT_DB ?= target/advisory-db/cargo-audit
 
-.PHONY: fmt lint test test-fast bench docs check accept clean py-lint
+.PHONY: fmt lint test test-fast bench docs docsite check accept clean py-lint
 
 fmt:
 	cargo fmt --all
@@ -21,6 +21,18 @@ bench:
 
 docs:
 	RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
+
+# Build the mdBook documentation site under docs/.
+# Requires mdbook on PATH (`cargo install mdbook`).
+docsite:
+	@if command -v mdbook >/dev/null 2>&1; then \
+		printf '%s\n' "mdbook build docs/"; \
+		mdbook build docs; \
+		mdbook test docs; \
+	else \
+		printf '%s\n' 'mdbook not installed; install with: cargo install mdbook'; \
+		exit 1; \
+	fi
 
 # Lint Python helpers with Ruff when available. Ruff is wired through
 # `python/pyproject.toml`; falls back to a `py_compile` syntax sweep when the

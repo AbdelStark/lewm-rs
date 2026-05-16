@@ -16,8 +16,12 @@ completed (5000 steps, 864s, loss 0.50 → 9.56e-05). ONNX export and Tract
 CPU inference are working end-to-end (4.08 s/episode, p50, release build).
 
 The binding product and engineering contract lives in [`PRD.md`](PRD.md) and
-[`specs/`](specs/). The current execution backlog is
-[`ROADMAP.md`](ROADMAP.md) and
+[`specs/`](specs/). The pedagogical companion — a comprehensive,
+multi-part docsite covering JEPA foundations, LeWM specialization,
+SIGReg math, the AdaLN-zero predictor, the training paradigm, CEM
+planning, ONNX/Tract inference, and the parity contracts — lives in
+[`docs/`](docs/) as an mdBook site (`make docsite`). The current
+execution backlog is [`ROADMAP.md`](ROADMAP.md) and
 [#189](https://github.com/AbdelStark/lewm-rs/issues/189). Model artifacts
 land at
 [abdelstark/lewm-rs-pusht](https://huggingface.co/abdelstark/lewm-rs-pusht)
@@ -47,6 +51,7 @@ Make targets mirror the local gates:
 | `make test-fast` | Run lib/bin tests excluding `_slow_` tests. |
 | `make bench` | Run workspace benchmarks. |
 | `make docs` | Build rustdoc with warnings denied. |
+| `make docsite` | Build the mdBook documentation site under `docs/`. |
 | `make check` | Run format, Rust lint, Python lint, cargo check, spec/layer checks, deny, and audit. |
 | `make accept` | Run the current release gate: check, test, docs, `python/Makefile` Python gate, and future hub-artifact / release-inventory hooks. |
 | `make clean` | Remove Cargo build outputs. |
@@ -69,6 +74,7 @@ Make targets mirror the local gates:
 
 | Document | Link |
 |----------|------|
+| Comprehensive docsite | [`docs/`](docs/) (mdBook; `make docsite` to build) |
 | Paper writeup | [`paper/lewm-rs.md`](paper/lewm-rs.md) |
 | PushT training report | [`reports/pusht_training.md`](reports/pusht_training.md) |
 | GPU inference & parity eval | [`reports/gpu_inference.md`](reports/gpu_inference.md) |
@@ -155,6 +161,7 @@ scripts/launch_hf_job.py jobs/short_pusht.yaml
 
 ```text
 crates/     Rust workspace crates for core, data, training, planning, inference, telemetry, Hub
+docs/       Comprehensive mdBook documentation site (Concepts → Architecture → Training → … → Reference)
 infra/      Optional self-hosted observability infrastructure
 scripts/    Local validation and repository maintenance scripts
 specs/      Accepted RFCs, ADR process, glossary, and traceability matrix

@@ -7,6 +7,7 @@ on:
       - "Cargo.toml"
       - "Cargo.lock"
       - "crates/**"
+      - "docs/**"
       - "paper/**"
       - "specs/**"
       - ".github/workflows/docs.yml"
@@ -17,6 +18,7 @@ permissions:
 
 env:
   RUST_TOOLCHAIN: "1.89.0"
+  MDBOOK_VERSION: "0.4.52"
 
 jobs:
   rustdoc-build:
@@ -64,3 +66,33 @@ jobs:
 
       - name: Validate specs before publishing
         run: python3 scripts/check_specs.py
+
+  mdbook-build:
+    name: mdbook-build
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        run: rustup toolchain install "$RUST_TOOLCHAIN" --profile default
+
+      - name: Install mdBook
+        run: |
+          cargo install mdbook --version "=$MDBOOK_VERSION" --locked
+
+      - name: Build the documentation site
+        working-directory: docs
+        run: mdbook build
+
+      - name: Validate code blocks compile
+        working-directory: docs
+        run: mdbook test
+
+      - name: Upload site artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: lewm-rs-docs-site
+          path: docs/book
+          if-no-files-found: error
+          retention-days: 30

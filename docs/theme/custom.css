@@ -1,0 +1,182 @@
+/* lewm-rs documentation site — custom theme overlay.
+ *
+ * Goals:
+ *   - Academic typographic feel without sacrificing readability on screen.
+ *   - Strong information density (tables, math, code, callouts) without clutter.
+ *   - First-class display of MathJax equations, ASCII diagrams, and shape contracts.
+ *   - Subtle, principled visual hierarchy. No emoji decoration.
+ */
+
+:root {
+    --content-max-width: 920px;
+    --mono-font: "JetBrains Mono", "Fira Code", "SFMono-Regular",
+                 Consolas, "Liberation Mono", Menlo, monospace;
+    --serif-font: "Source Serif Pro", "Charter", "Iowan Old Style",
+                  "Apple Garamond", Georgia, serif;
+    --sans-font: "Inter", "Source Sans Pro", -apple-system,
+                 BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+}
+
+.content main {
+    max-width: var(--content-max-width);
+    font-family: var(--serif-font);
+    font-size: 17px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+}
+
+.content main h1,
+.content main h2,
+.content main h3,
+.content main h4,
+.content main h5,
+.content main h6 {
+    font-family: var(--sans-font);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    line-height: 1.25;
+    margin-top: 1.75em;
+    margin-bottom: 0.55em;
+}
+
+.content main h1 {
+    font-size: 2.05rem;
+    font-weight: 700;
+    border-bottom: 1px solid var(--quote-border, rgba(127, 127, 127, 0.25));
+    padding-bottom: 0.4em;
+    margin-top: 0.2em;
+}
+
+.content main h2 {
+    font-size: 1.55rem;
+    border-bottom: 1px solid rgba(127, 127, 127, 0.15);
+    padding-bottom: 0.3em;
+}
+
+.content main h3 { font-size: 1.25rem; }
+.content main h4 { font-size: 1.10rem; }
+
+/* Inline + block code. */
+.content main code,
+.content main pre {
+    font-family: var(--mono-font);
+    font-size: 14.5px;
+}
+
+.content main p > code,
+.content main li > code,
+.content main td > code {
+    padding: 0.08em 0.36em;
+    border-radius: 3px;
+    font-size: 0.93em;
+}
+
+/* Block-quote / callout styling. */
+.content main blockquote {
+    border-left: 4px solid #5f7d8c;
+    background: rgba(95, 125, 140, 0.07);
+    border-radius: 0 4px 4px 0;
+    padding: 0.6em 1.1em;
+    margin: 1.2em 0;
+    font-style: normal;
+    color: inherit;
+}
+
+.content main blockquote p:first-child { margin-top: 0; }
+.content main blockquote p:last-child  { margin-bottom: 0; }
+
+/* Tables: numerical-report ready. */
+.content main table {
+    margin: 1.2em 0;
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 0.95rem;
+}
+
+.content main table thead {
+    background: rgba(95, 125, 140, 0.10);
+}
+
+.content main table th,
+.content main table td {
+    padding: 0.5em 0.85em;
+    text-align: left;
+    border: 1px solid rgba(127, 127, 127, 0.20);
+    vertical-align: top;
+}
+
+.content main table th {
+    font-family: var(--sans-font);
+    font-weight: 600;
+    letter-spacing: 0.01em;
+}
+
+/* Numeric columns: right-align cells whose first child is a number. */
+.content main table td.numeric { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* MathJax display equations: more vertical breathing room. */
+.content main mjx-container[display="true"] {
+    margin: 1.2em 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+
+/* Compact "definition" lists for glossaries. */
+.content main dl { margin: 1em 0; }
+.content main dl dt {
+    font-family: var(--sans-font);
+    font-weight: 600;
+    margin-top: 0.7em;
+}
+.content main dl dd {
+    margin-left: 1.5em;
+    margin-top: 0.15em;
+}
+
+/* Footnote tweaks. */
+.content main .footnote-definition {
+    font-size: 0.92rem;
+    margin-top: 0.4em;
+}
+
+/* "Status" badges used in introduction / overview pages. */
+.lewm-badge {
+    display: inline-block;
+    padding: 0.16em 0.6em;
+    margin: 0 0.18em;
+    border-radius: 999px;
+    font-family: var(--sans-font);
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    border: 1px solid currentColor;
+    line-height: 1.4;
+    vertical-align: 0.06em;
+}
+.lewm-badge--done    { color: #2f8f3e; }
+.lewm-badge--partial { color: #b07b00; }
+.lewm-badge--todo    { color: #8a8a8a; }
+.lewm-badge--note    { color: #2c64a8; }
+
+/* ASCII / shape-contract pre-blocks: ensure tight line spacing. */
+.content main pre {
+    line-height: 1.45;
+}
+
+/* Anchor link target offset (so deep links don't hide under the top bar). */
+.content main :target {
+    scroll-margin-top: 5rem;
+}
+
+/* Sidebar / TOC font polish. */
+.sidebar { font-family: var(--sans-font); }
+.sidebar .chapter li.chapter-item { font-size: 0.93rem; line-height: 1.45; }
+.sidebar .chapter li.chapter-item strong { font-weight: 600; }
+
+/* Print mode: cleaner page breaks. */
+@media print {
+    .content main h1, .content main h2 { page-break-after: avoid; }
+    .content main pre, .content main blockquote { page-break-inside: avoid; }
+}
