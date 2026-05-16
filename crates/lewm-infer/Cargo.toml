@@ -21,10 +21,11 @@ tract-onnx = ["dep:tract-onnx", "dep:tract-linalg"]
 tract-nnef = ["dep:tract-nnef", "dep:tract-linalg"]
 # Burn-direct CPU inference via `burn-ndarray`. Always-on by default so the
 # `eval` and `--backend burn-cpu` paths work without extra build flags.
+#
+# GPU backends (burn-cuda, burn-wgpu, ...) deliberately live in the separate
+# `lewm-gpu` crate per RFC 0007: this crate stays free of CUDA / autodiff /
+# NVML dependencies so it can be built on minimal CI runners and edge hosts.
 burn-cpu = ["dep:burn-ndarray"]
-# Burn-direct GPU inference via `burn-cuda`. Opt-in because it requires CUDA
-# toolkit and runtime libraries to be installed on the build host.
-burn-cuda = ["dep:burn-cuda"]
 # Legacy alias for the Burn-direct path; kept for backwards compatibility with
 # external scripts that pass `--features burn-direct`.
 burn-direct = ["burn-cpu"]
@@ -33,7 +34,6 @@ slow-tests = []
 [dependencies]
 burn = { workspace = true }
 burn-ndarray = { workspace = true, optional = true }
-burn-cuda = { workspace = true, optional = true }
 clap = { workspace = true }
 image = { workspace = true, features = ["jpeg", "png"] }
 lewm-core = { workspace = true }

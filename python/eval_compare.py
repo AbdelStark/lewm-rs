@@ -57,8 +57,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--backend",
         action="append",
-        choices=("tract-onnx", "tract-nnef", "burn-cpu", "burn-cuda"),
-        help="Rust backend(s) to evaluate. May be repeated. Default: tract-onnx, burn-cpu.",
+        choices=("tract-onnx", "tract-nnef", "burn-cpu"),
+        help=(
+            "Rust backend(s) to evaluate via `lewm-infer eval`. May be repeated. "
+            "Default: tract-onnx, burn-cpu. GPU inference lives in `lewm-gpu`; "
+            "call it directly via a downstream binary instead of through this script."
+        ),
     )
     parser.add_argument(
         "--lewm-infer",

@@ -18,7 +18,7 @@ use lewm_infer::plan::{
     cem_rng,
 };
 use lewm_infer::preprocess::{PreprocessError, preprocess_path};
-#[cfg(any(feature = "burn-cpu", feature = "burn-cuda"))]
+#[cfg(feature = "burn-cpu")]
 use lewm_infer::runner::{BackendKind, load_with_backend};
 use lewm_infer::runner::{IMAGE_ELEMENT_COUNT, InferenceRunner, RunnerError, load};
 use serde::Serialize;
@@ -92,7 +92,7 @@ fn build_runner(
     build_burn_runner(backend_name, checkpoint_dir, safetensors)
 }
 
-#[cfg(any(feature = "burn-cpu", feature = "burn-cuda"))]
+#[cfg(feature = "burn-cpu")]
 fn build_burn_runner(
     backend_name: &str,
     checkpoint_dir: &Path,
@@ -102,14 +102,15 @@ fn build_burn_runner(
     load_with_backend(backend_kind, checkpoint_dir, safetensors, None).map_err(CliError::Runner)
 }
 
-#[cfg(not(any(feature = "burn-cpu", feature = "burn-cuda")))]
+#[cfg(not(feature = "burn-cpu"))]
 fn build_burn_runner(
     backend_name: &str,
     _checkpoint_dir: &Path,
     _safetensors: Option<&Path>,
 ) -> Result<Box<dyn InferenceRunner>, CliError> {
     Err(CliError::InvalidInput(format!(
-        "backend '{backend_name}' requires building with feature `burn-cpu` or `burn-cuda`"
+        "backend '{backend_name}' requires building with feature `burn-cpu` \
+         (GPU backends live in the `lewm-gpu` crate)"
     )))
 }
 
@@ -152,7 +153,7 @@ struct Cli {
         long,
         global = true,
         value_name = "NAME",
-        help = "Inference backend: tract|tract-onnx|tract-nnef|burn-cpu|burn-cuda."
+        help = "Inference backend: tract|tract-onnx|tract-nnef|burn-cpu. (GPU backends live in lewm-gpu.)"
     )]
     backend: Option<String>,
 

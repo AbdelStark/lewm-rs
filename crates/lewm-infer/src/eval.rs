@@ -355,6 +355,9 @@ pub fn run_parity_eval(
     runner: &mut dyn InferenceRunner,
     inputs: ParityEvalInputs<'_>,
 ) -> Result<EvalReport, EvalError> {
+    // Wall-clock latency reporting at the eval boundary — this is not core
+    // training logic, so the RFC 0013 deterministic-clock rule does not apply.
+    // determinism-lint: allow Instant::now (eval reports user-visible latency).
     use std::time::Instant;
 
     let ParityEvalInputs {
@@ -388,7 +391,7 @@ pub fn run_parity_eval(
     };
 
     if let Some(dump) = projector_dump.as_ref() {
-        let start = Instant::now();
+        let start = Instant::now(); // determinism-lint: allow Instant::now
         let encoded = runner.encode(pixels).map_err(|source| EvalError::Runner {
             stage: STAGE_PROJECTOR.to_owned(),
             source,
@@ -411,7 +414,7 @@ pub fn run_parity_eval(
     }
 
     if let Some(dump) = pred_proj_dump.as_ref() {
-        let start = Instant::now();
+        let start = Instant::now(); // determinism-lint: allow Instant::now
         let predicted = runner
             .predict(history, actions, history_steps, action_dim)
             .map_err(|source| EvalError::Runner {

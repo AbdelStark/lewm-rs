@@ -2,7 +2,7 @@
 
 use std::path::Path;
 
-#[cfg(any(feature = "burn-cpu", feature = "burn-cuda"))]
+#[cfg(feature = "burn-cpu")]
 use crate::runner::BackendKind;
 use crate::runner::traits::{InferenceRunner, RunnerError, RunnerFormat};
 
@@ -27,7 +27,7 @@ pub fn detect_checkpoint_format(checkpoint_dir: &Path) -> Option<RunnerFormat> {
 /// 1. `checkpoint_dir/weights.safetensors`
 /// 2. The highest-numbered `step_*.safetensors` file inside `checkpoint_dir`.
 /// 3. `checkpoint_dir/reference.safetensors` (used by parity dump bundles).
-#[cfg(any(feature = "burn-cpu", feature = "burn-cuda"))]
+#[cfg(feature = "burn-cpu")]
 pub fn detect_safetensors(checkpoint_dir: &Path) -> Option<std::path::PathBuf> {
     let weights = checkpoint_dir.join("weights.safetensors");
     if weights.exists() {
@@ -110,15 +110,18 @@ fn load_nnef(_checkpoint_dir: &Path) -> Result<Box<dyn InferenceRunner>, RunnerE
 /// Load a runner for a given [`BackendKind`].
 ///
 /// For `TractOnnx`/`TractNnef`, this reuses the existing checkpoint-directory
-/// discovery and ignores `safetensors_path`. For `BurnCpu`/`BurnCuda`, the
-/// runner is constructed by [`load_burn_jepa`] using `safetensors_path` (or, if
-/// `None`, by calling [`detect_safetensors`] against `checkpoint_dir`).
+/// discovery and ignores `safetensors_path`. For `BurnCpu`, the runner is
+/// constructed from the Safetensors weights (resolved via
+/// `detect_safetensors` when `safetensors_path` is `None`).
+///
+/// GPU backends are wired in `lewm-gpu::load_cuda_runner` and are not callable
+/// through this entry point.
 ///
 /// # Errors
 ///
 /// Returns [`RunnerError`] when the requested backend feature is disabled, the
 /// checkpoint is missing, or backend loading fails.
-#[cfg(any(feature = "burn-cpu", feature = "burn-cuda"))]
+#[cfg(feature = "burn-cpu")]
 pub fn load_with_backend(
     backend: BackendKind,
     checkpoint_dir: &Path,
@@ -128,7 +131,7 @@ pub fn load_with_backend(
     match backend {
         BackendKind::TractOnnx => load_onnx(checkpoint_dir),
         BackendKind::TractNnef => load_nnef(checkpoint_dir),
-        BackendKind::BurnCpu | BackendKind::BurnCuda => {
+        BackendKind::BurnCpu => {
             let resolved = match safetensors_path {
                 Some(path) => path.to_path_buf(),
                 None => detect_safetensors(checkpoint_dir).ok_or_else(|| {
@@ -137,21 +140,8 @@ pub fn load_with_backend(
                     }
                 })?,
             };
-            load_burn_jepa(backend, &resolved, config.unwrap_or_default())
+            load_burn_cpu(&resolved, config.unwrap_or_default())
         },
-    }
-}
-
-#[cfg(any(feature = "burn-cpu", feature = "burn-cuda"))]
-fn load_burn_jepa(
-    backend: BackendKind,
-    safetensors_path: &Path,
-    config: lewm_core::JepaConfig,
-) -> Result<Box<dyn InferenceRunner>, RunnerError> {
-    match backend {
-        BackendKind::BurnCpu => load_burn_cpu(safetensors_path, config),
-        BackendKind::BurnCuda => load_burn_cuda(safetensors_path, config),
-        _ => unreachable!("dispatch handled in caller"),
     }
 }
 
@@ -169,42 +159,6 @@ fn load_burn_cpu(
         "cpu",
     )?;
     Ok(Box::new(runner))
-}
-
-#[cfg(not(feature = "burn-cpu"))]
-fn load_burn_cpu(
-    _safetensors_path: &Path,
-    _config: lewm_core::JepaConfig,
-) -> Result<Box<dyn InferenceRunner>, RunnerError> {
-    Err(RunnerError::FormatDisabled {
-        format: RunnerFormat::BurnDirect,
-    })
-}
-
-#[cfg(feature = "burn-cuda")]
-fn load_burn_cuda(
-    safetensors_path: &Path,
-    config: lewm_core::JepaConfig,
-) -> Result<Box<dyn InferenceRunner>, RunnerError> {
-    use crate::runner::BurnJepaRunner;
-    let device = burn_cuda::CudaDevice::default();
-    let runner = BurnJepaRunner::<burn_cuda::Cuda>::from_safetensors(
-        safetensors_path,
-        config,
-        device,
-        "cuda",
-    )?;
-    Ok(Box::new(runner))
-}
-
-#[cfg(not(feature = "burn-cuda"))]
-fn load_burn_cuda(
-    _safetensors_path: &Path,
-    _config: lewm_core::JepaConfig,
-) -> Result<Box<dyn InferenceRunner>, RunnerError> {
-    Err(RunnerError::FormatDisabled {
-        format: RunnerFormat::BurnDirect,
-    })
 }
 
 #[cfg(test)]

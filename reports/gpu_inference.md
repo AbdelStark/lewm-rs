@@ -10,12 +10,12 @@ PushT checkpoint at `abdelstark/lewm-rs-pusht`.
 
 ## Backend matrix
 
-| Backend         | Feature flag      | Hardware                | Loader                              | Status |
-|-----------------|-------------------|-------------------------|-------------------------------------|--------|
-| `tract-onnx`    | `tract-onnx`      | CPU                     | ONNX graph pair (`encoder.onnx`)    | Stable — RFC 0007 |
-| `tract-nnef`    | `tract-nnef`      | CPU                     | NNEF graph pair                     | Stable — RFC 0007 |
-| `burn-cpu`      | `burn-cpu`        | CPU                     | `Jepa<NdArray<f32>>` + Safetensors  | Stable — this report |
-| `burn-cuda`     | `burn-cuda`       | NVIDIA GPU (CUDA ≥ 11)  | `Jepa<Cuda>` + Safetensors          | Compile-tested in CI; runtime opt-in |
+| Backend         | Crate         | Feature flag      | Hardware                | Loader                              | Status |
+|-----------------|---------------|-------------------|-------------------------|-------------------------------------|--------|
+| `tract-onnx`    | `lewm-infer`  | `tract-onnx`      | CPU                     | ONNX graph pair (`encoder.onnx`)    | Stable — RFC 0007 |
+| `tract-nnef`    | `lewm-infer`  | `tract-nnef`      | CPU                     | NNEF graph pair                     | Stable — RFC 0007 |
+| `burn-cpu`      | `lewm-infer`  | `burn-cpu`        | CPU                     | `Jepa<NdArray<f32>>` + Safetensors  | Stable — this report |
+| `burn-cuda`     | `lewm-gpu`    | `burn-cuda`       | NVIDIA GPU (CUDA ≥ 11)  | `Jepa<Cuda>` + Safetensors          | Compile-tested in CI; runtime opt-in |
 
 The Burn-direct runners execute the in-Rust `Jepa<B>` module that the trainer
 already produces. They are not transcoded through ONNX, which means they
@@ -24,25 +24,47 @@ LayerNorm epsilon, the same projector + pred_proj graph) and therefore land
 inside the existing 1e-4 L∞ parity envelope used by the
 [`parity_*` test suite](https://github.com/AbdelStark/lewm-rs/blob/main/crates/lewm-core/tests/parity_encoder.rs).
 
+### RFC 0007 crate layering
+
+`lewm-infer` stays free of CUDA, autodiff, and NVML deps (enforced by
+[`scripts/check_layers.py`](../scripts/check_layers.py)), so the GPU runner
+factory lives in the dedicated [`lewm-gpu`](../crates/lewm-gpu/) crate. That
+crate is a thin wrapper that re-uses the backend-generic
+`lewm_infer::runner::BurnJepaRunner<B>` and only adds the
+`burn_cuda::Cuda`-specific device construction. Downstream binaries (CLI,
+demo Space) link `lewm-gpu` when they want GPU; the published `lewm-infer`
+binary remains CPU-only.
+
 ### CLI surface
 
 ```text
 lewm-infer --checkpoint-dir <DIR>            # tract by default
            --action-dim 10                    # PushT smoothed
-           --backend burn-cpu                  # or burn-cuda / tract-onnx / tract-nnef
+           --backend burn-cpu                  # or tract-onnx / tract-nnef
            --safetensors path/to/weights.safetensors
            <subcommand>
 ```
 
-Backends:
+Backends accepted by the `lewm-infer` binary:
 
 * `tract` / `tract-onnx` — Tract ONNX runtime, default.
 * `tract-nnef` — Tract NNEF runtime.
 * `burn-cpu` — Burn `NdArray` backend, runs the in-Rust `Jepa<B>` module
   loaded from a Safetensors mirror. Required for the eval harness when no
   ONNX export is available.
-* `burn-cuda` / `burn-gpu` — Burn CUDA backend. Requires the `burn-cuda`
-  feature at build time and a working CUDA installation at runtime.
+
+For GPU inference, depend on the `lewm-gpu` crate and call
+`lewm_gpu::load_cuda_runner(safetensors_path, config)`:
+
+```rust
+use lewm_core::JepaConfig;
+use lewm_gpu::load_cuda_runner;
+
+let runner = load_cuda_runner(safetensors_path, JepaConfig::default())?;
+```
+
+The returned `Box<dyn InferenceRunner>` is interchangeable with anything
+produced by `lewm-infer`'s loader.
 
 A new `eval` subcommand drives parity testing:
 

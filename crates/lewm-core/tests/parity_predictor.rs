@@ -12,7 +12,7 @@ type CpuBackend = burn_ndarray::NdArray<f32>;
 
 const B: usize = 4;
 const T: usize = 4;
-/// Context frames fed to the predictor. The predictor supports num_frames=3;
+/// Context frames fed to the predictor. The predictor supports `num_frames=3`;
 /// the 4th fixture frame is the target used for loss, not a predictor input.
 const T_CTX: usize = 3;
 const C: usize = 3;

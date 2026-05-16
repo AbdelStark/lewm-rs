@@ -3038,6 +3038,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "lewm-gpu"
+version = "0.1.0"
+dependencies = [
+ "burn",
+ "burn-cuda",
+ "lewm-core",
+ "lewm-infer",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "lewm-hub"
 version = "0.1.0"
 dependencies = [
@@ -3058,7 +3069,6 @@ name = "lewm-infer"
 version = "0.1.0"
 dependencies = [
  "burn",
- "burn-cuda",
  "burn-ndarray",
  "clap",
  "image",
