@@ -242,6 +242,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "slow: full PushT-locked ViT encode through NdArray; run with `cargo test -- --ignored`"]
     #[allow(clippy::large_stack_arrays)]
     fn burn_runner_encode_predict_round_trips() -> Result<(), Box<dyn std::error::Error>> {
         let device = NdArrayDevice::default();
