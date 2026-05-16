@@ -64,14 +64,11 @@ Rust; the simulator is treated as a black-box environment.
 ## 4. The 50-episode test set
 
 The test set is the first 50 episodes of `quentinll/lewm-pusht`'s
-*test* split, identified by seed. The exact seed list is:
+*test* split, identified by seed. The exact seed list is `seeds = 0..50`
+(the half-open Rust range), i.e. integer seeds $0, 1, \dots, 49$.
 
-```text
-seeds = [0, 1, 2, …, 49]
-```
-
-Reusing the well-known `seeds = 0..49` is a deliberate choice for
-direct comparability with the LeWM paper.
+Reusing this well-known seed range is a deliberate choice for direct
+comparability with the LeWM paper.
 
 ## 5. The success criterion
 

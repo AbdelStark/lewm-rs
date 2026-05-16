@@ -24,8 +24,8 @@ CARGO_INCREMENTAL=0 make check
 - `python3 scripts/check_nondet.py` — non-determinism scan.
 - `python3 -m py_compile python/*.py scripts/*.py` — syntax sweep on
   the Python helpers.
-- `python3 python/cost_ledger.py check --path reports/cost.md --cap-usd
-  200` — cost-cap check.
+- `python3 python/cost_ledger.py check --path reports/cost.md --cap-usd 200`
+  — cost-cap check.
 - `cargo deny check` — license / advisory / source policy.
 - `cargo audit ...` — vulnerability scan (with project-specific
   ignores for unmaintained transitive deps; see `Makefile`).
@@ -54,10 +54,12 @@ This is the gate the maintainer runs before tagging a release. See
 
 - Training-only: `cargo test -p lewm-train --all-features --locked`.
 - Parity-only (with dumps available):
-```text
+
+  ```sh
   LEWM_REFERENCE_SAFETENSORS=... LEWM_PARITY_DUMPS=... \
-  cargo test -p lewm-core --features parity-fixtures --locked
+      cargo test -p lewm-core --features parity-fixtures --locked
   ```
+
 - Docs build: `make docs` or directly
   `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked`.
 

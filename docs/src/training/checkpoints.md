@@ -113,17 +113,17 @@ hierarchical, mirroring the module tree:
 
 ```text
 {
-  "vit": { "embeddings": {...}, "blocks": [{...}, ...], "final_norm": {...} },
-  "predictor": { "input_proj": {...}, "blocks": [...], ... },
+  "vit":        { "embeddings": {...}, "blocks": [{...}, ...], "final_norm": {...} },
+  "predictor":  { "pos_embed": {...}, "blocks": [...], "norm": {...} },
   "action_enc": { "smoother": {...}, "fc1": {...}, "fc2": {...} },
-  "projector": { "fc1": {...}, "fc2": {...} },
-  "pred_proj": { "fc1": {...}, "fc2": {...} },
-  "optimizer": {
-    "state": [ {"m": [...], "v": [...], "step": ...}, ... ],   # per-param Adam state
-    "config": { "beta1": 0.9, "beta2": 0.95, ... }
+  "projector":  { "fc1": {...}, "norm": {...}, "fc2": {...} },
+  "pred_proj":  { "fc1": {...}, "norm": {...}, "fc2": {...} },
+  "optimizer":  {
+    "state":   [ {"m": [...], "v": [...], "step": ...}, ... ],   // per-param Adam state
+    "config":  { "beta1": 0.9, "beta2": 0.95, ... }
   },
   "scheduler": { "step": 12500, "warmup": 1000, "max": 50000, "lr_max": 3e-4, "lr_min": 1e-5 },
-  "rng": { "master": "<base64>", "sigreg_sketch": "<base64>", ... }
+  "rng":       { "master": "<base64>", "sigreg_sketch": "<base64>", ... }
 }
 ```
 
@@ -141,6 +141,11 @@ paths — i.e., they look like
 vit.embeddings.patch_embed.proj.weight
 vit.embeddings.cls_token
 vit.blocks.0.attention.qkv.weight
+predictor.pos_embed
+predictor.blocks.0.attn.qkv.weight
+predictor.blocks.0.adaln.weight
+projector.fc1.weight
+projector.norm.weight
 ...
 ```
 

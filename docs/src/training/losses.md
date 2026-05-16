@@ -26,20 +26,23 @@ also into the predictor, action encoder, and `pred_proj`.
 ## 2. Prediction loss
 
 Given:
-- `pred_z_1024`: the source-arm prediction, shape $(B, T, 1024)$,
-- `target_z_1024`: the projected encoder embedding of the *next-step*
-  frame, shape $(B, T, 1024)$.
+- `pred_z_proj`: the source-arm prediction (output of `pred_proj`
+  applied to the predictor output), shape $(B, T, D)$,
+- `target_z_proj`: the projector applied to the encoder embedding of
+  the *next-step* frame, shape $(B, T, D)$.
 
 $$
-\mathcal L_{\text{pred}} \;=\; \frac{1}{B\cdot T\cdot 1024}\sum_{b,t,d} \bigl(\hat z_{b,t,d} - \tilde z_{b,t,d}\bigr)^2.
+\mathcal L_{\text{pred}} \;=\; \frac{1}{B\cdot T\cdot D}\sum_{b,t,d} \bigl(\hat z_{b,t,d} - \tilde z_{b,t,d}\bigr)^2.
 $$
 
-That is, ordinary MSE over all axes.
+That is, ordinary MSE over all axes. In `lewm-rs` v1, $D = 192$ —
+both arms live in the projector-output space, which has the same
+dimensionality as the encoder's CLS embedding.
 
 ```rust,ignore
 pub fn prediction_loss<B: Backend>(
-    pred:   Tensor<B, 3>,   // (B, T, 1024)
-    target: Tensor<B, 3>,   // (B, T, 1024)
+    pred:   Tensor<B, 3>,   // (B, T, D)
+    target: Tensor<B, 3>,   // (B, T, D)
 ) -> Tensor<B, 1> {
     debug_assert_eq!(pred.dims(), target.dims());
     let diff = pred - target;
@@ -62,9 +65,9 @@ the SIGReg path.
 
 ## 3. SIGReg loss
 
-Given the projected encoder output for one batch, $z \in \mathbb R^{B
-\times T \times 1024}$ (flattened to $\mathbb R^{N \times D}$ with $N
-= B \cdot T$, $D = 1024$), SIGReg is:
+Given the projector output for one batch, $z \in \mathbb R^{B \times
+(T+1) \times D}$ with $D = 192$ (flattened to $\mathbb R^{N \times D}$
+with $N = B \cdot (T+1)$), SIGReg is:
 
 $$
 \boxed{\;\mathcal L_{\text{sigreg}}(z) \;=\; \frac{1}{K}\sum_{k=1}^{K} \sum_{j=0}^{J-1} q_j\, w(t_j)\, \bigl[(c_{k,j} - \phi(t_j))^2 + s_{k,j}^2\bigr]\;}
@@ -159,17 +162,18 @@ fresh run.
 In `crates/lewm-train/src/step.rs`:
 
 ```rust,ignore
-// Cast the projected encoder output to F32 for SIGReg.
-let z_proj_f32 = z_proj.clone().cast::<f32>().reshape([B*(T+1), 1024]);
+// Cast the projector output to F32 for SIGReg.
+let z_proj_f32 = z_proj.clone().cast::<f32>().reshape([B*(T+1), D]);
 
-let l_pred   = prediction_loss(pred_z_1024, target_z);            // BF16-mixed OK
+let l_pred   = prediction_loss(pred_z_proj, target_z);          // BF16-mixed OK
 let l_sigreg = sigreg_loss(z_proj_f32, proj_matrix, &t_grid, &trap_w)
                    .cast::<float_elem<B>>();
 let l_total  = l_pred + lambda * l_sigreg;
 ```
 
-The `lambda` constant comes from the TOML config (`pusht.toml`,
-`so100.toml`), defaulting to 1.0.
+The `lambda` constant comes from the TOML config (`configs/pusht.toml`,
+`configs/so100.toml`), defaulting to $1.0$. Here $D = 192$ for both
+the PushT and SO-100 defaults.
 
 ## 5. Per-step diagnostics
 

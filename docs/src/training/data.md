@@ -47,14 +47,20 @@ Burn-side loader.
 
 ## 2. Window sampling
 
-A *window* is a $T + 1$ consecutive frames from one episode, plus the
-$T$ actions that connect them. The sampler:
+A *window* is a $T + 1$ consecutive frames from one episode (the
+predictor's $T$-frame history plus the $T{+}1$-th frame that serves as
+the next-step target), together with the $T_{\text{raw}}$ raw action
+frames that the action encoder needs to produce $T$ smoothed actions
+after its Conv1d (kernel $k = 5$): $T_{\text{raw}} = T + 4$. For
+$T = 3$ (PushT and SO-100 default) the raw action window has
+$T_{\text{raw}} = 7$ frames. The sampler:
 
 1. Picks an episode index uniformly at random.
-2. Picks a start frame uniformly at random in `[0, episode_len − T − 1]`,
-   guaranteeing the window fits inside the episode without crossing
-   into the next.
-3. Returns `(pixels, actions)` of shapes $(T+1, 3, 224, 224)$ and $(T, A)$.
+2. Picks a start frame uniformly at random in
+   `[0, episode_len − max(T, T_raw) − 1]`, guaranteeing the window fits
+   inside the episode without crossing into the next.
+3. Returns `(pixels, actions)` of shapes $(T+1, 3, 224, 224)$ and
+   $(T_{\text{raw}}, A)$.
 
 **RFC0004-001 [MUST]** — Windows never cross episode boundaries. The
 "next frame" used as the prediction target must come from the same
@@ -115,8 +121,9 @@ pub struct Batch<B: Backend> {
     /// Shape: (B, T+1, 3, 224, 224).
     pub pixels: Tensor<B, 5>,
 
-    /// Per-window actions, normalised.
-    /// Shape: (B, T, A).
+    /// Per-window raw actions, normalised. The action encoder's Conv1d
+    /// consumes these and emits a smoothed stream of length T.
+    /// Shape: (B, T_raw, A) with T_raw = T + 4.
     pub actions: Tensor<B, 3>,
 
     /// Original episode index and start frame per sample, for debugging.

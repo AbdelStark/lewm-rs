@@ -55,16 +55,23 @@ split:
 | **No decay** | 0.0 | All biases (`*.bias`), LayerNorm $\gamma$/$\beta$, `cls_token`, `position_embeddings`, predictor `pos_emb`, AdaLN modulation biases. |
 
 The split is computed at trainer init time by walking the parameter
-tree and dispatching by parameter name suffix. The implementation in
-`crates/lewm-train/src/optim.rs`:
+tree and dispatching by parameter name. The implementation in
+`crates/lewm-train/src/optim.rs` follows this rule (schematically):
 
 ```rust,ignore
-let (decay, no_decay): (Vec<_>, Vec<_>) = jepa.parameters_iter()
-    .partition(|(name, _)| !matches!(
-        name.suffix(),
-        "bias" | "weight" if name.is_layer_norm()
-              | "cls_token" | "position_embeddings" | "pos_emb"
-    ));
+fn is_no_decay(param_name: &ParamName) -> bool {
+    // Any bias, any LayerNorm / BatchNorm affine, and the learned
+    // embedding/position tensors live in the "no-decay" group.
+    param_name.ends_with(".bias")
+        || param_name.is_norm_affine()         // LayerNorm / BatchNorm gain & shift
+        || param_name.ends_with("cls_token")
+        || param_name.ends_with("position_embeddings")
+        || param_name.ends_with("pos_embed")
+}
+
+let (no_decay, decay): (Vec<_>, Vec<_>) = jepa
+    .parameters_iter()
+    .partition(|(name, _)| is_no_decay(name));
 ```
 
 This matches the upstream LeWM PyTorch optimizer setup and is the only

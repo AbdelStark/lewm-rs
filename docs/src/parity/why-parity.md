@@ -4,7 +4,7 @@
 > *re-interpretation*, not a reproduction. This section pins what
 > parity means here, why it matters, and how it is enforced.
 >
-> **Position.** Top of [Part VI — Numerical parity](../introduction.md).
+> **Position.** Top of [Part VI — Numerical parity](./why-parity.md).
 >
 > **What you should leave with.** A clear definition of activation-level
 > parity, an understanding of what could go wrong without it, and the
@@ -68,7 +68,7 @@ Dumps include per-stage activations like:
 - `encoder.all.safetensors` — encoder output, all tokens, $(1, 257, 192)$.
 - `action_encoder.safetensors` — action embedding, $(1, T, 192)$.
 - `predictor.safetensors` — predictor output, $(1, T, 192)$.
-- `pred_proj.safetensors` — pred-proj output, $(1, T, 1024)$.
+- `pred_proj.safetensors` — pred-proj output, $(1, T, 192)$.
 - `sigreg_scalar.json` — SIGReg scalar value plus its RNG seed.
 
 The dumps are produced by

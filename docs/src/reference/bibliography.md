@@ -112,18 +112,19 @@ to `lewm-rs`'s context.
 
 ## Rust ML stack
 
-- **Tracel.ai** (2024–2026). *Burn: A Deep Learning Framework in Rust.*
-  <https://github.com/tracel-ai/burn>. Pinned at `= 0.20.1`.
+- **Tracel.ai.** *Burn: A Deep Learning Framework in Rust.*
+  <https://github.com/tracel-ai/burn>. Pinned at `= 0.20.1` (accessed 2026).
 
-- **Sonos** (2019–2026). *Tract: Practical Neural Network Inference
-  in Rust.* <https://github.com/sonos/tract>. Pinned at `= 0.22.1`.
+- **Sonos.** *Tract: Practical Neural Network Inference in Rust.*
+  <https://github.com/sonos/tract>. Pinned at `= 0.22.1` (accessed 2026).
 
-- **Hugging Face** (2024–2026). *lerobot: State-of-the-art Machine
-  Learning for Real-World Robotics.* <https://github.com/huggingface/lerobot>.
-  *Source of the SO-100 raw dataset.*
+- **Hugging Face.** *lerobot: State-of-the-art Machine Learning for
+  Real-World Robotics.* <https://github.com/huggingface/lerobot>.
+  *Source of the SO-100 raw dataset (accessed 2026).*
 
 ## Upstream reference implementation
 
-- **Maes, L.** (2026). *le-wm.* <https://github.com/lucas-maes/le-wm>.
-  *The PyTorch reference implementation lewm-rs reproduces, line
-  for line where parity demanded.*
+- **Maes, L.** *le-wm.* <https://github.com/lucas-maes/le-wm>
+  (accessed 2026, pinned at `quentinll/lewm-pusht@22b330c`).
+  *The PyTorch reference implementation lewm-rs reproduces, line for
+  line where parity demanded.*

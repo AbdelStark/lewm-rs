@@ -5,7 +5,7 @@
 > boundaries (Burn → Safetensors → PyTorch → ONNX → Tract). This page
 > documents that pipeline and the quirks at each boundary.
 >
-> **Position.** Top of [Part V — Inference and deployment](../introduction.md).
+> **Position.** Top of [Part V — Inference and deployment](./onnx-export.md).
 >
 > **What you should leave with.** The two ONNX variants (`dynamo=True`
 > onnxruntime-compat and `dynamo=False` Tract-compat), the opset

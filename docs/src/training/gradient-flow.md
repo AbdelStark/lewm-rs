@@ -77,12 +77,13 @@ gradient on the target arm is severed (`y_target = f_target.forward(y)
    oscillate or diverge.
 
 LeWM's contribution is observing that **SIGReg also breaks the symmetry
-*and* prevents collapse** — and does so more directly. SIGReg pulls the
-encoder's output distribution toward $\mathcal N(0, I_{1024})$, which is
-*non-degenerate by definition*. There is no way for $f_\theta \equiv$
-constant to coexist with $\mathcal L_{\text{sigreg}} \to 0$, because a
-delta-function distribution has trivially nonzero distance from the
-standard normal in characteristic-function space.
+*and* prevents collapse** — and does so more directly. SIGReg pulls
+the projector's output distribution toward $\mathcal N(\mathbf 0, I_D)$
+in $\mathbb R^{D = 192}$, which is *non-degenerate by definition*.
+There is no way for $f_\theta \equiv$ constant to coexist with
+$\mathcal L_{\text{sigreg}} \to 0$, because a delta-function
+distribution has trivially nonzero distance from the standard normal
+in characteristic-function space.
 
 With collapse prevented by SIGReg, the EMA and stop-gradient become
 unnecessary. The training is *symmetric*: both arms use the same
@@ -111,20 +112,21 @@ A second mechanism contributes to the smoothness of the trajectory:
 **AdaLN-zero**.
 
 At init, every `ConditionalBlock` in the predictor is the identity.
-That means the predictor's output at step 0 is exactly:
+The predictor operates on the encoder's $D = 192$ token dim throughout,
+with no entry / exit projection, so its output at step 0 is exactly:
 
 ```text
-predictor(history) at init = output_proj(final_norm(pos_emb + input_proj(history)))
-                           = LayerNorm(linear projection)
+predictor(history) at init = norm(history + pos_embed)
+                           = LayerNorm( history + pos_embed )
 ```
 
 There is no random transformer output yet. The prediction loss at
-step 0 is therefore well-behaved: pred is a deterministic, low-norm
-function of history, and the gradient is *also* well-behaved. As the
-AdaLN-zero modulation heads slowly depart from zero (over the first
-~1 000 steps), the predictor "wakes up" and the prediction loss starts
-to drop. The transition is gradual rather than sudden, which is
-exactly what we want for stability.
+step 0 is therefore well-behaved: the prediction is a deterministic,
+low-norm function of history, and the gradient is *also* well-behaved.
+As the AdaLN-zero modulation heads slowly depart from zero (over the
+first $\sim 1000$ steps), the predictor "wakes up" and the prediction
+loss starts to drop. The transition is gradual rather than sudden,
+which is exactly what we want for stability.
 
 In short: SIGReg prevents the long-term collapse mode; AdaLN-zero
 prevents the short-term random-init mode. Together they make end-to-end

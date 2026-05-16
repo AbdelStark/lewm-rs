@@ -4,7 +4,7 @@
 > small contracts. This page surveys the whole pipeline at once so
 > later pages can focus on individual contracts in depth.
 >
-> **Position.** Top of [Part III](../introduction.md).
+> **Position.** Top of [Part III — Training](./pipeline.md).
 >
 > **What you should leave with.** A mental model of the training
 > state machine, the role of each crate in one optimizer step, and a
@@ -96,17 +96,17 @@ let batch = prefetcher.next()?;
 
 // 2. Forward (with autograd).
 let z      = jepa.encode(batch.pixels);                 // (B, T+1, D)
-let z_proj = jepa.projector.forward(z);                  // (B, T+1, 1024)
+let z_proj = jepa.projector.forward(z);                  // (B, T+1, D)
 
-let history_z   = z.narrow(1, 0, T);                     // (B, T, D)
-let pred_z      = jepa.predict(history_z, batch.actions);// (B, T, D)
-let pred_z_1024 = jepa.pred_proj.forward(pred_z);        // (B, T, 1024)
+let history_z    = z.narrow(1, 0, T);                    // (B, T, D)
+let pred_z       = jepa.predict(history_z, batch.actions); // (B, T, D)
+let pred_z_proj  = jepa.pred_proj.forward(pred_z);       // (B, T, D)
 
-let target_z    = z_proj.narrow(1, 1, T);                // (B, T, 1024)
+let target_z     = z_proj.narrow(1, 1, T);               // (B, T, D)
 
 // 3. Compute losses (sigreg always in F32 — see Mixed precision).
-let l_pred   = prediction_loss(pred_z_1024, target_z);
-let l_sigreg = sigreg_loss(z_proj.reshape([-1, 1024]));
+let l_pred   = prediction_loss(pred_z_proj, target_z);
+let l_sigreg = sigreg_loss(z_proj.reshape([-1, D]));
 let l_total  = l_pred + lambda * l_sigreg;
 
 // 4. Backward (BF16 if mixed; F32 islands enforced).

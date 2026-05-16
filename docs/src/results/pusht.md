@@ -1,10 +1,10 @@
 # PushT 50 k-step training
 
 > **Motivation.** This is the headline training result. 50 000 steps,
-> 318 minutes, $1.55 \times 10^5$× loss reduction, zero gradient
+> 318 minutes, a $1.55 \times 10^5$-fold loss reduction, zero gradient
 > explosions, zero collapse-probe trips.
 >
-> **Position.** First sub-page in [Part VII — Results](../introduction.md).
+> **Position.** First sub-page in [Part VII — Results](./pusht.md).
 >
 > **What you should leave with.** The numbers, the curves, and a
 > pointer to the full report.
@@ -19,7 +19,7 @@
 | Steps completed | 50 000 / 50 000 |
 | Initial loss | 0.4912 |
 | Final loss | 3.17 × 10⁻⁶ |
-| Loss ratio | 1.55 × 10⁵ × |
+| Loss ratio | $1.55 \times 10^5$-fold |
 | Gradient explosions | 0 |
 | Collapse probe trips | 0 |
 | Seed | 0 |
@@ -49,8 +49,9 @@ The trajectory follows the expected JEPA pattern (see
 [Why latents work](../concepts/why-latents.md) §4.1):
 
 - **Steps 1–500.** Both losses are dominated by SIGReg ($\sim 0.49$).
-  The encoder has a near-Gaussian-but-not-quite output distribution at
-  init; SIGReg pulls it toward the target $\mathcal N(0, I_{1024})$.
+  The projector's output distribution at init is far from standard
+  normal in $\mathbb R^D$ ($D = 192$); SIGReg pulls it toward
+  $\mathcal N(\mathbf 0, I_D)$.
 - **Step 1 000.** Big drop in SIGReg as the encoder distribution
   settles. The predictor is still in AdaLN-zero "identity" mode and
   the prediction loss is well-behaved.

@@ -84,8 +84,8 @@ fixed in `crates/lewm-data/src/so100.rs`:
 - **Train**: episodes 0..45 (~5 920 frames).
 - **Eval**: episodes 45..50 (~639 frames).
 
-The held-out 5 episodes are *not* seen by the training loop and are
-used only for the latent-rollout metrics.
+The held-out 5 episodes are unused during training and are reserved
+exclusively for the latent-rollout metrics.
 
 ## 6. The report
 

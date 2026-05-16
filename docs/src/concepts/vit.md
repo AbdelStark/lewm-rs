@@ -186,18 +186,21 @@ HF.
 After all of this, the encoder is the function
 
 $$
-f_\theta : \;(B, 3, 224, 224) \to (B, 256+1, 192).
+f_\theta : \;(B, 3, 224, 224) \to (B, 257, 192).
 $$
 
 For the prediction loss, we take only the CLS row: $(B, 192)$. The
-remaining 256 patch tokens are computed but unused in LeWM v1. The
-projector then lifts $(B, 192)$ to $(B, 1024)$ for SIGReg and the
-prediction target.
+remaining $256$ patch tokens are computed but unused in LeWM v1. The
+projector then rewrites $(B, 192)$ into a same-dimensional $192$-D
+"loss space" via a non-linear $192 \to 2048 \to 192$ MLP with
+BatchNorm1d, where both the prediction loss and the SIGReg sketch
+operate (see [Projector and pred-proj MLPs](../architecture/projector.md)).
 
-This compact, 192-D image embedding is what makes everything else cheap.
-The predictor operates on $(B, T, 192)$ — i.e. one 192-D vector per
-historical frame, $T = 3$ frames per window — so a CEM planner can run
-1024 candidates per iteration at well under a second on CPU.
+This compact, $192$-D image embedding is what makes everything else
+cheap. The predictor operates on $(B, T, 192)$ — i.e. one $192$-D
+vector per historical frame, $T = 3$ frames per window — so a CEM
+planner can run $1024$ candidates per iteration at well under a second
+on CPU.
 
 ## 9. Bibliography
 

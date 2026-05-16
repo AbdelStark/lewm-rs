@@ -112,12 +112,12 @@ checkpoint, with $L_\infty < 10^{-4}$ on encoder, action encoder, predictor,
 and pred-proj outputs, and $|\Delta| < 10^{-3}$ on the SIGReg scalar.
 
 <span class="lewm-badge lewm-badge--done">PushT training</span>
-50 000 steps on A10G-large, 318 min, loss 0.491 → 3.17 × 10⁻⁶, zero gradient
-explosions.
+50 000 steps on A10G-large, 318 min, loss $0.4912 \to 3.17 \times 10^{-6}$,
+zero gradient explosions.
 
 <span class="lewm-badge lewm-badge--done">SO-100 training</span>
-5 000 steps on A10G-large, 864 s, loss 0.50 → 9.56 × 10⁻⁵, zero gradient
-explosions.
+5 000 steps on A10G-large, 864 s, loss $0.5002 \to 9.56 \times 10^{-5}$,
+zero gradient explosions.
 
 <span class="lewm-badge lewm-badge--done">CPU inference</span>
 ONNX export + Tract runner working end-to-end at 4.08 s/episode (p50, release
