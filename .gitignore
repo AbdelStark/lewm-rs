@@ -82,3 +82,6 @@ Thumbs.db
 .agents/harness/goals/
 thoughts/
 python/reports/parity/
+
+# mdBook build output for the docs site under docs/
+docs/book/
