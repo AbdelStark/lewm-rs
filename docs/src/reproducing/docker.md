@@ -66,9 +66,9 @@ The helper:
 ## 5. Cost
 
 A10G-large is \$1.50 / hour (confirmed via
-`python python/hf_pricing.py`). The cost ledger in
+`python3 python/hf_pricing.py`). The cost ledger in
 `reports/cost.md` is updated after every run; the cost-cap check
-(`python python/cost_ledger.py check --cap-usd 200`) blocks new
+(`python3 python/cost_ledger.py check --cap-usd 200`) blocks new
 launches that would exceed the project ceiling.
 
 ## 6. The job-config gate

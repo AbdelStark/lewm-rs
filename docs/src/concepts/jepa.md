@@ -130,9 +130,9 @@ anti-collapse mechanism in balance — three useful properties emerge:
    latent against a goal embedding — all without rendering a single
    pixel.
 
-The rest of the [Concepts](./jepa.md) section unpacks each of these. The
-[LeWM specialization](./lewm.md) page narrows from "JEPA in general" to
-"the precise instantiation that lewm-rs reproduces".
+The rest of the [Concepts](./lewm.md) section unpacks each of these.
+The next page, [LeWM specialization](./lewm.md), narrows from
+"JEPA in general" to "the precise instantiation that lewm-rs reproduces".
 
 ## 6. Bibliography
 

@@ -18,8 +18,8 @@
 | Burn CUDA | A10G | release | pending | pending |
 
 CEM configuration: `n_iter = 5`, `n_cand = 1024`, `horizon_plan = 5`,
-`H_hist = 3`, `action_dim = 10` (smoothed). The benchmark workload is
-10 synthetic episodes (random pixels, random goals).
+history length $T = 3$, `action_dim = 10` (smoothed). The benchmark
+workload is 10 synthetic episodes (random pixels, random goals).
 
 Why debug ≈ release? Tract's hot path is its pre-compiled kernel
 library, not lewm-infer's orchestration. The host crate's optimisation

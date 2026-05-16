@@ -42,8 +42,8 @@ let mut jepa: Jepa<B> = config.init(&device);
 let record = DefaultRecorder::new().load("step_0050000.mpk".into(), &device)?;
 jepa = jepa.load_record(record);
 
-let z = jepa.encode(pixels);                // (B, T, 192)
-let z_pred = jepa.predict(history, actions); // (B, T, 192)
+let z = jepa.encode(pixels);                  // (B, T+1, 192)
+let z_pred = jepa.predict(history, actions);  // (B, T, 192)
 ```
 
 This is the "obvious" path: load the Burn `.mpk` record, run the
