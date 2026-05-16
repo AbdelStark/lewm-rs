@@ -85,26 +85,26 @@ in $[0, t_{\max}]$ and uses trapezoid quadrature.
 
 ## 3. From 1-D to $D$-D: the sketch
 
-The Epps–Pulley test is *univariate*. In LeWM the encoder's projected
-output lives in $\mathbb R^{1024}$. Estimating a multivariate empirical
-characteristic function in 1024 dimensions from a batch of 64–128 samples
-is statistically hopeless.
+The Epps–Pulley test is *univariate*. In LeWM the projector's output
+lives in $\mathbb R^{D}$ with $D = 192$. Estimating a multivariate
+empirical characteristic function in $192$ dimensions from a batch of
+$64{-}128$ samples is statistically hopeless.
 
-SIGReg's trick is to project the high-dimensional distribution onto $K =
-1024$ random one-dimensional directions and apply the univariate test to
-each:
+SIGReg's trick is to project the high-dimensional distribution onto
+$K = 1024$ random one-dimensional directions and apply the univariate
+test to each:
 
 $$
 \mathbf p_k \;\sim\; \mathcal N(\mathbf 0, I_D/D),\qquad
 \mathbf p_k \;\leftarrow\; \mathbf p_k\,/\,\lVert \mathbf p_k\rVert
-\quad\text{(unit-norm rows)}.
+\quad\text{(unit-norm rows of the sketch matrix }\mathbf P \in \mathbb R^{K \times D}\text{)}.
 $$
 
-For sample $\mathbf z_n \in \mathbb R^D$, the projection along direction
-$\mathbf p_k$ is the scalar $y_{k,n} = \langle \mathbf p_k, \mathbf z_n
-\rangle$. The univariate Epps–Pulley statistic on the sample $\{y_{k,n}\}_n$
-tests whether the marginal along $\mathbf p_k$ is standard-normal. We
-average over $k$ to obtain the SIGReg loss.
+For a sample $\mathbf z_n \in \mathbb R^D$, the projection along
+direction $\mathbf p_k$ is the scalar $y_{k,n} = \langle \mathbf p_k,
+\mathbf z_n\rangle$. The univariate Epps–Pulley statistic on the
+sample $\{y_{k,n}\}_n$ tests whether the marginal along $\mathbf p_k$
+is standard-normal. We average over $k$ to obtain the SIGReg loss.
 
 The intuition is the **Cramér–Wold theorem**: the distribution of a random
 vector is determined by all of its 1-D projections. We can't check all of
@@ -216,23 +216,29 @@ diagnostic file and aborts. None of the PushT or SO-100 runs in
 
 To make this concrete, here is what SIGReg computes for one batch.
 
-- $B = 64$, $T = 3$, $D = 192$, $\text{proj\_dim} = 1024$, so $N = 192$
-  samples in $\mathbb R^{1024}$.
-- Sample $\mathbf P \in \mathbb R^{1024 \times 1024}$, normalize rows.
-- Compute $\mathbf Y = \mathbf Z \mathbf P^\top \in \mathbb R^{192 \times
-  1024}$, where $\mathbf Z$ is the batch's flattened, projected latents.
-- For each of the $J = 17$ knots $t_j$ in $\{0, 0.1875, 0.375, \dots, 3\}$:
-  - $\mathbf c_j = \frac{1}{192}\sum_n \cos(t_j \mathbf Y_{:,k})$ for all $k$;
-  - $\mathbf s_j = \frac{1}{192}\sum_n \sin(t_j \mathbf Y_{:,k})$ for all $k$;
-- For each $k, j$: $r_{k,j} = (c_{k,j} - e^{-t_j^2/2})^2 + s_{k,j}^2$.
-- Weighted trapezoid integration: $I_k = \sum_j q_j\, e^{-t_j^2/2}\, r_{k,j}$.
-- Final: $\mathcal L_{\text{sigreg}} = (1/1024)\sum_k I_k$.
+- $B = 64$, $T+1 = 4$, $D = 192$, so $N = B \cdot (T+1) = 256$ samples
+  of the projector output in $\mathbb R^{192}$.
+- Sample $\mathbf P \in \mathbb R^{K \times D} = \mathbb R^{1024 \times 192}$
+  with rows $\mathbf p_k \sim \mathcal N(\mathbf 0, I_D/D)$, then
+  normalise rows to unit norm.
+- Compute $\mathbf Y = \mathbf Z \mathbf P^\top \in \mathbb R^{256 \times 1024}$,
+  where $\mathbf Z$ is the batch's flattened projector output and
+  column $k$ of $\mathbf Y$ holds the projections along $\mathbf p_k$.
+- For each of the $J = 17$ knots $t_j$ in
+  $\{0, 0.1875, 0.375, \dots, 3\}$:
+  - $c_{k,j} = \frac{1}{N}\sum_n \cos(t_j\, Y_{n, k})$;
+  - $s_{k,j} = \frac{1}{N}\sum_n \sin(t_j\, Y_{n, k})$.
+- For each $(k, j)$:
+  $r_{k,j} = (c_{k,j} - e^{-t_j^2/2})^2 + s_{k,j}^2$.
+- Weighted trapezoid integration:
+  $I_k = \sum_j q_j\, e^{-t_j^2/2}\, r_{k,j}$.
+- Final: $\mathcal L_{\text{sigreg}} = (1/K)\sum_k I_k$.
 
-At init (random encoder), $\mathcal L_{\text{sigreg}}$ is approximately
-$0.49$ for the locked PushT ViT — close to the value of $\sim 0.5$ that
-the Epps–Pulley statistic takes on an empirical distribution far from
-standard normal. Over training, it falls into the $10^{-5}$ range (see
-[PushT results](../results/pusht.md)).
+At init (random encoder + projector), $\mathcal L_{\text{sigreg}}$ is
+approximately $0.49$ for the locked PushT model — close to the value
+$\sim 0.5$ that the windowed Epps–Pulley statistic takes on an
+empirical distribution far from standard normal. Over training, it
+falls into the $10^{-5}$ range (see [PushT results](../results/pusht.md)).
 
 ## 10. Why this is enough
 

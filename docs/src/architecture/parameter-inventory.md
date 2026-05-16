@@ -14,11 +14,11 @@
 
 | Module | Tensors | Parameters | Source of truth |
 |--------|--------:|-----------:|-----------------|
-| `vit` (encoder) | ~144 | ~5.5 M | `crates/lewm-core/src/vit.rs` |
-| `predictor` | ~130 | ~10.5 M | `crates/lewm-core/src/predictor.rs` |
-| `action_enc` | ~10 | ~0.16 M | `crates/lewm-core/src/embedder.rs` |
-| `projector` | ~6 | ~2.5 M | `crates/lewm-core/src/mlp.rs` |
-| `pred_proj` | ~13 | ~2.5 M | `crates/lewm-core/src/mlp.rs` |
+| `vit` (encoder) | ~146 | ~5.5 M | `crates/lewm-core/src/vit.rs` |
+| `predictor` | ~75 | ~10.8 M | `crates/lewm-core/src/predictor.rs` |
+| `action_enc` | ~6 | ~0.16 M | `crates/lewm-core/src/embedder.rs` |
+| `projector` | ~8 | ~0.8 M | `crates/lewm-core/src/mlp.rs` |
+| `pred_proj` | ~8 | ~0.8 M | `crates/lewm-core/src/mlp.rs` |
 | **Total** | **303** | **18 042 672** | `python/param_name_map.py` |
 
 The canonical mapping between PyTorch parameter names (in
@@ -71,56 +71,51 @@ The Vit module has the following parameter tensors, organized by sub-component.
 
 ## 3. Predictor tensor breakdown
 
-### 3.1 Entry components
+The predictor operates on $192$-dimensional tokens throughout. The
+attention sublayer expands internally to $\text{inner\_dim} =
+\text{heads}\times\text{dim\_head} = 16 \times 64 = 1024$ for the
+QKV projection, then projects back to $192$. The MLP sublayer expands
+internally to $\text{mlp\_dim} = 2048$ and projects back to $192$.
+There are **no** entry/exit `input_proj` / `output_proj` layers — the
+predictor's input and output dimensions both equal the encoder
+embedding dim $D = 192$. See `crates/lewm-core/src/predictor.rs` and
+[RFC 0002 §4.7](https://github.com/AbdelStark/lewm-rs/blob/main/specs/rfcs/0002-core-model-architecture.md#47-arpredictor).
+
+### 3.1 Entry / exit components
 
 | Path | Shape | Count |
 |------|------:|------:|
-| `predictor.input_proj.weight` | $1024 \times 192$ | 196 608 |
-| `predictor.input_proj.bias` | $1024$ | 1 024 |
-| `predictor.pos_emb` | $1 \times 3 \times 1024$ | 3 072 |
-| **Entry subtotal** | | **200 704** |
+| `predictor.pos_embed` | $1 \times 3 \times 192$ | 576 |
+| `predictor.norm.weight` (final LayerNorm) | $192$ | 192 |
+| `predictor.norm.bias`   (final LayerNorm) | $192$ | 192 |
+| **Entry/exit subtotal** | | **960** |
 
-### 3.2 Per ConditionalBlock (× 6 blocks)
+### 3.2 Per `ConditionalBlock` (× 6 blocks)
 
-Recall that `norm1` and `norm2` have *no* learnable affine parameters
-in the predictor (their affine is delegated to `ada_ln_modulation`):
+Recall that `norm1` and `norm2` are *affine-free* LayerNorms in the
+predictor — their per-feature scale and shift are delegated to the six
+modulation vectors that `adaln` produces from the action embedding:
 
 | Path (block $i$) | Shape | Count |
 |------------------|------:|------:|
-| `predictor.blocks.{i}.attention.qkv.weight` | $3072 \times 1024$ | 3 145 728 |
-| `predictor.blocks.{i}.attention.qkv.bias` | $3072$ | 3 072 |
-| `predictor.blocks.{i}.attention.proj.weight` | $1024 \times 1024$ | 1 048 576 |
-| `predictor.blocks.{i}.attention.proj.bias` | $1024$ | 1 024 |
-| `predictor.blocks.{i}.mlp.fc1.weight` | $2048 \times 1024$ | 2 097 152 |
+| `predictor.blocks.{i}.attn.qkv.weight` | $3072 \times 192$ | 589 824 |
+| `predictor.blocks.{i}.attn.qkv.bias` | – (none) | 0 |
+| `predictor.blocks.{i}.attn.proj.weight` | $192 \times 1024$ | 196 608 |
+| `predictor.blocks.{i}.attn.proj.bias` | $192$ | 192 |
+| `predictor.blocks.{i}.mlp.fc1.weight` | $2048 \times 192$ | 393 216 |
 | `predictor.blocks.{i}.mlp.fc1.bias` | $2048$ | 2 048 |
-| `predictor.blocks.{i}.mlp.fc2.weight` | $1024 \times 2048$ | 2 097 152 |
-| `predictor.blocks.{i}.mlp.fc2.bias` | $1024$ | 1 024 |
-| `predictor.blocks.{i}.ada_ln_modulation.weight` | $6144 \times 192$ | 1 179 648 |
-| `predictor.blocks.{i}.ada_ln_modulation.bias` | $6144$ | 6 144 |
-| **Per-block subtotal** | | **9 581 568** |
+| `predictor.blocks.{i}.mlp.fc2.weight` | $192 \times 2048$ | 393 216 |
+| `predictor.blocks.{i}.mlp.fc2.bias` | $192$ | 192 |
+| `predictor.blocks.{i}.adaln.weight` | $1152 \times 192$ | 221 184 |
+| `predictor.blocks.{i}.adaln.bias` | $1152$ | 1 152 |
+| **Per-block subtotal** | | **1 797 632** |
 
-Wait — six blocks × 9.58 M = 57.49 M, which is far more than the
-predictor's total of ~10.5 M. The discrepancy is because the per-block
-numbers above assume **full-width** linear layers at the inner_dim of
-1024. The actual LeWM predictor uses a *narrower* attention/mlp inner
-dim than the AdaLN width suggests; the canonical numbers come from
-`python/param_name_map.py` and not from a naïve calculation.
-
-The take-away: the predictor module is the largest of the four, but
-its per-block parameter count is in the **~1.7 M** range, not the
-~9.6 M that a naive enumeration would give. See the
-[`param_name_map.py`](https://github.com/AbdelStark/lewm-rs/blob/main/python/param_name_map.py)
-source for the exact, parity-verified count.
-
-### 3.3 Exit components
-
-| Path | Shape | Count |
-|------|------:|------:|
-| `predictor.final_norm.weight` | $1024$ | 1 024 |
-| `predictor.final_norm.bias` | $1024$ | 1 024 |
-| `predictor.output_proj.weight` | $192 \times 1024$ | 196 608 |
-| `predictor.output_proj.bias` | $192$ | 192 |
-| **Exit subtotal** | | **198 848** |
+Six blocks contribute $6 \times 1\,797\,632 = 10\,785\,792$ parameters,
+so the predictor module total is
+$960 + 10\,785\,792 = 10\,786\,752 \approx 10.8\text{ M}$, consistent
+with the headline number in §1. The largest single sub-cost is the
+attention QKV projection at $\sim 0.59$ M per block; AdaLN's six
+modulation vectors per block contribute $\sim 0.22$ M per block.
 
 ## 4. Action encoder tensor breakdown
 
@@ -139,36 +134,50 @@ so the total is 156 406.
 
 ## 5. Projector / pred-proj breakdown
 
-Each MLP (`projector` and `pred_proj`) is the same shape:
+Each MLP (`projector` and `pred_proj`) has the same shape contract:
+`Linear($D = 192 \to 2048$) → BatchNorm1d(2048) → GELU → Linear($2048 \to D = 192$)`.
+The BatchNorm1d normalises the feature dimension after flattening the
+leading axes; both its scale/shift (trainable) and running statistics
+(buffers) are mapped from the upstream PyTorch reference (see
+`python/param_name_map.py::_mlp_rules`).
 
 | Path | Shape | Count |
 |------|------:|------:|
 | `*.fc1.weight` | $2048 \times 192$ | 393 216 |
 | `*.fc1.bias` | $2048$ | 2 048 |
-| `*.fc2.weight` | $1024 \times 2048$ | 2 097 152 |
-| `*.fc2.bias` | $1024$ | 1 024 |
-| **One MLP total** | | **2 493 440** |
+| `*.norm.weight` (BatchNorm1d scale) | $2048$ | 2 048 |
+| `*.norm.bias`   (BatchNorm1d shift) | $2048$ | 2 048 |
+| `*.fc2.weight` | $192 \times 2048$ | 393 216 |
+| `*.fc2.bias` | $192$ | 192 |
+| **One MLP total (trainable)** | | **792 768** |
 
-Two MLPs: **4 986 880** combined.
+Each MLP additionally carries three BatchNorm1d *buffers* — `running_mean`
+($2048$), `running_var` ($2048$), `num_batches_tracked` (scalar) — that
+are loaded from the reference checkpoint but not optimised. They
+contribute to the 303-tensor count but not to the trainable-parameter
+budget.
+
+Two MLPs: **1 585 536** trainable parameters combined.
 
 ## 6. Grand total reconciliation
 
-Summing the published numbers:
+Summing the breakdowns above:
 
 ```text
 encoder:           5 501 376
-predictor:        10 444 270   (from param_name_map.py)
-action_enc:          156 206
-projector:         2 493 440
-pred_proj:         2 493 440
+predictor:        10 786 752   (from §3, hidden_dim = 192)
+action_enc (PushT):  156 206
+projector:           792 768
+pred_proj:           792 768
 -----------------
-total            21 088 732
+total            18 029 870
 ```
 
 The published headline of **18 042 672** reflects the canonical
-parameter count from `python/param_name_map.py`. The difference comes
-from a handful of unmerged biases and the `ada_ln_modulation` head
-sharing layout with PyTorch's grouping; the script
+parameter count from `python/param_name_map.py`, which also enumerates
+the BatchNorm1d running buffers and a handful of LayerNorm affine
+tensors that are not listed in the simplified tables above. The
+$\sim 12.8$ K residual is precisely those buffer / utility tensors;
 `python/param_name_map.py` is the authoritative source.
 
 Concretely: running `python/param_name_map.py --count` against the

@@ -6,7 +6,7 @@
 > This page collects the conceptual arguments and the empirical
 > evidence from `lewm-rs` itself.
 >
-> **Position.** Closing chapter of [Part I — Concepts](../introduction.md).
+> **Position.** Closing chapter of [Part I — Concepts](./jepa.md).
 >
 > **What you should leave with.** A few clear intuitions about why
 > latent prediction outperforms pixel prediction, a vocabulary for
@@ -84,13 +84,14 @@ the prediction game on this batch?
 
 Two forces argue against partial collapse:
 
-1. **SIGReg measures the *distributional shape* in $\mathbb R^{1024}$.**
-   A degenerate encoder whose output lives on a low-dimensional
-   manifold would fail the test against a standard normal — the
-   characteristic function along directions orthogonal to the
-   manifold would be far from the target. SIGReg's $K = 1024$ random
-   projections explore enough directions that low-dimensional collapse
-   is detected.
+1. **SIGReg measures the *distributional shape* in $\mathbb R^{D}$
+   ($D = 192$).** A degenerate encoder whose projector output lives on
+   a low-dimensional sub-manifold of $\mathbb R^{192}$ would fail the
+   test against a standard normal — the characteristic function along
+   directions orthogonal to the manifold would be far from the target.
+   SIGReg's $K = 1024$ random projections sample enough directions of
+   $\mathbb R^{192}$ — many more than the ambient dimension itself —
+   that low-dimensional collapse is detected.
 2. **The prediction loss penalises *any* loss of information that the
    action can recover.** If the encoder discards a feature of the
    observation that the predictor (under action conditioning) could
@@ -124,11 +125,11 @@ From [PushT training](../results/pusht.md):
 
 Two things to note:
 
-- **SIGReg dominates the early loss.** At init the encoder's output
-  distribution is far from $\mathcal N(0, I_{1024})$, so SIGReg
-  is huge (~0.49). The prediction loss is already small (6.8e-4)
-  because the AdaLN-zero predictor is the identity at init and the
-  projectors give an easy starting point.
+- **SIGReg dominates the early loss.** At init the projector's output
+  distribution is far from $\mathcal N(\mathbf 0, I_D)$, so SIGReg is
+  huge ($\sim 0.49$). The prediction loss is already small ($6.8 \times
+  10^{-4}$) because the AdaLN-zero predictor is the identity at init
+  and the projectors give an easy starting point.
 - **The prediction loss drops below SIGReg around step 1 000.** This
   is the point where the predictor "wakes up" — $W^{\text{mod}}$ has
   moved meaningfully away from zero, the predictor starts using the

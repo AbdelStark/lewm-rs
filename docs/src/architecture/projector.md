@@ -1,15 +1,17 @@
 # Projector and pred-proj MLPs
 
 > **Motivation.** Two small MLPs — `projector` and `pred_proj` —
-> bracket the SIGReg space. They are not glamorous, but they are
-> exactly where the prediction loss is computed and where the SIGReg
-> regulariser is applied. This page documents both.
+> bracket the prediction loss and feed the SIGReg regulariser. They
+> are not glamorous, but they are exactly where the prediction loss is
+> computed and where the random-projection sketch of SIGReg is applied.
+> This page documents both.
 >
 > **Position.** Fourth module page in [Part II](./overview.md).
 >
-> **What you should leave with.** The shape contract of each MLP, the
-> rationale for the lift to 1024-D, and which loss is computed in which
-> space.
+> **What you should leave with.** The shape contract of each MLP — input
+> and output both equal to $D = 192$, with a $2048$-wide hidden layer —
+> the role of the BatchNorm1d between `fc1` and `fc2`, and which loss
+> is computed in which space.
 
 ## 1. The two MLPs
 
@@ -19,9 +21,10 @@ Both are instances of the same `Mlp` struct in
 ```rust,ignore
 #[derive(burn::module::Module, Debug)]
 pub struct Mlp<B: Backend> {
-    fc1: burn::nn::Linear<B>,    // Linear(in_dim → hidden_dim)
-    fc2: burn::nn::Linear<B>,    // Linear(hidden_dim → out_dim)
-    act: GeluVariant,
+    fc1:  burn::nn::Linear<B>,        // Linear(input_dim  → hidden_dim)
+    norm: NormBlock<B>,               // BatchNorm1d on hidden_dim (default)
+    fc2:  burn::nn::Linear<B>,        // Linear(hidden_dim → output_dim)
+    act:  GeluVariant,                // exact-erf GELU
 }
 ```
 
@@ -29,16 +32,27 @@ with `MlpConfig`:
 
 | Field | `projector` | `pred_proj` |
 |-------|------------:|------------:|
-| `in_dim` | 192 | 192 |
+| `input_dim`  | 192 | 192 |
 | `hidden_dim` | 2048 | 2048 |
-| `out_dim` | 1024 | 1024 |
-| `act` | exact-erf GELU | exact-erf GELU |
+| `output_dim` | 192 | 192 |
+| `norm`  | `BatchNorm1d` | `BatchNorm1d` |
+| `act`   | exact-erf GELU | exact-erf GELU |
 
-Forward:
+Forward (defined in [RFC 0002 §4.4](https://github.com/AbdelStark/lewm-rs/blob/main/specs/rfcs/0002-core-model-architecture.md#44-mlp-heads-projector-pred_proj)):
 
 ```text
-out = self.fc2.forward( gelu( self.fc1.forward(x) ) )
+x   = self.fc1.forward(x)               # (..., 2048)
+x   = self.norm.forward(x)              # BatchNorm1d on the 2048 feature axis
+x   = gelu(x)                           # exact-erf GELU
+out = self.fc2.forward(x)               # (..., 192)
 ```
+
+The BatchNorm1d normalises the $2048$-D hidden activation across the
+batch (and, for these MLPs, the time axis after flattening). At
+inference, the layer uses its running statistics rather than the batch
+statistics; both the affine parameters and the running buffers are
+mapped exactly from the upstream PyTorch reference (see
+`python/param_name_map.py::_mlp_rules`).
 
 ## 2. Where each MLP sits in the dataflow
 
@@ -47,12 +61,12 @@ out = self.fc2.forward( gelu( self.fc1.forward(x) ) )
                    (B, T, 192)             (B, T, 192)
                        │                        │
                        ▼                        ▼
-                ┌─────────────┐          ┌──────────────┐
-                │  projector  │          │  pred_proj   │
-                │  192 →2048  │          │  192 →2048   │
-                │  GELU       │          │  GELU        │
-                │  2048→1024  │          │  2048→1024   │
-                └──────┬──────┘          └──────┬───────┘
+                ┌──────────────┐         ┌──────────────┐
+                │  projector   │         │  pred_proj   │
+                │  192 → 2048  │         │  192 → 2048  │
+                │  BN1d + GELU │         │  BN1d + GELU │
+                │  2048 → 192  │         │  2048 → 192  │
+                └──────┬───────┘         └──────┬───────┘
                        │                        │
                        │ z̃ (target arm,         │ ẑ_next (source arm,
                        │ aligned to t+1)        │ prediction)
@@ -74,27 +88,36 @@ The same `projector` is applied to both arms:
 
 So `projector` is run on every frame in the window, and its output is
 both the predictor's *input embedding* and the prediction loss's
-*target*. `pred_proj` is run only on the predictor's output, mapping it
-back into the same 1024-D space where the comparison happens.
+*target*. `pred_proj` is run only on the predictor's output, mapping
+it back into the same $D = 192$ space where the comparison happens.
 
-## 3. Why lift to 1024-D before computing the loss?
+## 3. Why a wide non-linear projection if the output dim equals the input dim?
 
-The encoder produces 192-D CLS vectors. The prediction MSE could in
-principle be computed in 192-D space; the architecture chose to lift to
-1024-D first. Two reasons:
+The encoder produces $192$-D CLS vectors. The most parsimonious
+arrangement would be to compute the prediction MSE directly on those
+vectors. The architecture instead routes them through a non-linear
+$192 \to 2048 \to 192$ MLP at both arms. Two design reasons motivate
+this choice:
 
-1. **SIGReg lives in 1024-D.** The regulariser is applied to the
-   projector's output. SIGReg's $K = 1024$ random directions need a
-   sufficiently wide ambient space to be approximately orthogonal in
-   expectation. 1024-D is the natural choice — directly matching $K$.
-2. **The prediction loss benefits from a wider comparison space.** In
-   the 192-D encoder dim, small errors in the predictor are amplified
-   relative to total feature magnitude. In the 1024-D projected space,
-   the encoder's CLS is spread over a wider basis and the MSE per-dim
-   becomes smaller, which empirically gives smoother gradients.
+1. **Decoupling the SIGReg "view" from the encoder.** The regulariser
+   acts on the projector's output, not on the encoder's CLS directly.
+   This lets the encoder be free to use whatever internal coordinates
+   it likes, while the projector reshapes those coordinates into a
+   distribution that SIGReg can compare against $\mathcal N(0, I_D)$.
+   BatchNorm1d in the projector further whitens the activations along
+   the hidden axis, which empirically stabilises the SIGReg gradient.
+2. **A learnable comparison metric for the prediction loss.** Because
+   $\text{MSE}(\text{pred\_proj}(\hat{\mathbf z}), \text{projector}(\mathbf z_{t+1}))$
+   is taken in the projector-output space (not pixel space and not
+   encoder-CLS space), the loss is effectively MSE under a *learned*
+   inner-product structure. The two MLPs jointly carve out the metric
+   under which predictability and Gaussianity are simultaneously
+   enforced.
 
-The 1024-D space is where the *loss* lives. The 192-D space is where
-the *model* lives. The two are connected by `projector` and `pred_proj`.
+The projector-output space is where the *loss* lives. The encoder /
+predictor token dim ($D = 192$) is where the *model* lives. Both
+spaces are $192$-D in `lewm-rs`; the projectors are non-linear, not
+dimensionality-changing.
 
 ## 4. The end-to-end gradient contract
 
@@ -119,29 +142,33 @@ JEPAs. The contract is pinned in [RFC 0003 §4.1.2] under
 ## 5. Initialisation
 
 Both linear layers in both MLPs use truncated-normal init with
-$\sigma = 0.02$, biases zero. No special zero-init trick is applied; the
-MLPs are not conditioned on anything, so they benefit from a vanilla
-init.
+$\sigma = 0.02$, biases zero. The BatchNorm1d's affine parameters are
+initialised to $\gamma = 1$, $\beta = 0$, and its running statistics
+to $\mu = 0$, $\sigma^2 = 1$ — Burn's defaults, matching upstream.
+No special zero-init trick is applied; the MLPs are not conditioned on
+anything, so they benefit from a vanilla init.
 
 ## 6. Parameter count
 
-Per MLP:
+Per MLP (trainable):
 
 | Tensor | Shape | Count |
 |--------|------:|------:|
-| `fc1.weight` | $192 \times 2048$ | 393 216 |
+| `fc1.weight` | $2048 \times 192$ | 393 216 |
 | `fc1.bias`   | $2048$ | 2 048 |
-| `fc2.weight` | $2048 \times 1024$ | 2 097 152 |
-| `fc2.bias`   | $1024$ | 1 024 |
-| **MLP total** | | **2 493 440 (~2.5 M)** |
+| `norm.weight` (BN1d scale) | $2048$ | 2 048 |
+| `norm.bias`   (BN1d shift) | $2048$ | 2 048 |
+| `fc2.weight` | $192 \times 2048$ | 393 216 |
+| `fc2.bias`   | $192$ | 192 |
+| **MLP total (trainable)** | | **792 768 (~0.79 M)** |
 
-There are two of these (`projector` and `pred_proj`), so the combined
-projector/pred-proj budget is ~5 M parameters out of 18 M total. This
-is larger than the headline LeWM paper number suggests — most readers
-think of the projector as "small" — but at the LeWM scale, the
-projector and pred-proj together carry significant capacity. See the
-[Parameter inventory](./parameter-inventory.md) for the canonical
-breakdown.
+There are two such MLPs (`projector` and `pred_proj`), so the combined
+budget is $\sim 1.59\text{ M}$ trainable parameters out of $18.04$ M
+total. Each MLP additionally carries three BatchNorm1d *buffers* —
+`running_mean` ($2048$), `running_var` ($2048$), `num_batches_tracked`
+(scalar) — that are loaded from the reference checkpoint but not
+optimised. See the [Parameter inventory](./parameter-inventory.md) for
+the canonical breakdown.
 
 ## 7. Parity tests
 
@@ -163,3 +190,4 @@ breakdown.
 | Parity tests | `crates/lewm-core/tests/parity_pred_proj*.rs` |
 
 [RFC 0003 §4.1.2]: https://github.com/AbdelStark/lewm-rs/blob/main/specs/rfcs/0003-sigreg-and-loss-functions.md#412-gradient-contract
+

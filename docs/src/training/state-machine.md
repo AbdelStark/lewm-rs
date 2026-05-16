@@ -126,7 +126,7 @@ Current ledger: \$11.70 total. Cap is comfortably out of reach.
 
 | Topic | Source |
 |-------|--------|
-| State enum, transitions | `crates/lewm-train/src/trainer.rs` (and the deleted `state.rs` notional file in RFC 0005 §3) |
+| State enum, transitions | `crates/lewm-train/src/trainer.rs` (see also the conceptual `state.rs` description in RFC 0005 §3) |
 | Sidecar schema | `crates/lewm-train/src/checkpoint.rs` |
 | Resume protocol | `crates/lewm-train/src/resume.rs` |
 | CLI | `crates/lewm-train/src/bin/lewm-train.rs` |

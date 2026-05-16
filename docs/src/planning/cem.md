@@ -4,7 +4,7 @@
 > through the *Cross-Entropy Method* (CEM) planner. This page documents
 > the algorithm at the level of pseudocode pinned in [RFC 0006].
 >
-> **Position.** Top of [Part IV — Planning and evaluation](../introduction.md).
+> **Position.** Top of [Part IV — Planning and evaluation](./cem.md).
 >
 > **What you should leave with.** The CEM hyperparameters, the
 > per-iteration update equations, and which crate implements which

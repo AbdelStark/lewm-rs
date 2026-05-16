@@ -5,7 +5,7 @@
 > the results do and do not establish, and what the natural next steps
 > are.
 >
-> **Position.** Closing sub-page of [Part VII](../introduction.md).
+> **Position.** Closing sub-page of [Part VII — Results](./pusht.md).
 >
 > **What you should leave with.** A clear-eyed view of where lewm-rs
 > stands as a reproduction, a deployment, and a research baseline.
@@ -43,9 +43,12 @@ Three things are pending evaluation:
 
 ## 3. The "bounded model" gap
 
-The most important open engineering item is the **bounded model gap**.
-The 50 k-step PushT training uses `PushtFullLewmCore`, a simplified
-14-parameter Rust core, not the full Burn `Jepa` (303 parameters).
+The most important open engineering item is the **bounded-model gap**:
+the difference between the simplified core used for end-to-end training
+and the full Burn `Jepa` used for parity and export. Concretely, the
+50 k-step PushT training run uses `PushtFullLewmCore`, a simplified
+$\sim 14$-tensor Rust core, not the full Burn `Jepa` (303 tensors,
+$18\,042\,672$ parameters).
 
 The full `Jepa<B>` module passes all 10 parity tests against the
 upstream checkpoint — it is *correct*. The remaining work is to wire
@@ -97,12 +100,12 @@ These are listed in `ROADMAP.md` but are not part of the v1 deliverable.
 
 ## 6. Comparison to upstream
 
-LeWM (Maes et al., 2026) reports PushT success rates around 87 %.
-`lewm-rs` aims to match this on the converted upstream weights and to
-demonstrate that the Rust pipeline is faithful enough that the
-*pipeline* can reproduce the result given the same compute. This is
-exactly what the [PushT result](./pusht.md) plus the pending eval are
-designed to show.
+LeWM (Maes et al., 2026, arXiv:2502.16560) reports PushT success rates
+around 87 %. `lewm-rs` aims to match this on the converted upstream
+weights and to demonstrate that the Rust pipeline is faithful enough
+that the *pipeline* can reproduce the result given the same compute.
+This is exactly what the [PushT result](./pusht.md) plus the pending
+eval are designed to show.
 
 We have **not** improved over upstream. The algorithm, the
 architecture, the hyperparameters, the seed, the optimizer — all

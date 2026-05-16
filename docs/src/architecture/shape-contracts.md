@@ -20,7 +20,7 @@ shapes are:
    Stage                              Shape
    ─────                              ─────
    batch.pixels                       (B, T+1, 3, 224, 224)    f32
-   batch.actions                      (B, T,   A)              f32  (A=2 PushT, 6 SO-100)
+   batch.actions                      (B, T_raw, A)            f32  (A=2 PushT, 6 SO-100; T_raw = T+4 with frameskip kernel=5)
    batch.action_norm_stats            (mean: (A,), std: (A,))  f32
 
    ── encoder ──
@@ -31,34 +31,34 @@ shapes are:
    reshape                            (B, T+1, 192)            f32   ◀ jepa.encode output
 
    ── projector ──
-   projector(z)                       (B, T+1, 1024)           f32   ◀ z_proj, target arm
+   fc1 → BN1d → GELU → fc2            (B, T+1, 192)            f32   ◀ z_proj, target arm
 
    ── action encoder ──
-   actions.transpose                  (B, A, T)                f32
-   Conv1d (kernel=5)                  (B, 10, T-4) on raw
-   transpose                          (B, T-4, 10)
-   MLP                                (B, T-4, 192)            f32   ◀ a_emb
+   actions.transpose                  (B, A, T_raw)            f32
+   Conv1d (kernel=5)                  (B, 10, T_raw-4) = (B, 10, T)
+   transpose                          (B, T, 10)
+   MLP (10 → 768 → 192)               (B, T, 192)              f32   ◀ a_emb
 
-   ── predictor ──
-   input_proj(history_z)              (B, T, 1024)             f32
-   + pos_emb (broadcast)              (B, T, 1024)             f32
-   blocks×6 (AdaLN-zero gated)        (B, T, 1024)             f32
-   final_norm                         (B, T, 1024)             f32
-   output_proj                        (B, T, 192)              f32   ◀ pred_z (192-D)
+   ── predictor (no entry/exit projection) ──
+   tokens = z_proj[:, 0:T, :]         (B, T, 192)              f32
+   + pos_embed (broadcast)            (B, T, 192)              f32
+   blocks×6 (AdaLN-zero gated)        (B, T, 192)              f32
+   final LayerNorm                    (B, T, 192)              f32   ◀ pred_z
 
    ── pred_proj ──
-   pred_proj(pred_z)                  (B, T, 1024)             f32   ◀ pred_z_1024, source arm
+   fc1 → BN1d → GELU → fc2            (B, T, 192)              f32   ◀ pred_z_proj, source arm
 
    ── losses ──
-   l_pred  = MSE(pred_z_1024,         scalar                   f32
+   l_pred  = MSE(pred_z_proj,         scalar                   f32
                  z_proj[:, 1:T+1])
    l_sigreg = SIGReg(z_proj)          scalar                   f32 (computed in F32)
    l_total = l_pred + λ·l_sigreg      scalar                   f32
 ```
 
 The conventions: **f32** for everything in this table except the BF16
-"island" of the predictor's matmuls in mixed-precision training mode.
-LayerNorm, AdaLN modulation, and SIGReg always run in F32 (see
+"island" of the predictor's and projector's matmuls in mixed-precision
+training mode. LayerNorm, AdaLN modulation, BatchNorm1d, and SIGReg
+always run in F32 (see
 [Mixed precision](../training/mixed-precision.md)).
 
 ## 2. Edge-by-edge contract
@@ -88,7 +88,9 @@ prediction loss.
 
 | From | To | Shape |
 |------|----|-------|
-| jepa.encode output | projector(192 → 1024) | $(B, T+1, 1024)$ |
+| jepa.encode output | $\text{Linear}(192 \to 2048)$ | $(B, T+1, 2048)$ |
+| BatchNorm1d (feature axis = 2048) | | $(B, T+1, 2048)$ |
+| GELU + $\text{Linear}(2048 \to 192)$ | projector output | $(B, T+1, 192)$ |
 
 `projector` is run on every frame in the window. The first $T$ rows
 serve as the predictor's input embedding; the last $T$ rows (i.e.
@@ -96,42 +98,61 @@ indices `1..T+1`) serve as the prediction loss target.
 
 ### 2.3 Action encoder edges
 
+Let $T_{\text{raw}}$ denote the raw action-stream length in one
+training window. With Conv1d kernel size $k = 5$ and stride $1$, the
+smoothed stream has length $T_{\text{raw}} - 4$. The data pipeline
+guarantees $T_{\text{raw}} = T + 4$, so the smoothed stream is
+$T$-aligned with the encoder's history.
+
 | From | To | Shape |
 |------|----|-------|
-| batch.actions | transpose for Conv1d | $(B, A, T)$ |
-| Conv1d (in=A, out=10, k=5, stride=1) | output | $(B, 10, T-4)$ |
-| transpose back | MLP input | $(B, T-4, 10)$ |
-| fc1 + SiLU | | $(B, T-4, 768)$ |
-| fc2 | a_emb | $(B, T-4, 192)$ |
+| batch.actions | transpose for Conv1d | $(B, A, T_{\text{raw}})$ |
+| Conv1d (in=A, out=10, k=5, stride=1) | output | $(B, 10, T_{\text{raw}} - 4) = (B, 10, T)$ |
+| transpose back | MLP input | $(B, T, 10)$ |
+| fc1 + SiLU | | $(B, T, 768)$ |
+| fc2 | a_emb | $(B, T, 192)$ |
 
-This is the canonical action-encoder shape. The output's time
-dimension is $T - 4$ because the Conv1d kernel size $k = 5$ consumes 4
-trailing frames at the boundary. The data pipeline guarantees that the
-*raw* action stream is long enough that the smoothed stream has the
-required $T - 4$ frames aligned with the encoder's $T$-frame history;
-see [Data plane §3](../training/data.md).
-
-In `lewm-rs` v1 the LeWM defaults are arranged so that **the smoothed
-action stream has exactly $T$ frames** ($T = 3$ history with appropriate
-upstream framing). See [`crates/lewm-data/src/transform/window.rs`].
+In `lewm-rs` v1 the LeWM defaults pin $T = 3$ and $T_{\text{raw}} = 7$,
+which yields smoothed length $T_{\text{raw}} - 4 = 3 = T$. See
+[`crates/lewm-data/src/transform/window.rs`].
 
 ### 2.4 Predictor edges
 
+The predictor operates on the $D = 192$ token dim throughout; there is
+no entry-side `input_proj` or exit-side `output_proj`. The attention
+sublayer expands internally to $\text{inner\_dim} = \text{heads} \times
+\text{dim\_head} = 16 \times 64 = 1024$ for the $Q, K, V$ projection
+and contracts back to $192$ via `proj`; the MLP sublayer expands to
+$\text{mlp\_dim} = 2048$ and contracts back.
+
 | From | To | Shape |
 |------|----|-------|
-| history_z = z[:, 0:T, :] | input_proj | $(B, T, 192) \to (B, T, 1024)$ |
-| + pos_emb | block_0 | $(B, T, 1024)$ |
-| Each ConditionalBlock with a_emb | output | $(B, T, 1024)$ |
-| final_norm | output_proj | $(B, T, 1024) \to (B, T, 192)$ |
+| `tokens = z_proj[:, 0:T, :]` | $+$ `pos_embed` | $(B, T, 192)$ |
+| each `ConditionalBlock` (with `a_emb`) | $\to$ next block | $(B, T, 192)$ |
+| `norm` (final affine LayerNorm) | predictor output | $(B, T, 192)$ |
+
+Inside one `ConditionalBlock`:
+
+| From | To | Shape |
+|------|----|-------|
+| input tokens | `norm1` (affine-free LN) + modulation | $(B, T, 192)$ |
+| `attn.qkv` | $Q, K, V$ stack | $(B, T, 3072)$ |
+| split, scaled dot-product, recombine | post-attention | $(B, T, 1024)$ |
+| `attn.proj` | gated residual addition | $(B, T, 192)$ |
+| `norm2` + modulation $\to$ `mlp.fc1` | hidden | $(B, T, 2048)$ |
+| GELU + `mlp.fc2` | gated residual addition | $(B, T, 192)$ |
+| `adaln(a_emb)` | $6 \times D$ modulation features | $(B, T, 1152)$ |
 
 Causal mask is $(T, T)$ upper-triangular bool, pre-registered as a
-buffer. Position embedding is $(1, T, 1024)$, broadcast.
+buffer inside `CausalSelfAttention`. Position embedding is $(1, T, 192)$,
+broadcast.
 
 ### 2.5 Pred-proj edge
 
 | From | To | Shape |
 |------|----|-------|
-| predictor output | pred_proj | $(B, T, 192) \to (B, T, 1024)$ |
+| predictor output | $\text{Linear}(192 \to 2048)$ | $(B, T, 2048)$ |
+| BatchNorm1d + GELU + $\text{Linear}(2048 \to 192)$ | pred_proj output | $(B, T, 192)$ |
 
 This is the *source arm* of the prediction loss.
 
@@ -139,9 +160,10 @@ This is the *source arm* of the prediction loss.
 
 | From | To | Shape |
 |------|----|-------|
-| pred_z_1024 (source) | mse vs. target | $(B, T, 1024)$ each |
-| z_proj (target) | mse | sliced to $(B, T, 1024)$ (indices 1..T+1) |
-| z_proj reshape | sigreg input | $(B \cdot (T+1), 1024)$ |
+| `pred_z_proj` (source) | mse vs. target | $(B, T, 192)$ each |
+| `z_proj` (target) | mse | sliced to $(B, T, 192)$ (indices `1..T+1`) |
+| `z_proj` reshape | sigreg input | $(B \cdot (T+1), 192)$ |
+| sigreg projection $\mathbf P \in \mathbb R^{K \times D} = \mathbb R^{1024 \times 192}$ | sketched samples | $(B \cdot (T+1), 1024)$ |
 | sigreg (in F32) | scalar | $()$ |
 | MSE | scalar | $()$ |
 
@@ -181,3 +203,4 @@ The precision invariants are pinned in [RFC 0014 §4] and discussed in
 
 [`crates/lewm-data/src/transform/window.rs`]: https://github.com/AbdelStark/lewm-rs/blob/main/crates/lewm-data/src/transform/window.rs
 [RFC 0014 §4]: https://github.com/AbdelStark/lewm-rs/blob/main/specs/rfcs/0014-performance-engineering.md
+

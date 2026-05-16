@@ -20,9 +20,9 @@ pub struct Jepa<B: Backend> {
     config:       JepaConfig,
     vit:          Vit<B>,
     action_enc:   Embedder<B>,
-    projector:    Mlp<B>,        // 192 → 1024
+    projector:    Mlp<B>,        // 192 → 2048 → 192 (BN1d + GELU between)
     predictor:    ArPredictor<B>,
-    pred_proj:    Mlp<B>,        // 192 → 1024
+    pred_proj:    Mlp<B>,        // 192 → 2048 → 192 (BN1d + GELU between)
 }
 ```
 
@@ -94,34 +94,33 @@ In `crates/lewm-train/src/step.rs`, one optimizer step looks like
 (simplified):
 
 ```rust,ignore
-// Batch: pixels (B, T+1, 3, 224, 224), actions (B, T, A)
+// Batch: pixels (B, T+1, 3, 224, 224), actions (B, T_raw, A)
 let pixels  = batch.pixels;
 let actions = batch.actions;
 
 // Encode every frame in the window
-let z = jepa.encode(pixels);                              // (B, T+1, D)
+let z = jepa.encode(pixels);                              // (B, T+1, D = 192)
 
-// Project to 1024-D for both source (history) and target (next-step)
-let z_proj = jepa.projector.forward(z);                   // (B, T+1, 1024)
+// Apply the projector to all T+1 frames; output dim equals input dim
+let z_proj = jepa.projector.forward(z);                   // (B, T+1, D = 192)
 
 // Source arm: feed history latents and actions through the predictor
-let history_z      = z.narrow(1, 0, T);                    // (B, T, D)
-let history_a      = actions;                              // (B, T, A)
-let pred_z_192     = jepa.predict(history_z, history_a);   // (B, T, D)
-let pred_z_1024    = jepa.pred_proj.forward(pred_z_192);   // (B, T, 1024)
+let history_z       = z.narrow(1, 0, T);                   // (B, T, D)
+let pred_z          = jepa.predict(history_z, actions);    // (B, T, D)
+let pred_z_proj     = jepa.pred_proj.forward(pred_z);      // (B, T, D)
 
 // Target arm: the next-step projected embedding
-let target_z_1024  = z_proj.narrow(1, 1, T);               // (B, T, 1024)
+let target_z_proj   = z_proj.narrow(1, 1, T);              // (B, T, D)
 
 // Losses
-let l_pred   = mse(pred_z_1024, target_z_1024);
+let l_pred   = mse(pred_z_proj, target_z_proj);
 let l_sigreg = sigreg(z_proj);                             // computed on all (T+1) frames
 let l_total  = l_pred + lambda * l_sigreg;
 ```
 
 Both `projector` and the encoder receive gradient from the prediction
 path *and* the target path. SIGReg adds an additional gradient signal
-into the projector and encoder via $z_{\text{proj}}$. See
+into the projector and encoder via `z_proj`. See
 [Gradient flow](../training/gradient-flow.md) for the detailed graph.
 
 ## 4. The autoregressive rollout (planning)

@@ -37,7 +37,7 @@ scripts/launch_hf_job.py jobs/full_pusht.yaml
 - Env: `HF_TOKEN`, `LEWM_RUN_LABEL`.
 - Command:
 
-```text
+  ```sh
   lewm-train --config configs/pusht.toml \
              --device cuda \
              --output-dir /scratch/$RUN_ID \

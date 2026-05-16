@@ -39,7 +39,7 @@ and falls back to a shape-only check otherwise.
 | Hardware | A10G-large (HF Jobs) |
 | Initial loss | 0.4912 |
 | Final loss | 3.17 × 10⁻⁶ |
-| Loss ratio | 1.55 × 10⁵ × reduction |
+| Loss ratio | $1.55 \times 10^5$-fold reduction |
 | Gradient explosions | 0 |
 | Seed | 0 |
 | Config hash | `438eb30f4bb0` |

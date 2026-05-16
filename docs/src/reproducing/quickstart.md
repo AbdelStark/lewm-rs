@@ -3,7 +3,7 @@
 > **Motivation.** Get from `git clone` to "I have run a forward pass"
 > in under five minutes.
 >
-> **Position.** Top of [Part IX — Reproducing the results](../introduction.md).
+> **Position.** Top of [Part IX — Reproducing the results](./quickstart.md).
 
 ## 1. Prerequisites
 

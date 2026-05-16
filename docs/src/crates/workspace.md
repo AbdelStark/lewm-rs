@@ -4,7 +4,7 @@
 > tight, deliberate boundaries. This page is the map: who depends on
 > whom, what each one owns, and where to read source.
 >
-> **Position.** Top of [Part VIII — Workspace and crates](../introduction.md).
+> **Position.** Top of [Part VIII — Workspace and crates](./workspace.md).
 >
 > **What you should leave with.** A clear picture of the dependency
 > tree, the dependency invariant (INV-003), and a pointer per crate.

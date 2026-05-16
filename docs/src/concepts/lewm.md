@@ -17,7 +17,7 @@ LeWM is an action-conditioned visual world model with the following
 fixed structure:
 
 ```text
-                pixels (B, T, 3, 224, 224)
+                pixels (B, T+1, 3, 224, 224)
                           │
                           ▼
                 ┌──────────────────┐
@@ -26,34 +26,36 @@ fixed structure:
                 └──────────────────┘
                           │
                 z_target  ▼  z_source
-                ┌──────────────────┐
-                │     projector     │  Linear→GELU→Linear, MLP
-                │  (proj_dim=1024)  │
-                └──────────────────┘
-                          │  z̃   (B, T, 1024)
+                ┌────────────────────────┐
+                │       projector        │  Linear → BN1d → GELU → Linear
+                │  (192 → 2048 → 192)    │  (BatchNorm1d on hidden axis)
+                └────────────────────────┘
+                          │  z̃ = z_proj   (B, T+1, 192)
                           │
-                          │            actions (B, T-1, A)
+                          │            actions (B, T_raw, A)
                           │                 │
                           │                 ▼
                           │   ┌─────────────────────┐
-                          │   │   Conv1d smoother    │  A → 10
-                          │   │   + SiLU MLP (×4)    │  10 → 192
+                          │   │   Conv1d smoother   │   A → 10, kernel=5
+                          │   │   + SiLU MLP (×4)    │   10 → 192
                           │   └─────────────────────┘
-                          │                 │  a_emb
+                          │                 │  a_emb  (B, T, 192)
                           │                 ▼
                           │   ┌─────────────────────┐
-                          └──▶│  ArPredictor         │  AdaLN-zero
-                              │  6 blocks, 16 heads  │  (a_emb modulates)
-                              │  MLP=2048            │  causal mask
+                          └──▶│   ArPredictor        │   AdaLN-zero
+                              │   6 blocks, 16 heads │   (a_emb modulates)
+                              │   token dim D = 192  │   causal mask
+                              │   attn inner 1024,    │
+                              │   MLP inner 2048      │
                               └─────────────────────┘
-                                         │
+                                         │  (B, T, 192)
                                          ▼
-                              ┌──────────────────┐
-                              │   pred_proj       │  Linear→GELU→Linear
-                              │   (D=192→1024)    │
-                              └──────────────────┘
+                              ┌────────────────────────┐
+                              │       pred_proj        │  Linear → BN1d → GELU → Linear
+                              │  (192 → 2048 → 192)    │
+                              └────────────────────────┘
                                          │
-                                         ▼   ẑ_next (B, T, 1024)
+                                         ▼  ẑ_next (B, T, 192)
                                          │
                           ┌──────────────┴──────────────┐
                           ▼                             ▼
@@ -112,13 +114,17 @@ broadcast into the predictor's AdaLN modulation heads.
 
 ### 2.3 The predictor is an autoregressive transformer with AdaLN-zero.
 
-- 6 transformer blocks, 16 attention heads, MLP inner dim 2048.
+- 6 transformer blocks operating on the token dim $D = 192$.
+- 16 attention heads × per-head dim 64 ⇒ attention inner dim 1024
+  (expanded inside the attention sublayer and contracted back to 192
+  by `attn.proj`).
+- MLP inner dim 2048 (also internal to the block; output is 192).
 - Causal mask (upper-triangular boolean) pre-registered as a buffer.
 - Each block uses **AdaLN-zero**: the action embedding $a_t$ is mapped
   through a zero-initialised linear head to produce per-block scale,
   shift, and gate parameters. At initialisation, every modulated block
   acts as the identity, so the predictor is initially well-behaved.
-- Output dimension matches the encoder's: $(B, T, D)$.
+- Input and output dimensions both match the encoder's: $(B, T, D)$.
 
 See [The autoregressive predictor](../architecture/predictor.md) and
 [AdaLN-zero conditioning](./adaln.md).
@@ -144,17 +150,21 @@ combined signal from the prediction loss (through both the source and
 target arms) and the SIGReg loss. See
 [Gradient flow](../training/gradient-flow.md).
 
-### 2.5 The projector lifts to a wider space for SIGReg.
+### 2.5 The projector is a non-linear remapping at the same dimension.
 
-The encoder produces $(B, T, D=192)$. Before SIGReg, a projector MLP lifts
-this to $(B, T, \text{proj\_dim} = 1024)$. This is where the SIGReg loss
-lives. The 1024-D space gives SIGReg's $K = 1024$ random directions room
-to be approximately orthogonal.
+The encoder produces $(B, T+1, D=192)$. Before the prediction loss and
+SIGReg, a projector MLP — `Linear(192 → 2048) → BatchNorm1d → GELU →
+Linear(2048 → 192)` — rewrites this into a new $192$-D space, denoted
+$\tilde{\mathbf z}$ or `z_proj`. The output dim deliberately equals the
+input dim: the projector reshapes the encoder's distribution, but does
+not change its dimensionality. SIGReg is then applied to the
+projector's output by sampling $K = 1024$ random one-dimensional
+directions in this 192-D space.
 
 The same projector also produces the **target** of the prediction loss:
 the loss compares `pred_proj(predictor(projector(...)))` (the source
-arm's output, lifted by both projectors) to `projector(encoder(y))` (the
-target arm's output, lifted by the source projector only). See
+arm, lifted by the predictor and `pred_proj`) to `projector(encoder(y))`
+(the target arm, the projector applied to the next-step pixels). See
 [Loss functions](../training/losses.md) for the exact loss equation.
 
 ### 2.6 The regularizer is SIGReg, not VICReg, not Barlow.

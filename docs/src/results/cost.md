@@ -4,7 +4,7 @@
 > how much does it cost to re-run the project end to end? This page
 > summarises the ledger.
 >
-> **Position.** Third sub-page in [Part VII](../introduction.md).
+> **Position.** Third sub-page in [Part VII — Results](./pusht.md).
 >
 > **What you should leave with.** Confirmed total spend, per-run
 > breakdown, and the cost cap.

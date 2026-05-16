@@ -82,7 +82,7 @@ For the Space we typically expose lower defaults
 
 | Topic | Source |
 |-------|--------|
-| Space app | Hosted in the `abdelstark/lewm-rs-demo` Space repo |
+| Space app | Hosted at `abdelstark/lewm-rs-demo` (Hugging Face Space) |
 | ONNX assets | `abdelstark/lewm-rs-pusht` (root) |
 | Stats | `stats.safetensors` |
 | Action dim auto-detect | `python/export_onnx.py::infer_action_dim` |

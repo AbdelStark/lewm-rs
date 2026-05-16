@@ -24,7 +24,7 @@ live under `crates/lewm-core/tests/` and are gated behind the
 | 6 | predictor_mixed_precision | rel. $< 2\!\times\!10^{-2}$        | Predictor in BF16 vs F32 | `parity_predictor_mixed_precision.rs` |
 | 7 | pred_proj              | $L_\infty < 10^{-4}$                  | `Mlp::forward(predictor_out)` | `parity_pred_proj.rs` |
 | 8 | projector              | $L_\infty < 10^{-4}$                  | `Mlp::forward(encoder_out)` | `parity_projector.rs` |
-| 9 | sigreg_seeded          | $|\Delta| < 10^{-3}$ (TOL-003)       | `sigreg_loss` with identical RNG seed | `parity_sigreg.rs` |
+| 9 | sigreg_seeded          | $\lvert\Delta\rvert < 10^{-3}$ (TOL-003) | `sigreg_loss` with identical RNG seed | `parity_sigreg.rs` |
 | 10 | sigreg_seedfree       | rel. $< 5\!\times\!10^{-2}$ (TOL-004)  | `sigreg_loss` with different RNG seed | `parity_sigreg_seedfree.rs` |
 
 ## 2. The test pattern
@@ -87,7 +87,7 @@ cargo test -p lewm-core
 ```
 
 Without the feature flag, the tests are compiled but `#[ignore]`'d.
-Running them prints "skipped: no parity dumps available". The shape
+Running them prints `skipped: no parity dumps available`. The shape
 check still runs via the `cargo check` gate.
 
 ## 4. CI integration
