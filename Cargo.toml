@@ -6,6 +6,7 @@ members = [
     "crates/lewm-train",
     "crates/lewm-plan",
     "crates/lewm-infer",
+    "crates/lewm-gpu",
     "crates/lewm-telemetry",
     "crates/lewm-hub",
 ]
@@ -26,6 +27,7 @@ lewm-data = { path = "crates/lewm-data", version = "0.1.0" }
 lewm-train = { path = "crates/lewm-train", version = "0.1.0" }
 lewm-plan = { path = "crates/lewm-plan", version = "0.1.0" }
 lewm-infer = { path = "crates/lewm-infer", version = "0.1.0" }
+lewm-gpu = { path = "crates/lewm-gpu", version = "0.1.0" }
 lewm-telemetry = { path = "crates/lewm-telemetry", version = "0.1.0" }
 lewm-hub = { path = "crates/lewm-hub", version = "0.1.0" }
 

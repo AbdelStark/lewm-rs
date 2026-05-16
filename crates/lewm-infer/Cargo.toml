@@ -16,13 +16,24 @@ name = "lewm-infer"
 path = "src/bin/lewm-infer.rs"
 
 [features]
-default = ["tract-onnx", "tract-nnef"]
+default = ["tract-onnx", "tract-nnef", "burn-cpu"]
 tract-onnx = ["dep:tract-onnx", "dep:tract-linalg"]
 tract-nnef = ["dep:tract-nnef", "dep:tract-linalg"]
-burn-direct = []
+# Burn-direct CPU inference via `burn-ndarray`. Always-on by default so the
+# `eval` and `--backend burn-cpu` paths work without extra build flags.
+#
+# GPU backends (burn-cuda, burn-wgpu, ...) deliberately live in the separate
+# `lewm-gpu` crate per RFC 0007: this crate stays free of CUDA / autodiff /
+# NVML dependencies so it can be built on minimal CI runners and edge hosts.
+burn-cpu = ["dep:burn-ndarray"]
+# Legacy alias for the Burn-direct path; kept for backwards compatibility with
+# external scripts that pass `--features burn-direct`.
+burn-direct = ["burn-cpu"]
 slow-tests = []
 
 [dependencies]
+burn = { workspace = true }
+burn-ndarray = { workspace = true, optional = true }
 clap = { workspace = true }
 image = { workspace = true, features = ["jpeg", "png"] }
 lewm-core = { workspace = true }
@@ -30,6 +41,7 @@ lewm-telemetry = { workspace = true }
 rand_chacha = { workspace = true }
 rand_distr = { workspace = true }
 rayon = { workspace = true }
+safetensors = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
@@ -38,6 +50,7 @@ tract-nnef = { workspace = true, optional = true }
 tract-linalg = { workspace = true, optional = true }
 
 [dev-dependencies]
+burn-ndarray = { workspace = true }
 insta = { workspace = true }
 prost = "0.11"
 proptest = { workspace = true }

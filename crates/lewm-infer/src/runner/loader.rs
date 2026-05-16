@@ -2,6 +2,8 @@
 
 use std::path::Path;
 
+#[cfg(feature = "burn-cpu")]
+use crate::runner::BackendKind;
 use crate::runner::traits::{InferenceRunner, RunnerError, RunnerFormat};
 
 /// Detect the graph format available in a checkpoint directory.
@@ -17,6 +19,42 @@ pub fn detect_checkpoint_format(checkpoint_dir: &Path) -> Option<RunnerFormat> {
     } else {
         None
     }
+}
+
+/// Find a `.safetensors` checkpoint next to a checkpoint directory.
+///
+/// Searches, in order:
+/// 1. `checkpoint_dir/weights.safetensors`
+/// 2. The highest-numbered `step_*.safetensors` file inside `checkpoint_dir`.
+/// 3. `checkpoint_dir/reference.safetensors` (used by parity dump bundles).
+#[cfg(feature = "burn-cpu")]
+pub fn detect_safetensors(checkpoint_dir: &Path) -> Option<std::path::PathBuf> {
+    let weights = checkpoint_dir.join("weights.safetensors");
+    if weights.exists() {
+        return Some(weights);
+    }
+    let reference = checkpoint_dir.join("reference.safetensors");
+    if reference.exists() {
+        return Some(reference);
+    }
+    let dir_entries = std::fs::read_dir(checkpoint_dir).ok()?;
+    let mut step_candidates = Vec::new();
+    for entry in dir_entries.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|extension| extension.to_str()) != Some("safetensors") {
+            continue;
+        }
+        let Some(stem) = path.file_stem().and_then(|stem| stem.to_str()) else {
+            continue;
+        };
+        if let Some(rest) = stem.strip_prefix("step_")
+            && let Ok(step) = rest.parse::<u64>()
+        {
+            step_candidates.push((step, path));
+        }
+    }
+    step_candidates.sort_by_key(|(step, _)| *step);
+    step_candidates.pop().map(|(_, path)| path)
 }
 
 /// Load the best available runner from a checkpoint directory.
@@ -67,6 +105,60 @@ fn load_nnef(_checkpoint_dir: &Path) -> Result<Box<dyn InferenceRunner>, RunnerE
     Err(RunnerError::FormatDisabled {
         format: RunnerFormat::Nnef,
     })
+}
+
+/// Load a runner for a given [`BackendKind`].
+///
+/// For `TractOnnx`/`TractNnef`, this reuses the existing checkpoint-directory
+/// discovery and ignores `safetensors_path`. For `BurnCpu`, the runner is
+/// constructed from the Safetensors weights (resolved via
+/// `detect_safetensors` when `safetensors_path` is `None`).
+///
+/// GPU backends are wired in `lewm-gpu::load_cuda_runner` and are not callable
+/// through this entry point.
+///
+/// # Errors
+///
+/// Returns [`RunnerError`] when the requested backend feature is disabled, the
+/// checkpoint is missing, or backend loading fails.
+#[cfg(feature = "burn-cpu")]
+pub fn load_with_backend(
+    backend: BackendKind,
+    checkpoint_dir: &Path,
+    safetensors_path: Option<&Path>,
+    config: Option<lewm_core::JepaConfig>,
+) -> Result<Box<dyn InferenceRunner>, RunnerError> {
+    match backend {
+        BackendKind::TractOnnx => load_onnx(checkpoint_dir),
+        BackendKind::TractNnef => load_nnef(checkpoint_dir),
+        BackendKind::BurnCpu => {
+            let resolved = match safetensors_path {
+                Some(path) => path.to_path_buf(),
+                None => detect_safetensors(checkpoint_dir).ok_or_else(|| {
+                    RunnerError::NoExportFound {
+                        checkpoint_dir: checkpoint_dir.to_path_buf(),
+                    }
+                })?,
+            };
+            load_burn_cpu(&resolved, config.unwrap_or_default())
+        },
+    }
+}
+
+#[cfg(feature = "burn-cpu")]
+fn load_burn_cpu(
+    safetensors_path: &Path,
+    config: lewm_core::JepaConfig,
+) -> Result<Box<dyn InferenceRunner>, RunnerError> {
+    use crate::runner::BurnJepaRunner;
+    let device = burn_ndarray::NdArrayDevice::default();
+    let runner = BurnJepaRunner::<burn_ndarray::NdArray<f32>>::from_safetensors(
+        safetensors_path,
+        config,
+        device,
+        "cpu",
+    )?;
+    Ok(Box::new(runner))
 }
 
 #[cfg(test)]

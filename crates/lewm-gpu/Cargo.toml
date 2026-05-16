@@ -1,0 +1,28 @@
+[package]
+name = "lewm-gpu"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+authors = { workspace = true }
+repository = { workspace = true }
+rust-version = { workspace = true }
+description = "GPU inference for LeWM — Burn CUDA backend wiring kept out of lewm-infer per RFC 0007."
+
+[lib]
+path = "src/lib.rs"
+
+[features]
+default = ["burn-cuda"]
+# NVIDIA GPU inference via `burn-cuda`. Opt-out only when the target host lacks
+# a CUDA toolchain at build time.
+burn-cuda = ["dep:burn-cuda"]
+
+[dependencies]
+burn = { workspace = true }
+burn-cuda = { workspace = true, optional = true }
+lewm-core = { workspace = true }
+lewm-infer = { workspace = true }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true

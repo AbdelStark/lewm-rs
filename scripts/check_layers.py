@@ -14,6 +14,7 @@ EXPECTED_MEMBERS = [
     "crates/lewm-train",
     "crates/lewm-plan",
     "crates/lewm-infer",
+    "crates/lewm-gpu",
     "crates/lewm-telemetry",
     "crates/lewm-hub",
 ]
@@ -32,6 +33,10 @@ ALLOWED_DEPS = {
         "lewm-plan",
     },
     "lewm-infer": {"lewm-core", "lewm-telemetry"},
+    # lewm-gpu is the only crate allowed to pull in `burn-cuda`; it wires the
+    # CUDA-specific runner factory on top of lewm-infer's backend-generic
+    # BurnJepaRunner so lewm-infer itself stays CPU-only per RFC 0007.
+    "lewm-gpu": {"lewm-core", "lewm-infer"},
 }
 
 INFER_BANNED_DEPS = {"burn-cuda", "burn-autodiff", "nvml-wrapper"}

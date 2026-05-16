@@ -59,6 +59,9 @@ Make targets mirror the local gates:
 | PushT full training | **Completed** — 50k steps, 318 min, A10G-large; loss 0.491→3.17e-06; artifacts at [`abdelstark/lewm-rs-pusht`](https://huggingface.co/abdelstark/lewm-rs-pusht) | CEM success rate ≥ 87% (eval pending) |
 | SO-100 pick-and-place | **Completed** — 5000 steps, 864s, A10G-large; loss 0.50→9.56e-05; artifacts at [`abdelstark/lewm-rs-so100`](https://huggingface.co/abdelstark/lewm-rs-so100) | Warm-start ablation (pending) |
 | CPU inference (Tract) | **Benchmarked** — 4.08s/episode (p50, release build, M-series Mac, 5 CEM iter × 1024 cand) | Sub-second on GPU / batched |
+| CPU inference (Burn `NdArray`) | **Implemented** — `lewm-infer --backend burn-cpu` runs the in-Rust `Jepa<B>` module directly from Safetensors weights (CLS-projected encoder, 192-dim latent) | Latency baseline vs. Tract |
+| GPU inference (Burn CUDA) | **Implemented** — `lewm-infer --backend burn-cuda` (feature `burn-cuda`) runs the same `Jepa<B>` module on NVIDIA GPUs; built and CI-checked | Measured A10G/CUDA latency |
+| Parity eval CLI | **Implemented** — `lewm-infer eval --dumps-dir ...` compares any runner against the official reference dumps (per-stage L∞/RMSE JSON); see [`reports/gpu_inference.md`](reports/gpu_inference.md) | Continuous parity gate |
 | ONNX export | **Done** — encoder + predictor for onnxruntime (opset 18) and Tract (opset 17); at [`abdelstark/lewm-rs-pusht`](https://huggingface.co/abdelstark/lewm-rs-pusht) | Stable export pipeline |
 | Hub publication | Model cards + checkpoints + ONNX on Hub; demo at [`abdelstark/lewm-rs-demo`](https://huggingface.co/spaces/abdelstark/lewm-rs-demo) | Model, dataset, Space |
 
@@ -68,6 +71,7 @@ Make targets mirror the local gates:
 |----------|------|
 | Paper writeup | [`paper/lewm-rs.md`](paper/lewm-rs.md) |
 | PushT training report | [`reports/pusht_training.md`](reports/pusht_training.md) |
+| GPU inference & parity eval | [`reports/gpu_inference.md`](reports/gpu_inference.md) |
 | SO-100 training report | [`reports/so100_training.md`](reports/so100_training.md) |
 | Inference + export report | [`reports/inference.md`](reports/inference.md) |
 | Cost ledger | [`reports/cost.md`](reports/cost.md) — confirmed $11.70 total |

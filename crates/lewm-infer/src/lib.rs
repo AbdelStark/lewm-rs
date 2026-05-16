@@ -15,6 +15,7 @@
 //! - [`runner`] contains the CPU inference runner trait and Tract-backed loaders.
 
 pub mod errors;
+pub mod eval;
 pub mod export;
 pub mod plan;
 pub mod preprocess;

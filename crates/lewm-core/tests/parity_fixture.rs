@@ -1,5 +1,6 @@
 //! RFC 0008 parity fixture contract tests.
 
+#[allow(dead_code)]
 mod support;
 
 #[test]
