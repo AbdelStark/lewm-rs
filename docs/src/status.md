@@ -71,7 +71,7 @@ Full report: [`reports/so100_training.md`].
 | Burn CUDA runner | benchmark pending | A10G | release |
 
 CEM configuration: 5 iterations × 1024 candidates, $H = 3$ history steps,
-action dim $= 10$ (post Conv1d smoother).
+action dim $= 10$ (frameskip-packed PushT actions).
 
 ## Eval
 
@@ -107,9 +107,10 @@ relevant:
 
 1. **`lewm_core::Jepa` end-to-end training**: the current 50 k-step PushT
    run uses `PushtFullLewmCore` (a simplified core); the full Burn ViT
-   (`lewm_core::Jepa`, 303 parameters, parity-validated) is not yet wired
-   into the training loop. The ONNX export therefore uses converted
-   PyTorch reference weights, not a natively Rust-trained ViT checkpoint.
+   (`lewm_core::Jepa`, 303 parameter tensors / 18.04 M parameters,
+   parity-validated) is not yet wired into the training loop. The ONNX
+   export therefore uses converted PyTorch reference weights, not a
+   natively Rust-trained ViT checkpoint.
 2. **Planning eval**: CEM planning success rate on PushT and latent-MSE /
    Spearman on SO-100.
 3. **Warm-start ablation**: training SO-100 from PushT weights vs. random.

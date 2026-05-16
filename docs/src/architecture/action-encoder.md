@@ -1,81 +1,109 @@
 # The action encoder
 
 > **Motivation.** Raw robot actions are tiny (2-D for PushT, 6-D for
-> SO-100) and arrive at a higher rate than the latent stream. They need
-> to be smoothed and lifted to the predictor's embedding dimension
-> before they can be used as AdaLN-zero conditioners.
+> SO-100) and arrive at a higher rate than the latent stream. The data
+> plane packs `frameskip` consecutive raw actions into one "packed"
+> action vector; the action encoder then lifts that packed vector to
+> the predictor's embedding dimension so it can drive the AdaLN-zero
+> modulation heads downstream.
 >
 > **Position.** Third module in [Part II](./overview.md).
 >
-> **What you should leave with.** The two-stage structure (Conv1d
-> smoother + MLP lift), the exact shapes at each boundary, and a
-> pointer to the source.
+> **What you should leave with.** The split of responsibilities between
+> the data plane (frameskip packing) and the encoder (Conv1d k=1 lift
+> + 2-layer MLP), the exact shapes at each boundary, and a pointer to
+> the source.
 
 ## 1. Configuration
 
 `EmbedderConfig` in `crates/lewm-core/src/config.rs`:
 
-| Field | LeWM PushT | SO-100 |
-|-------|-----------:|-------:|
-| `action_dim` (raw $A$) | 2 | 6 |
-| `frameskip` | 5 | 5 |
-| `packed_dim` ($A_p$) | 10 | 10 |
-| `embed_dim` ($E_a$) | 192 | 192 |
-| `mlp_ratio` | 4 | 4 |
-| `act` | `silu` | `silu` |
+| Field          | LeWM PushT | SO-100 | Meaning |
+|----------------|-----------:|-------:|---------|
+| `input_dim`    | 10         | 6      | Action dim entering the encoder (after any data-plane packing). |
+| `smoothed_dim` | 10         | 10     | Output channels of the Conv1d. |
+| `emb_dim`      | 192        | 192    | Output embedding dim; matches the predictor's hidden dim $D$. |
+| `mlp_scale`    | 4          | 4      | Inner MLP width is `emb_dim * mlp_scale = 768`. |
+
+The two reference tasks reach `EmbedderConfig` by different paths:
+
+- **PushT.** Raw actions are 2-D and arrive at `frameskip = 5` higher
+  than the model's step rate, so the data plane packs each block of
+  5 raw actions into one $A_p = 10$ vector — hence
+  `input_dim = 10 = raw_action_dim * frameskip`.
+- **SO-100.** The 6-DOF action stream is already at the model's rate;
+  no packing is needed, so `input_dim = 6 = SO100_ACTION_DIM`.
+
+The encoder itself does not know about frameskip — it is purely a
+linear lift of whatever dim arrives, followed by an MLP. The
+contracts that wire `dataset.raw_action_dim`, `dataset.frameskip`,
+and `model.action_encoder.input_dim` are validated in
+`crates/lewm-train/src/config.rs`.
 
 The action embedding dimension $E_a$ is fixed at $192$ to match the
-encoder's hidden dim $D$. This is what allows the action stream to
-broadcast cleanly into the AdaLN-zero modulation heads downstream
-without an extra linear projection.
+encoder's hidden dim $D$. This lets the action stream broadcast cleanly
+into the AdaLN-zero modulation heads downstream without an extra linear
+projection.
 
-## 2. Stage 1 — Conv1d smoother
+The action embedding dimension $E_a$ is fixed at $192$ to match the
+encoder's hidden dim $D$. This lets the action stream broadcast cleanly
+into the AdaLN-zero modulation heads downstream without an extra linear
+projection.
 
-Raw actions arrive as a stream `(B, T_raw, A)`. The first stage is a
-single Conv1d with **kernel size = `frameskip` = 5**, **stride = 1**,
-no padding, that smooths the action sequence and packs it to dimension
-$A_p = 10$.
+## 2. Stage 1 — Conv1d (k=1) lift
+
+Actions arrive as a stream `(B, T, input_dim)`. The first stage is a
+Conv1d with **kernel size = 1**, **stride = 1**, no padding — i.e. a
+learned per-timestep linear lift from `input_dim` to `smoothed_dim`
+channels (10 → 10 for PushT, 6 → 10 for SO-100).
 
 ```rust,ignore
-#[derive(burn::module::Module, Debug)]
-pub struct ActionSmoother<B: Backend> {
-    smoother: burn::nn::conv::Conv1d<B>,   // Conv1d(A, A_p, kernel=5, stride=1, padding=0)
-}
+// crates/lewm-core/src/embedder.rs
+let mut smoother = Conv1dConfig::new(config.input_dim, config.smoothed_dim, 1)
+    .with_initializer(Initializer::Zeros)
+    .init(device);
+// asserted: smoother.kernel_size == 1
 ```
 
 Forward:
 
 ```text
-raw_actions: (B, T_raw, A)
-x = transpose(raw_actions, 1, 2)               # (B, A, T_raw)
-x = self.smoother.forward(x)                   # (B, A_p, T_smoothed)
-x = transpose(x, 1, 2)                         # (B, T_smoothed, A_p)
+actions: (B, T, input_dim)
+x = actions.permute([0, 2, 1])                 # (B, input_dim, T)
+x = self.smoother.forward(x)                   # (B, smoothed_dim, T) — kernel=1, T unchanged
+x = x.permute([0, 2, 1])                       # (B, T, smoothed_dim)
 ```
 
-The output time dimension `T_smoothed = T_raw - kernel + 1`.
+The Conv1d preserves the time axis: no temporal smoothing happens here.
 
-### 2.1 Why a Conv1d?
+### 2.1 Why a Conv1d k=1 and not a Linear?
 
-The frameskip Conv1d is conceptually a *learned linear interpolation
-kernel* that maps `frameskip` adjacent raw actions to one "packed"
-action vector. With $A = 2$ raw action dims and `frameskip = 5`, the
-Conv1d has $2 \cdot 10 \cdot 5 = 100$ weights + 10 biases — a trivial
-parameter footprint, but enough to capture the right temporal pooling.
+Functionally, `Conv1d(input_dim, smoothed_dim, kernel=1)` is identical
+to a per-timestep `Linear(input_dim, smoothed_dim)`. The upstream
+reference (`module.py`) uses `patch_embed = nn.Conv1d(...)` and the
+parity tests pin this exact parameter layout, so we keep it.
 
-The smoothing is critical because the raw action stream is *noisier* at
-its native rate than the visual encoder's latent stream at frame rate.
-Pre-smoothing both denoises and aligns the temporal granularity.
+### 2.2 Where the actual smoothing happens (PushT only)
+
+The temporal "smoothing" of the PushT raw action stream is the
+**frameskip packing** done by the data loader: `frameskip = 5`
+consecutive raw actions of dim $A = 2$ are concatenated into one packed
+action of dim $A_p = A \cdot \text{frameskip} = 10$. This reduces the
+action rate to the latent rate and aligns the action stream with the
+visual encoder's frame rate. SO-100 needs no packing because its 6-DOF
+stream is already at the model's step rate.
 
 ## 3. Stage 2 — MLP lift
 
-The smoothed stream is then lifted from $A_p = 10$ to $E_a = 192$ by a
-2-layer SiLU MLP:
+The lifted stream is then expanded from `smoothed_dim = 10` to
+$E_a = 192$ through a 2-layer SiLU MLP with hidden width
+`emb_dim * mlp_scale = 768`:
 
 ```rust,ignore
 #[derive(burn::module::Module, Debug)]
 pub struct Embedder<B: Backend> {
-    smoother: ActionSmoother<B>,             // stage 1
-    fc1: burn::nn::Linear<B>,                // Linear(10  → 768) with mlp_ratio=4
+    smoother: burn::nn::conv::Conv1d<B>,     // stage 1: Conv1d(input_dim, 10, k=1)
+    fc1: burn::nn::Linear<B>,                // Linear(10  → 768) — mlp_scale = 4
     fc2: burn::nn::Linear<B>,                // Linear(768 → 192)
 }
 ```
@@ -83,15 +111,15 @@ pub struct Embedder<B: Backend> {
 Forward (full):
 
 ```text
-raw_actions: (B, T_raw, A)
-y = self.smoother.forward(raw_actions)         # (B, T_smoothed, 10)
-y = silu(self.fc1.forward(y))                  # (B, T_smoothed, 768)
-y = self.fc2.forward(y)                         # (B, T_smoothed, 192)
-return y                                         # action embeddings, ready for AdaLN
+actions: (B, T, input_dim)                     # input_dim = 10 (PushT) or 6 (SO-100)
+y = self.smoother.forward(actions)             # (B, T, 10)  — kernel=1 lift
+y = silu(self.fc1.forward(y))                  # (B, T, 768)
+y = self.fc2.forward(y)                        # (B, T, 192)
+return y                                       # action embeddings, ready for AdaLN
 ```
 
-The output shape is `(B, T_smoothed, 192)`, exactly the conditioning
-shape the predictor's `ConditionalBlock` expects.
+The output shape is `(B, T, 192)`, exactly the conditioning shape the
+predictor's `ConditionalBlock` expects.
 
 ### 3.1 Initialisation
 
@@ -118,18 +146,22 @@ many orders of magnitude — a wrong alignment would stall it.
 
 ## 5. Parameter count
 
-| Tensor | Shape | Count |
-|--------|------:|------:|
-| `smoother.weight` | $2 \times 10 \times 5$ (PushT) / $6 \times 10 \times 5$ (SO-100) | 100 / 300 |
-| `smoother.bias`   | $10$ | 10 |
-| `fc1.weight`      | $10 \times 768$ | 7 680 |
-| `fc1.bias`        | $768$ | 768 |
-| `fc2.weight`      | $768 \times 192$ | 147 456 |
-| `fc2.bias`        | $192$ | 192 |
-| **Action encoder total** | | **~156 K (PushT)** |
+Shapes follow Burn's Conv1d convention `(out_channels, in_channels, kernel)`
+and Linear convention `(in_features, out_features)`:
 
-The SO-100 variant differs only in the `smoother.weight` shape (input
-channels 6 instead of 2). The downstream MLP is unchanged.
+| Tensor | Shape (PushT) | Count (PushT) | Shape (SO-100) | Count (SO-100) |
+|--------|--------------:|--------------:|---------------:|---------------:|
+| `smoother.weight` | $10 \times 10 \times 1$ | 100   | $10 \times 6 \times 1$ | 60 |
+| `smoother.bias`   | $10$                    |  10   | $10$                   | 10 |
+| `fc1.weight`      | $10 \times 768$         | 7 680 | $10 \times 768$        | 7 680 |
+| `fc1.bias`        | $768$                   |  768  | $768$                  | 768 |
+| `fc2.weight`      | $768 \times 192$        | 147 456 | $768 \times 192$     | 147 456 |
+| `fc2.bias`        | $192$                   |  192  | $192$                  | 192 |
+| **Action encoder total** |              | **156 206** |                     | **156 166** |
+
+The two task variants differ only at the `smoother.weight`
+input-channel axis. The downstream MLP is identical because
+`smoothed_dim = 10` is locked.
 
 ## 6. Parity test
 

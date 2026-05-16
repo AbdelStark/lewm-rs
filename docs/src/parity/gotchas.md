@@ -126,9 +126,13 @@ development:
   HF and standard Burn LayerNorm, the affine is on by default. For
   the predictor's adaptive-LN setup, the affine must be disabled —
   the affine role is taken by `ada_ln_modulation`'s output.
-- **Action smoother has no padding.** `Conv1d(A, 10, k=5, stride=1,
-  padding=0)`. If padding is enabled, the output's temporal axis
-  shifts and the predictor's expected alignment breaks.
+- **Action smoother is a kernel-1 Conv1d on packed actions.**
+  `Conv1d(10, 10, k=1, stride=1, padding=0)`. The frameskip-equivalent
+  pooling is done upstream in the data plane (concatenation of
+  `frameskip` raw actions into one $A_p = 10$ vector); the encoder
+  Conv1d only does a per-timestep linear lift. Treating it as a
+  temporal smoother (e.g. swapping in `k = frameskip`) breaks parity
+  and the predictor's expected `T` alignment.
 
 ## 6. The take-away
 

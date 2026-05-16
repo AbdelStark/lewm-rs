@@ -9,8 +9,22 @@
 //!
 //! ## Module index
 //!
-//! The public module surface is added by the phase-specific implementation
-//! issues after the workspace scaffold lands.
+//! | Module | Responsibility |
+//! |--------|----------------|
+//! | [`ada_ln`]      | AdaLN-zero conditioning layer used in the predictor. |
+//! | [`config`]      | Locked architectural configs (ViT-Tiny, embedder, predictor). |
+//! | [`embedder`]    | Action embedder MLP. |
+//! | [`errors`]      | Crate-level error type ([`LewmCoreError`]). |
+//! | [`export`]      | Deterministic Safetensors export for [`jepa::Jepa`] modules. |
+//! | [`import`]      | Reference-checkpoint Safetensors loader with parity-preserving name map. |
+//! | [`init`]        | RFC 0013-compliant tensor initialization helpers. |
+//! | [`jepa`]        | Top-level `Jepa<B>` module: encoder + projector + predictor + pred-proj. |
+//! | [`losses`]      | SIGReg sketch-based regularizer, prediction loss, collapse probe. |
+//! | [`mlp`]         | Reusable two-layer MLP block (used by embedder, projector, pred-proj). |
+//! | [`predictor`]   | Autoregressive latent predictor with AdaLN-zero blocks. |
+//! | [`rng`]         | Substream-keyed deterministic RNG per RFC 0013. |
+//! | [`tensor_ops`]  | Activation kernels, causal mask, positional embedding interpolation. |
+//! | [`vit`]         | ViT-Tiny encoder with parity-validated forward path. |
 
 pub mod ada_ln;
 pub mod config;

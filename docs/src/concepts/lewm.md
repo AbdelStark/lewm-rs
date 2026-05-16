@@ -32,12 +32,12 @@ fixed structure:
                 └────────────────────────┘
                           │  z̃ = z_proj   (B, T+1, 192)
                           │
-                          │            actions (B, T_raw, A)
-                          │                 │
+                          │        packed actions (B, T, A_p = 10)
+                          │                 │   (data plane: A · frameskip)
                           │                 ▼
                           │   ┌─────────────────────┐
-                          │   │   Conv1d smoother   │   A → 10, kernel=5
-                          │   │   + SiLU MLP (×4)    │   10 → 192
+                          │   │  Conv1d (k=1) lift  │   10 → 10
+                          │   │  + SiLU MLP (×4)    │   10 → 768 → 192
                           │   └─────────────────────┘
                           │                 │  a_emb  (B, T, 192)
                           │                 ▼
@@ -89,27 +89,42 @@ checkpoint specifically). Parity to upstream depends on getting **both**
 the eps and the GELU right — see
 [Implementation gotchas](../parity/gotchas.md).
 
-### 2.2 Actions are smoothed before they enter the predictor.
+### 2.2 Actions are aligned to the latent rate, then lifted.
 
-Raw actions are low-dimensional (2-D for PushT, 6-D for SO-100). They
-arrive at sample rate (10–30 Hz). LeWM's predictor consumes them at the
-same step rate as the latent stream ($T = 3$ history frames), so the raw
-actions must first be **collapsed across frameskip**:
+Raw actions are low-dimensional (2-D for PushT, 6-D for SO-100). LeWM's
+predictor consumes them at the same step rate as the latent stream
+($T = 3$ history frames). The two reference tasks align to that rate
+in different ways:
+
+- **PushT.** Raw actions arrive at `frameskip = 5` higher than the
+  predictor rate, so the data plane packs 5 adjacent raw actions into
+  one $A_p = A \cdot \text{frameskip} = 10$ vector before the encoder
+  sees them.
+- **SO-100.** The 6-DOF action stream is already at the predictor rate
+  and is passed through unchanged ($A = 6$).
+
+Either way, the encoder receives `(B, T, input_dim)` and lifts it to
+the predictor's embedding dim:
 
 ```text
-raw action (A,) ──Conv1d(kernel=5, stride=1)──▶ smoothed (10,)
-                                                      │
-                                                      ▼
-                                         ┌─────────────────────┐
-                                         │  Linear → SiLU       │  10 → 4·D = 768
-                                         │  Linear              │  768 → D = 192
-                                         └─────────────────────┘
-                                                      │
-                                                      ▼ action embedding (D,)
+actions (B, T, input_dim)             # 10 for PushT, 6 for SO-100
+              │
+              ▼
+   Conv1d(input_dim, 10, kernel=1)    # per-timestep linear lift
+              │
+              ▼
+   ┌─────────────────────┐
+   │  Linear → SiLU       │  10 → 4·D = 768
+   │  Linear              │  768 → D = 192
+   └─────────────────────┘
+              │
+              ▼ action embedding (B, T, D)
 ```
 
-The Conv1d acts as a fixed-resampling-kernel smoother; the MLP lifts the
-smoothed 10-D signal to the embedding dimension $D = 192$ so it can be
+The kernel-1 Conv1d is functionally a per-timestep linear lift; the
+upstream reference uses `Conv1d` (not `Linear`) so the parity tests pin
+that exact parameter layout. The downstream 2-layer MLP raises the
+10-D smoothed signal to the embedding dimension $D = 192$ so it can be
 broadcast into the predictor's AdaLN modulation heads.
 
 ### 2.3 The predictor is an autoregressive transformer with AdaLN-zero.

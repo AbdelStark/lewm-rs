@@ -35,8 +35,10 @@ Both variants are uploaded to `abdelstark/lewm-rs-pusht`.
 }
 ```
 
-Note: `action_dim=10` is the smoothed action dimension used by the predictor
-(Conv1d smoother maps 2-DOF raw actions → 10-dim), not the raw 2-DOF action.
+Note: `action_dim=10` is the smoothed action dimension used by the predictor.
+For the PushT reference checkpoint, this is the frameskip-packed action
+($A_p = 2 \cdot 5 = 10$); the encoder's Conv1d is `(10, 10, k=1)`, a
+per-timestep linear lift, not a temporal smoother.
 
 ## Tract CPU Benchmark
 

@@ -642,8 +642,14 @@ fn mean_latency(values: &[f64]) -> f64 {
     sum / count
 }
 
-fn percentile(values: &[f64], percentile: usize) -> f64 {
-    let index = (values.len() - 1) * percentile / 100;
+/// Returns the `p`-th percentile of `values` using nearest-rank indexing on
+/// a pre-sorted slice. Caller must ensure `values` is sorted ascending,
+/// non-empty, and `p <= 100`; the only callers in this binary satisfy all
+/// three by construction.
+fn percentile(values: &[f64], p: usize) -> f64 {
+    debug_assert!(!values.is_empty(), "percentile of empty slice");
+    debug_assert!(p <= 100, "percentile must be in 0..=100, got {p}");
+    let index = (values.len() - 1) * p / 100;
     values[index]
 }
 

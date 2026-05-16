@@ -89,15 +89,18 @@ mask into the graph at export time.
 
 ### 3.3 Action-dim inference from the smoother
 
-`python/export_onnx.py` infers the action dim **from the Conv1d
-smoother's weight shape**, not from a hardcoded constant:
+`python/export_onnx.py` infers the encoder's expected action dim
+**from the Conv1d smoother's weight shape**, not from a hardcoded
+constant:
 
 ```python
 action_dim = state_dict["action_enc.smoother.weight"].shape[1]
 ```
 
-This makes the exporter work for both PushT ($A = 2$) and SO-100
-($A = 6$) without code changes.
+This recovers the encoder's `input_dim`: 10 for PushT (frameskip-packed
+2-DOF actions) and 6 for SO-100 (raw 6-DOF actions). The recorded value
+is what the predictor ONNX graph expects at runtime, so downstream
+runners can size their action buffer without consulting the config.
 
 ### 3.4 Atomic per-arm export
 
