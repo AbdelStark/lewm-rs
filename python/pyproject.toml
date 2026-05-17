@@ -28,7 +28,7 @@ url = "https://download.pytorch.org/whl/cpu"
 
 [dependency-groups]
 dev = [
-    "pytest>=8,<9",
+    "pytest>=8,<10",
     "ruff>=0.13,<1",
 ]
 
