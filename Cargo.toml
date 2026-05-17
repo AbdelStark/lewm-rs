@@ -66,10 +66,10 @@ rayon = "1.10"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "fmt"] }
 nvtx = "1.3"
-tracing-opentelemetry = "0.28"
-opentelemetry = { version = "0.27", features = ["trace", "metrics"] }
-opentelemetry-otlp = { version = "0.27", features = ["grpc-tonic", "trace", "metrics"] }
-opentelemetry_sdk = "0.27"
+tracing-opentelemetry = "0.32"
+opentelemetry = { version = "0.31", features = ["trace", "metrics"] }
+opentelemetry-otlp = { version = "0.32", features = ["grpc-tonic", "trace", "metrics"] }
+opentelemetry_sdk = "0.32"
 sysinfo = { version = "0.36", default-features = false, features = ["disk", "system"] }
 nvml-wrapper = { version = "0.12.1", default-features = false }
 
