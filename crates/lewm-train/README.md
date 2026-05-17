@@ -18,6 +18,11 @@ surface behind the `lewm-train` binary.
   and the Safetensors mirror.
 - [`config`] — root training TOML schema, layered overrides, and the
   reproducibility hash.
+- [`eval`] — `JepaCemCostModel<B>`: a `lewm_plan::CemCostModel`
+  adapter that lets the planning eval harness score CEM candidates by
+  forwarding to the parity-verified `Jepa<B>::get_cost`. Enforces the
+  `horizon_plan == jepa.horizon - history_size` contract so eval
+  configs cannot silently mis-align with the trained model.
 - [`mixed_precision`] — precision policy, F32 islands, and bf16 autocast scope.
 - [`optim`] — AdamW configuration and decay / no-decay partitioning.
 - `pusht_full` — bounded config-shaped PushT `LeWM` training core.

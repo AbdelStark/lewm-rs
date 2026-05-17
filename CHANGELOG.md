@@ -9,6 +9,24 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Added
 
+- **`lewm-train` eval adapter**: new `lewm_train::eval` module provides
+  `JepaCemCostModel<B>`, a `lewm_plan::CemCostModel` adapter that
+  tensorises CEM batches and forwards to the parity-verified
+  `Jepa<B>::get_cost`. Strictly validates `horizon_plan ==
+  jepa.horizon - jepa.history_size`, `action_dim`, `latent_dim`, and
+  `history_len`, and short-circuits empty batches. Covered by four
+  unit tests including an end-to-end `Cem::plan` round-trip on a
+  compact synthetic JEPA. Closes the structural gap between the
+  scaffolded `lewm-eval pusht` binary and a model-backed planner;
+  what remains is loading a real checkpoint + running the gym-pusht
+  loop.
+- **Workspace lints**: `expect_used` is now `deny` (was `warn`).
+  Production code has zero `.expect()` calls outside `#[cfg(test)]`
+  modules, so the deny is a permanent guarantee rather than a
+  current state.
+
+### Added (release polish)
+
 - **MLOps / supply chain**: `.github/dependabot.yml` watches Cargo, GitHub
   Actions, the Dockerfile, and the Python edge layer on a weekly cadence with
   Burn / Tract / HDF5 major-version freezes that match ADR 0002 and RFC 0007.

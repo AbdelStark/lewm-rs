@@ -10,6 +10,8 @@
 //!   pruning.
 //! - [`config`] owns the root training TOML schema, layered overrides, and
 //!   reproducibility hash.
+//! - [`eval`] — `Jepa<B>` ↔ `lewm_plan::CemCostModel` adapter for CEM
+//!   planning evaluation against a parity-verified Burn checkpoint.
 //! - [`mixed_precision`] — precision policy and `F32` islands.
 //! - [`optim`] — `AdamW` configuration and RFC 0005 decay/no-decay partitioning.
 //! - `pusht_full` — bounded config-shaped `PushT` `LeWM` training core.
@@ -22,6 +24,7 @@
 //!
 pub mod checkpoint;
 pub mod config;
+pub mod eval;
 pub mod mixed_precision;
 pub mod optim;
 mod pusht_full;

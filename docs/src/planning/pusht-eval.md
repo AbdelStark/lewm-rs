@@ -21,7 +21,14 @@ budget.
 LeWM paper).
 
 **Current:** <span class="lewm-badge lewm-badge--partial">Eval pending</span>
-on the lewm-rs PushT 50 k-step checkpoint.
+on the lewm-rs PushT 50 k-step checkpoint. The wiring is complete —
+`lewm_train::eval::JepaCemCostModel` adapts the parity-verified
+`Jepa<B>` to `lewm_plan::CemCostModel` with strict horizon-plan,
+latent-dim, action-dim, and history-len validation, and a unit-tested
+end-to-end CEM round-trip on a compact synthetic JEPA (4 tests in
+`crates/lewm-train/src/eval.rs`). What remains is the **runtime**:
+load the trained PushT checkpoint, spawn the `gym-pusht` subprocess,
+and run the loop documented in §7 below.
 
 ## 2. The episode protocol
 
@@ -119,4 +126,5 @@ checkpoint and seed produce identical per-episode results.
 | CEM | `crates/lewm-plan/src/cem.rs` |
 | Reports | `crates/lewm-plan/src/reports.rs` |
 | Eval CLI | `crates/lewm-plan/src/bin/lewm-eval.rs` |
+| JEPA ↔ CEM adapter | `crates/lewm-train/src/eval.rs` (`JepaCemCostModel`) |
 | `gym-pusht` integration | Python via `pyo3`; see RFC 0006 §6 |
