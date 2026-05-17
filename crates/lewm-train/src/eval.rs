@@ -163,9 +163,12 @@ impl<B: Backend> CemCostModel for JepaCemCostModel<'_, B> {
         let actions_tensor = Tensor::<B, 1>::from_floats(request.candidates, &self.device)
             .reshape([request.batch_size, horizon_plan, action_dim]);
 
-        let model = self.model.lock().map_err(|_| LewmPlanError::InvalidCemInput {
-            reason: "JepaCemCostModel mutex poisoned".to_owned(),
-        })?;
+        let model = self
+            .model
+            .lock()
+            .map_err(|_| LewmPlanError::InvalidCemInput {
+                reason: "JepaCemCostModel mutex poisoned".to_owned(),
+            })?;
         let costs = model
             .get_cost(history_tensor, actions_tensor, goal_tensor)
             .map_err(|error| LewmPlanError::CostEvaluation {
@@ -173,12 +176,13 @@ impl<B: Backend> CemCostModel for JepaCemCostModel<'_, B> {
             })?;
 
         // Burn returns a (B,) tensor; pull it onto the host as f32s.
-        let host_costs: Vec<f32> = costs
-            .into_data()
-            .to_vec::<f32>()
-            .map_err(|error| LewmPlanError::InvalidCemCost {
-                reason: format!("Jepa::get_cost into_data: {error:?}"),
-            })?;
+        let host_costs: Vec<f32> =
+            costs
+                .into_data()
+                .to_vec::<f32>()
+                .map_err(|error| LewmPlanError::InvalidCemCost {
+                    reason: format!("Jepa::get_cost into_data: {error:?}"),
+                })?;
         Ok(host_costs)
     }
 }
