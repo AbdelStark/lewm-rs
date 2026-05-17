@@ -206,7 +206,7 @@ jobs:
       - name: Run cargo-audit
         # hdf5-metno depends on paste; cargo-deny still blocks direct workspace unmaintained deps.
         # Tract 0.22.1 pins the vulnerable time dependency; keep the audit ignore scoped until tract can upgrade.
-        # Burn 0.20.1 pulls bincode 2.0.1; ADR 0002 tracks the date-bounded waiver.
+        # Burn 0.21.0 still pulls bincode 2.0.1; ADR 0002/0003 track the date-bounded waiver.
         run: cargo audit --deny warnings --ignore RUSTSEC-2024-0436 --ignore RUSTSEC-2026-0009 --ignore RUSTSEC-2025-0141
 
   secrets:

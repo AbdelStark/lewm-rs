@@ -92,7 +92,7 @@ lewm-infer/
 
 ### 4.1 ONNX export from Burn
 
-Burn provides ONNX export via `burn-import`'s `onnx::ToOnnx` trait (or `burn::export::onnx::Exporter` depending on Burn version pinned at `=0.20.1`). The recipe:
+Burn provides ONNX export via `burn-import`'s `onnx::ToOnnx` trait (or `burn::export::onnx::Exporter` depending on Burn version pinned at `=0.21.0`, per ADR 0003). The recipe:
 
 ```rust
 let device = burn_ndarray::NdArrayDevice::default();

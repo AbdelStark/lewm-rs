@@ -74,14 +74,14 @@ strategy:
   fail-fast: false
   matrix:
     os: [ubuntu-22.04]
-    rust: [1.89.0]   # pinned per RFC 0001
+    rust: [1.95.0]   # pinned per RFC 0001
     feature_set:
       - default
       - cpu-only
       - parity-fixtures
     include:
       - os: macos-14-arm
-        rust: 1.89.0
+        rust: 1.95.0
         feature_set: cpu-only
 ```
 
@@ -204,7 +204,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libssl-dev libhdf5-dev libstdc++-12-dev \
  && rm -rf /var/lib/apt/lists/*
 
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.89.0 --profile minimal
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.95.0 --profile minimal
 ENV PATH="/root/.cargo/bin:${PATH}"
 
 WORKDIR /src

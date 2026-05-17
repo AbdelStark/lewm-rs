@@ -1,6 +1,6 @@
 //! Burn-backed Vision Transformer encoder from RFC 0002.
 
-use burn::module::{Ignored, Initializer, Param};
+use burn::module::{Initializer, Param};
 use burn::nn::conv::{Conv2d, Conv2dConfig};
 use burn::nn::{Dropout, DropoutConfig, LayerNorm, LayerNormConfig, Linear, LinearConfig};
 use burn::tensor::activation::{gelu, softmax};
@@ -243,7 +243,8 @@ pub struct MlpBlock<B: Backend> {
     fc1: Linear<B>,
     fc2: Linear<B>,
     drop: Dropout,
-    act: Ignored<GeluVariant>,
+    #[module(skip)]
+    act: GeluVariant,
 }
 
 impl<B: Backend> MlpBlock<B> {
@@ -272,13 +273,13 @@ impl<B: Backend> MlpBlock<B> {
             fc1,
             fc2,
             drop: DropoutConfig::new(config.hidden_dropout_prob).init(),
-            act: Ignored(config.hidden_act),
+            act: config.hidden_act,
         })
     }
 
     /// Run `fc1 -> GELU -> dropout -> fc2`.
     pub fn forward(&self, tokens: Tensor<B, 3>) -> Tensor<B, 3> {
-        let activated = match self.act.0 {
+        let activated = match self.act {
             GeluVariant::Erf => gelu(self.fc1.forward(tokens)),
             GeluVariant::TanhApprox => gelu_tanh_tensor(self.fc1.forward(tokens)),
         };
@@ -336,7 +337,8 @@ pub struct Vit<B: Backend> {
     embeddings: ViTEmbeddings<B>,
     blocks: Vec<EncoderBlock<B>>,
     norm: LayerNorm<B>,
-    config: Ignored<VitConfig>,
+    #[module(skip)]
+    config: VitConfig,
 }
 
 impl<B: Backend> Vit<B> {
@@ -388,7 +390,7 @@ impl<B: Backend> Vit<B> {
             embeddings,
             blocks,
             norm,
-            config: Ignored(config),
+            config,
         })
     }
 
@@ -396,7 +398,7 @@ impl<B: Backend> Vit<B> {
     pub fn forward(&self, pixels: Tensor<B, 4>) -> ViTOutput<B> {
         let mut tokens = self
             .embeddings
-            .forward(pixels, self.config.0.interpolate_pos_encoding);
+            .forward(pixels, self.config.interpolate_pos_encoding);
         for block in &self.blocks {
             tokens = block.forward(tokens);
         }

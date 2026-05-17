@@ -167,7 +167,7 @@ the attention probabilities or the output projection (LeWM uses
 `attention_probs_dropout_prob = 0.0` and `hidden_dropout_prob = 0.0`).
 
 The Burn implementation uses `tensor.matmul` directly rather than a fused
-SDPA kernel, because Burn's SDPA support was not stable at v0.20.1 when
+SDPA kernel, because Burn's SDPA support was not stable at v0.21.0 when
 we needed parity. The performance cost on a ViT-Tiny is negligible.
 
 ## 7. Position embeddings and the "interpolate" option

@@ -288,7 +288,7 @@ impl<B: Backend> ModuleMapper<B> for JepaTensorMapper<'_, B> {
             self.errors.push(format!("{name} is not F32"));
             return param;
         };
-        if let Err(error) = validate_shape(&name, loaded.shape(), &param.lazy_shape().dims) {
+        if let Err(error) = validate_shape(&name, loaded.shape(), param.lazy_shape().as_slice()) {
             self.errors.push(error);
             return param;
         }
@@ -321,7 +321,7 @@ impl<B: Backend> ModuleMapper<B> for JepaTensorMapper<'_, B> {
             self.errors.push(format!("{name} is not I64"));
             return param;
         };
-        if let Err(error) = validate_shape(&name, loaded.shape(), &param.lazy_shape().dims) {
+        if let Err(error) = validate_shape(&name, loaded.shape(), param.lazy_shape().as_slice()) {
             self.errors.push(error);
             return param;
         }

@@ -32,13 +32,13 @@ lewm-telemetry = { path = "crates/lewm-telemetry", version = "0.1.0" }
 lewm-hub = { path = "crates/lewm-hub", version = "0.1.0" }
 
 # Burn ecosystem
-burn = { version = "=0.20.1", default-features = false }
-burn-core = { version = "=0.20.1", default-features = false }
-burn-cuda = { version = "=0.20.1" }
-burn-ndarray = { version = "=0.20.1" }
-burn-autodiff = { version = "=0.20.1", default-features = false }
-burn-import = { version = "=0.20.1" }
-burn-train = { version = "=0.20.1", default-features = false }
+burn = { version = "=0.21.0", default-features = false }
+burn-core = { version = "=0.21.0", default-features = false }
+burn-cuda = { version = "=0.21.0" }
+burn-ndarray = { version = "=0.21.0" }
+burn-autodiff = { version = "=0.21.0", default-features = false }
+burn-import = { version = "=0.21.0" }
+burn-train = { version = "=0.21.0", default-features = false }
 
 # Inference
 tract = "=0.22.1"

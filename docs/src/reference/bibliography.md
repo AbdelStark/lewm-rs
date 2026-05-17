@@ -113,7 +113,7 @@ to `lewm-rs`'s context.
 ## Rust ML stack
 
 - **Tracel.ai.** *Burn: A Deep Learning Framework in Rust.*
-  <https://github.com/tracel-ai/burn>. Pinned at `= 0.20.1` (accessed 2026).
+  <https://github.com/tracel-ai/burn>. Pinned at `= 0.21.0` (accessed 2026).
 
 - **Sonos.** *Tract: Practical Neural Network Inference in Rust.*
   <https://github.com/sonos/tract>. Pinned at `= 0.22.1` (accessed 2026).

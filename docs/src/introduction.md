@@ -99,7 +99,7 @@ Three suggested entry points:
 
 - A new algorithmic contribution. The architecture, losses, and training
   procedure follow Maes et al. (2026) without modification.
-- A from-scratch ML framework. We use Burn v0.20.1 for differentiable
+- A from-scratch ML framework. We use Burn v0.21.0 for differentiable
   compute and Tract for inference.
 - A production robotics stack. The SO-100 pipeline is a research-grade
   reproduction; real-robot deployment is out of scope.

@@ -189,6 +189,7 @@ impl<B: Backend> CemCostModel for JepaCemCostModel<'_, B> {
 
 #[cfg(test)]
 mod tests {
+    use burn_core::tensor::Device;
     use burn_ndarray::NdArray;
     use lewm_core::{
         EmbedderConfig, GeluVariant, Jepa, JepaConfig, MlpConfig, NormVariant, PredictorConfig,
@@ -280,7 +281,7 @@ mod tests {
     #[test]
     fn round_trip_through_cem_plan() {
         let (model, config) = make_jepa();
-        let device = <B as Backend>::Device::default();
+        let device = Device::<B>::default();
         let adapter = JepaCemCostModel::new(&model, device);
         let tail_steps = config.horizon - config.history_size;
         assert_eq!(adapter.expected_horizon_plan(), tail_steps);
@@ -324,7 +325,7 @@ mod tests {
     #[test]
     fn rejects_horizon_mismatch() {
         let (model, config) = make_jepa();
-        let device = <B as Backend>::Device::default();
+        let device = Device::<B>::default();
         let adapter = JepaCemCostModel::new(&model, device);
         let wrong_horizon = adapter.expected_horizon_plan() + 1;
         let history_len = config.history_size;
@@ -355,7 +356,7 @@ mod tests {
     #[test]
     fn rejects_action_dim_mismatch() {
         let (model, _config) = make_jepa();
-        let device = <B as Backend>::Device::default();
+        let device = Device::<B>::default();
         let adapter = JepaCemCostModel::new(&model, device);
         let z_history = vec![0.0_f32; 2 * 8];
         let z_goal = vec![0.0_f32; 8];
@@ -382,7 +383,7 @@ mod tests {
     #[test]
     fn empty_batch_returns_empty_vec() {
         let (model, _config) = make_jepa();
-        let device = <B as Backend>::Device::default();
+        let device = Device::<B>::default();
         let adapter = JepaCemCostModel::new(&model, device);
         let z_history = vec![0.0_f32; 2 * 8];
         let z_goal = vec![0.0_f32; 8];

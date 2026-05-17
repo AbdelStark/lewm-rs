@@ -67,7 +67,7 @@ The project pins a single toolchain version in `rust-toolchain.toml` at the repo
 ```toml
 # rust-toolchain.toml
 [toolchain]
-channel    = "1.89.0"        # stable; pinned to Burn 0.20.1 MSRV
+channel    = "1.95.0"        # stable; >= Burn 0.21.0 MSRV (1.92), per ADR 0003
 profile    = "default"
 components = ["rustfmt", "clippy", "rust-src", "rust-analyzer"]
 targets    = ["x86_64-unknown-linux-gnu", "aarch64-apple-darwin"]
@@ -82,13 +82,13 @@ targets    = ["x86_64-unknown-linux-gnu", "aarch64-apple-darwin"]
 ### 3.2 Burn pin
 
 ```toml
-# workspace dependency block (excerpt)
-burn          = { version = "=0.20.1", default-features = false }
-burn-cuda     = { version = "=0.20.1" }
-burn-ndarray  = { version = "=0.20.1" }
-burn-autodiff = { version = "=0.20.1" }
-burn-import   = { version = "=0.20.1" }
-burn-train    = { version = "=0.20.1", default-features = false }
+# workspace dependency block (excerpt); per ADR 0003
+burn          = { version = "=0.21.0", default-features = false }
+burn-cuda     = { version = "=0.21.0" }
+burn-ndarray  = { version = "=0.21.0" }
+burn-autodiff = { version = "=0.21.0" }
+burn-import   = { version = "=0.21.0" }
+burn-train    = { version = "=0.21.0", default-features = false }
 ```
 
 **RFC0001-003 [MUST]** — Burn version is locked with the `=` prefix (exact match). Upgrades require an ADR that includes a green parity-test run on the new version.
@@ -298,7 +298,7 @@ edition    = "2024"
 license    = "MIT"
 authors    = ["Abdel <abdel@starkware.co>"]
 repository = "https://github.com/AbdelStark/lewm-rs"
-rust-version = "1.89"
+rust-version = "1.95"
 
 [workspace.dependencies]
 # see Appendix A.1
@@ -654,7 +654,7 @@ CI uses `ubuntu-22.04` (4 vCPU, 16 GB RAM) for non-GPU jobs, `ubuntu-22.04-gpu-l
 - **A1 — Cargo virtual workspace with no top-level lib.** Adopted (current design). Alternative: a single library crate. Rejected because the deliverables call for crate-level reuse (`lewm-core` linked from `lewm-train`, `lewm-plan`, `lewm-infer` with different feature flags).
 - **A2 — Two repos (model vs. infra).** Rejected; the project is small enough that one repo is simpler, and the spec set's tight coupling makes a two-repo split a paperwork tax.
 - **A3 — `xtask` pattern instead of `Makefile`.** Considered; we have both `make accept` and `cargo xtask check` planned. For v1 we ship `make` only and revisit if non-Linux contributors object (rare given the GPU dep).
-- **A4 — Different Burn version.** Rejected; `0.20.1` is the most recent at PRD time and the API surface we need is stable.
+- **A4 — Different Burn version.** Originally pinned `0.20.1` (PRD time, API stable); upgraded to `0.21.0` per ADR 0003 once the API surface and `bincode 2.0.1` exposure remained equivalent.
 
 ---
 
@@ -674,8 +674,8 @@ CI uses `ubuntu-22.04` (4 vCPU, 16 GB RAM) for non-GPU jobs, `ubuntu-22.04-gpu-l
 
 | ID | Risk | L | I | Mitigation |
 |----|------|---|---|-----------|
-| R-1 | Burn 0.20.x soft-yanks an API we use | M | H | Pinned `=0.20.1`; weekly nightly run on `0.20.next` to detect early |
-| R-2 | Rust 1.89.0 has a regression for our hot loop | L | M | `rust-toolchain.toml` allows pinned override; rollback ADR template ready |
+| R-1 | Burn 0.21.x soft-yanks an API we use | M | H | Pinned `=0.21.0`; ADR-gated upgrades and weekly dependency review |
+| R-2 | Rust 1.95.0 has a regression for our hot loop | L | M | `rust-toolchain.toml` allows pinned override; rollback ADR template ready |
 | R-3 | Workspace grows beyond seven crates | M | L | New crate requires updating §4.1 and `traceability-matrix.md` |
 | R-4 | Layer invariants get tedious to enforce manually | L | M | `scripts/check_layers.py` is automatic |
 
@@ -691,13 +691,13 @@ None.
 
 ```toml
 [workspace.dependencies]
-# Burn ecosystem
-burn          = { version = "=0.20.1", default-features = false }
-burn-cuda     = { version = "=0.20.1" }
-burn-ndarray  = { version = "=0.20.1" }
-burn-autodiff = { version = "=0.20.1" }
-burn-import   = { version = "=0.20.1" }
-burn-train    = { version = "=0.20.1", default-features = false }
+# Burn ecosystem (per ADR 0003)
+burn          = { version = "=0.21.0", default-features = false }
+burn-cuda     = { version = "=0.21.0" }
+burn-ndarray  = { version = "=0.21.0" }
+burn-autodiff = { version = "=0.21.0" }
+burn-import   = { version = "=0.21.0" }
+burn-train    = { version = "=0.21.0", default-features = false }
 
 # Inference
 tract           = "=0.22.1"

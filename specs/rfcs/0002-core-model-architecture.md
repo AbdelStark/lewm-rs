@@ -937,7 +937,7 @@ Pure numerical code. No security surface beyond the supply-chain considerations 
 
 | ID | Risk | L | I | Mitigation |
 |----|------|---|---|-----------|
-| R-1 | Burn API change between minor versions breaks parameter naming | M | H | Burn pinned at `=0.20.1`; ADR required for bump |
+| R-1 | Burn API change between minor versions breaks parameter naming | M | H | Burn pinned at `=0.21.0` (per ADR 0003); ADR required for bump |
 | R-2 | Trunc-normal init differs in tail behaviour vs PyTorch's `trunc_normal_` | L | M | TST-0008 covers tail; spec uses rejection sampling identical to PyTorch's |
 | R-3 | Fused SDPA on CUDA produces different numerics than the explicit kernel | M | M | Parity tests run on the **explicit** path; fused path is enabled only after step-100 smoke confirms equivalence |
 | R-4 | LayerNorm `eps` mismatch | L | M | `eps = 1e-12` pinned in `VitConfig` |

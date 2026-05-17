@@ -7,7 +7,7 @@ lewm-rs — pure-Rust workspace reproducing LeWorldModel (Maes et al., 2026): tr
 |------------------|-------------------------|-----------|----------------------------------------------------|
 | Toolchain        | Rust                    | 1.95.0    | Pinned in `rust-toolchain.toml`; edition 2024     |
 | Build            | Cargo workspace         | resolver 2| 8 crates under `crates/`                           |
-| ML framework     | Burn                    | =0.20.1   | Pinned exact; `burn-cuda`, `burn-ndarray` backends |
+| ML framework     | Burn                    | =0.21.0   | Pinned exact; `burn-cuda`, `burn-ndarray` backends |
 | CPU inference    | Tract                   | =0.22.1   | Pinned exact; ONNX (opset 17 fixed-batch)          |
 | Python edge      | Python                  | 3.13      | `uv`-managed; Ruff lint; under `python/`           |
 | Compute          | HF Jobs                 | —         | Hard cap **$200**; soft cap $100; per-session $20 |
