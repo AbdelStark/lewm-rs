@@ -13,7 +13,6 @@
 //! - [`mixed_precision`] — precision policy and `F32` islands.
 //! - [`optim`] — `AdamW` configuration and RFC 0005 decay/no-decay partitioning.
 //! - `pusht_full` — bounded config-shaped `PushT` `LeWM` training core.
-//! - `pusht_lewm` — legacy minimal `PushT` training core.
 //! - [`resume`] — run-directory resume detection, RNG restoration, and
 //!   shutdown handling.
 //! - [`schedule`] — cosine decay with linear warmup.
@@ -26,7 +25,6 @@ pub mod config;
 pub mod mixed_precision;
 pub mod optim;
 mod pusht_full;
-mod pusht_lewm;
 pub mod resume;
 pub mod schedule;
 pub mod step;
