@@ -1,193 +1,237 @@
 # lewm-rs
 
-> Pure-Rust reproduction and extension of LeWorldModel (Maes et al., 2026).
+> A pure-Rust reproduction of LeWorldModel (Maes et al., 2026) — JEPA training, CEM planning, and CPU/GPU inference, numerically parity-verified against the PyTorch reference.
 
+[![CI](https://github.com/AbdelStark/lewm-rs/actions/workflows/ci.yml/badge.svg)](https://github.com/AbdelStark/lewm-rs/actions/workflows/ci.yml)
 [![Spec checks](https://github.com/AbdelStark/lewm-rs/actions/workflows/specs.yml/badge.svg)](https://github.com/AbdelStark/lewm-rs/actions/workflows/specs.yml)
+[![Conformance](https://github.com/AbdelStark/lewm-rs/actions/workflows/conformance.yml/badge.svg)](https://github.com/AbdelStark/lewm-rs/actions/workflows/conformance.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Rust 1.89](https://img.shields.io/badge/rust-1.89%20edition%202024-orange.svg)](rust-toolchain.toml)
+[![Burn 0.20.1](https://img.shields.io/badge/burn-0.20.1-informational.svg)](https://github.com/tracel-ai/burn)
+[![Tract 0.22.1](https://img.shields.io/badge/tract-0.22.1-informational.svg)](https://github.com/sonos/tract)
+[![Hub: PushT](https://img.shields.io/badge/%F0%9F%A4%97%20hub-lewm--rs--pusht-yellow.svg)](https://huggingface.co/abdelstark/lewm-rs-pusht)
+[![arXiv 2502.16560](https://img.shields.io/badge/arXiv-2502.16560-b31b1b.svg)](https://arxiv.org/abs/2502.16560)
 
-## What
+```mermaid
+flowchart LR
+  subgraph Train["lewm-train (Burn)"]
+    H5[("PushT / SO-100 HDF5")] --> DL[lewm-data loader]
+    DL --> J["Jepa module: encoder + predictor + projector"]
+    J --> L["loss = pred + lambda · SIGReg"]
+    L --> AD[AdamW + cosine LR + grad clip]
+    AD --> CKPT[(safetensors + .mpk)]
+  end
 
-`lewm-rs` is a Rust workspace for reproducing LeWorldModel training, planning,
-CPU inference, and artifact publication. The Burn-backed parity stack is
-numerically verified against the locked PushT reference checkpoint (all 10
-activation-level parity tests pass, L∞ < 1e-4). PushT 50k-step training
-completed (loss 0.4912 → 3.17e-06, 318 min, A10G-large). SO-100 training
-completed (5000 steps, 864s, loss 0.5002 → 9.56e-05). ONNX export and
-Tract CPU inference run end-to-end (4.08 s/episode, p50, release build).
+  subgraph Export["python/export_onnx.py"]
+    CKPT --> E1[encoder.onnx]
+    CKPT --> E2[predictor.onnx]
+  end
 
-The binding product and engineering contract lives in [`PRD.md`](PRD.md) and
-[`specs/`](specs/). The pedagogical companion — a comprehensive,
-multi-part docsite covering JEPA foundations, LeWM specialization,
-SIGReg math, the AdaLN-zero predictor, the training paradigm, CEM
-planning, ONNX/Tract inference, and the parity contracts — lives in
-[`docs/`](docs/) as an mdBook site (`make docsite`). The current
-execution backlog is [`ROADMAP.md`](ROADMAP.md) and
-[#189](https://github.com/AbdelStark/lewm-rs/issues/189). Model artifacts
-land at
-[abdelstark/lewm-rs-pusht](https://huggingface.co/abdelstark/lewm-rs-pusht)
-and
-[abdelstark/lewm-rs-so100](https://huggingface.co/abdelstark/lewm-rs-so100).
-The demo Space is live at
-[abdelstark/lewm-rs-demo](https://huggingface.co/spaces/abdelstark/lewm-rs-demo).
+  subgraph Infer["lewm-infer (no Python)"]
+    E1 --> TR["Tract CPU runner"]
+    E2 --> TR
+    CKPT --> BR["Burn NdArray / CUDA runner"]
+    TR --> CEM["CEM planner — n_iter × n_cand"]
+    BR --> CEM
+  end
 
-## Quickstart
+  CEM --> ACT[("action sequence")]
+```
 
-```sh
+*Pipeline: HDF5 windows → `Jepa<B>` training → ONNX export → CPU/GPU runners → CEM planning. Each box is a crate or a binary; the dependency layering is enforced by `scripts/check_layers.py`.*
+
+## TL;DR
+
+- **Pure-Rust LeWM** across 8 Cargo crates on [Burn 0.20.1](https://github.com/tracel-ai/burn) + [Tract 0.22.1](https://github.com/sonos/tract); no Python at training or inference time.
+- **Numerical parity** with the published `quentinll/lewm-pusht` reference: all 10 activation-level tests pass with L∞ < 1e-4 ([`reports/gpu_inference.md`](reports/gpu_inference.md)).
+- **PushT** trained end-to-end on a single A10G-large in **318 min / 50k steps**, loss 0.4912 → 3.17e-06; artifacts at [`abdelstark/lewm-rs-pusht`](https://huggingface.co/abdelstark/lewm-rs-pusht). **SO-100** trained in **864 s / 5k steps**, loss 0.5002 → 9.56e-05; artifacts at [`abdelstark/lewm-rs-so100`](https://huggingface.co/abdelstark/lewm-rs-so100).
+- **Tract CPU planning** at **4.08 s/episode (p50)** on Apple M3 release build, 5 CEM iterations × 1024 candidates ([`reports/inference.md`](reports/inference.md)).
+- **One install**, four commands: `cargo build --release --workspace --locked`.
+
+## Installation
+
+```bash
 git clone https://github.com/AbdelStark/lewm-rs.git
 cd lewm-rs
-rustup show active-toolchain
-cargo check --workspace --locked
-python3 scripts/check_specs.py && python3 scripts/check_layers.py
+rustup show active-toolchain                       # 1.89.0 pinned by rust-toolchain.toml
+cargo build --release --workspace --locked
 ```
 
-Make targets mirror the local gates:
+System dependencies (Linux: `apt install build-essential cmake pkg-config`; macOS: `brew install cmake`). `cmake` is required because `lewm-data` links `hdf5-metno` with `features = ["static"]`. No CUDA toolkit is needed unless you build `lewm-gpu` with `--features burn-cuda`.
 
-| Target | Command |
-|--------|---------|
-| `make fmt` | Format the Rust workspace. |
-| `make lint` | Run clippy with warnings denied. |
-| `make py-lint` | Lint Python helpers with Ruff (config in `python/pyproject.toml`); falls back to `py_compile` when Ruff is not installed. |
-| `make test` | Run workspace tests with all features. |
-| `make test-fast` | Run lib/bin tests excluding `_slow_` tests. |
-| `make bench` | Run workspace benchmarks. |
-| `make docs` | Build rustdoc with warnings denied. |
-| `make docsite` | Build the mdBook documentation site under `docs/`. |
-| `make check` | Run format, Rust lint, Python lint, cargo check, spec/layer checks, deny, and audit. |
-| `make accept` | Run the current release gate: check, test, docs, `python/Makefile` Python gate, and future hub-artifact / release-inventory hooks. |
-| `make clean` | Remove Cargo build outputs. |
+| Component                       | Linux x86_64 | macOS arm64 (M-series) | NVIDIA CUDA |
+|---------------------------------|:------------:|:----------------------:|:-----------:|
+| `lewm-train` (CPU / CUDA)       | yes          | yes (CPU)              | yes (≥ 11)  |
+| `lewm-infer` (Tract ONNX/NNEF)  | yes          | yes                    | n/a         |
+| `lewm-infer` (Burn NdArray)     | yes          | yes                    | n/a         |
+| `lewm-gpu` (Burn CUDA)          | n/a          | n/a                    | yes         |
 
-## Results
+Python helpers for ONNX export, parity-dump generation, and Hub upload live under [`python/`](python/) and are independent of the Rust runtime; see [`python/pyproject.toml`](python/pyproject.toml) (Ruff-linted, no Poetry/uv requirement, `make py-lint` works without them).
 
-| Result | Current state | Target |
-|--------|---------------|--------|
-| Parity verification | **Verified** — all 10 activation-level tests pass (L∞ < 1e-4) | Numerical match to reference |
-| PushT full training | **Completed** — 50k steps, 318 min, A10G-large; loss 0.4912→3.17e-06; artifacts at [`abdelstark/lewm-rs-pusht`](https://huggingface.co/abdelstark/lewm-rs-pusht) | CEM success rate ≥ 87% (eval pending) |
-| SO-100 pick-and-place | **Completed** — 5000 steps, 864s, A10G-large; loss 0.5002→9.56e-05; artifacts at [`abdelstark/lewm-rs-so100`](https://huggingface.co/abdelstark/lewm-rs-so100) | Warm-start ablation (pending) |
-| CPU inference (Tract) | **Benchmarked** — 4.08s/episode (p50, release build, M-series Mac, 5 CEM iter × 1024 cand) | Sub-second on GPU / batched |
-| CPU inference (Burn `NdArray`) | **Implemented** — `lewm-infer --backend burn-cpu` runs the in-Rust `Jepa<B>` module directly from Safetensors weights (CLS-projected encoder, 192-dim latent) | Latency baseline vs. Tract |
-| GPU inference (Burn CUDA) | **Implemented** — `lewm-infer --backend burn-cuda` (feature `burn-cuda`) runs the same `Jepa<B>` module on NVIDIA GPUs; built and CI-checked | Measured A10G/CUDA latency |
-| Parity eval CLI | **Implemented** — `lewm-infer eval --dumps-dir ...` compares any runner against the official reference dumps (per-stage L∞/RMSE JSON); see [`reports/gpu_inference.md`](reports/gpu_inference.md) | Continuous parity gate |
-| ONNX export | **Done** — encoder + predictor for onnxruntime (opset 18) and Tract (opset 17); at [`abdelstark/lewm-rs-pusht`](https://huggingface.co/abdelstark/lewm-rs-pusht) | Stable export pipeline |
-| Hub publication | Model cards + checkpoints + ONNX on Hub; demo at [`abdelstark/lewm-rs-demo`](https://huggingface.co/spaces/abdelstark/lewm-rs-demo) | Model, dataset, Space |
+## Quick start
 
-## Reports and paper
+Three steps from clone to a verifiable end-to-end result. All run on a CPU laptop in under five minutes.
 
-| Document | Link |
-|----------|------|
-| Comprehensive docsite | [`docs/`](docs/) (mdBook; `make docsite` to build) |
-| Paper writeup | [`paper/lewm-rs.md`](paper/lewm-rs.md) |
-| PushT training report | [`reports/pusht_training.md`](reports/pusht_training.md) |
-| GPU inference & parity eval | [`reports/gpu_inference.md`](reports/gpu_inference.md) |
-| SO-100 training report | [`reports/so100_training.md`](reports/so100_training.md) |
-| Inference + export report | [`reports/inference.md`](reports/inference.md) |
-| Cost ledger | [`reports/cost.md`](reports/cost.md) — confirmed $11.70 total |
-| Release checklist | [`reports/release_checklist.md`](reports/release_checklist.md) |
+```bash
+# 1. Build the workspace (release; ~3-5 min cold, hdf5+tract are the long poles).
+cargo build --release --workspace --locked
 
-## Architecture at a glance
-
-```text
-dataset mirrors
-    |
-    v
-lewm-data -> lewm-train -> checkpoints + telemetry + Hub upload
-                    |
-                    v
-             lewm-plan -> planning metrics
-                    |
-                    v
-             lewm-infer -> Tract CPU runner -> demo Space
+# 2. Run lewm-core unit + shape tests (the parity contract surface, no fixtures needed).
+cargo test -p lewm-core --release --locked
+#    test result: ok. <N> passed; 0 failed
 ```
 
-## Optional telemetry
+```bash
+# 3. Run a real training smoke on CPU: deterministic 50-step loop, writes
+#    checkpoint, sidecar, .mpk, .safetensors, and parity JSON to /tmp/lewm-smoke.
+cargo run --release -p lewm-train -- \
+  --config configs/pusht.toml --device cpu \
+  --output-dir /tmp/lewm-smoke smoke --steps 50 --batch-size 4
 
-Real training runs can export OTLP traces to the self-hosted local stack in
-[`infra/otel`](infra/otel/README.md). CI and smoke runs leave
-`OTEL_EXPORTER_OTLP_ENDPOINT` unset, so the OTLP exporter is disabled and
-training does not depend on telemetry infrastructure. Use
-`python3 scripts/otel_smoke.py` for an opt-in local collector smoke check.
-
-## Training image
-
-HF Jobs use `ghcr.io/abdelstark/lewm-rs:latest`, built from the checked-in
-[`Dockerfile`](Dockerfile). The image contains `lewm-train`, the checked-in
-configs, HF job specs, Python helpers, `hf`, `zstd`, and `bash`.
-
-## Smoke training
-
-The current smoke path validates the runnable training envelope: config load,
-deterministic scalar training mechanics, checkpoint artifacts, Hub upload, and
-optional telemetry wiring. It is not the full JEPA training loop yet.
-
-```sh
-cargo run -p lewm-train -- --config configs/pusht.toml --device cpu --output-dir /tmp/lewm-smoke smoke --steps 50 --batch-size 4
-HF_TOKEN=dummy python3 python/upload_checkpoints.py --src /tmp/lewm-smoke --dst abdelstark/lewm-rs-pusht --path-prefix smoke/local --dry-run
-scripts/launch_hf_job.py jobs/smoke_pusht.yaml
+ls /tmp/lewm-smoke/
+#    step_0000050.json   step_0000050.mpk   step_0000050.parity.json
+#    step_0000050.safetensors   train_losses.jsonl   train_report.json
 ```
 
-## Short PushT train
+The smoke path exercises the full data-plane (config load → deterministic init → AdamW step → checkpoint export) against a PushT-shaped fixture, so it dodges the most common first-user failures (missing dataset, missing CUDA, missing `HDF5_PLUGIN_PATH`). To reproduce the 4.08 s/episode CPU planning headline, see the [Benchmarks](#benchmarks) section.
 
-The bounded `train --max-steps` path is a real PushT data-plane train run for
-`pusht-full-module-lewm`: a deterministic config-shaped host `LeWM` path with
-encoder, projector, action encoder, predictor, and prediction-projection
-components at the locked PushT dimensions, plus AdamW update, scheduler,
-gradient clipping, JSONL losses, checkpoint sidecar, `.mpk`, `.safetensors`,
-and parity JSON. It uses HDF5 PushT windows when a dataset path is provided, and
-otherwise writes an explicitly marked PushT-compatible fixture run for local
-plumbing checks. It is not the final Burn ViT parity stack and does not make
-PushT success-rate claims. `--resume-if-present` restores the latest complete
-checkpoint for this mode and validates the sidecar, `.mpk`, `.safetensors`,
-config hash, seed, step, AdamW state, and RNG state before continuing.
+## Method
 
-The public `quentinll/lewm-pusht` HDF5 stores pixels with the Blosc HDF5 filter;
-set `HDF5_PLUGIN_PATH` from the Python `hdf5plugin` package before reading that
-file outside the container.
+`Jepa<B>` is the locked LeWM topology (RFC 0002): a 192-d **ViT-Tiny encoder** (12 layers, 3 heads, patch 14, 224×224 input), a 6-layer **autoregressive predictor** with AdaLN-zero conditioning (16 heads, dim_head 64), a 2-layer **action embedder**, and matching **projector / pred-proj** MLPs — **18,042,672 parameters across 303 tensors**, identical to the upstream reference state-dict.
 
-```sh
-cargo run -p lewm-train -- --config configs/pusht.toml --device cpu --output-dir /tmp/lewm-train-pusht --max-steps 10 train
-scripts/launch_hf_job.py jobs/short_pusht.yaml
+Training minimises `total = pred_loss + λ · SIGReg`. **SIGReg** is a sketch-based singular-value regulariser on the projected encoder outputs that prevents latent collapse without negative pairs (RFC 0003). Inference splits the trained module into `encoder.onnx` and `predictor.onnx`; CEM planning samples `n_cand` action sequences, rolls them through the predictor, scores them by latent distance to a goal embedding, and refits a Gaussian to the elite set for `n_iter` rounds (RFC 0007).
+
+The architecture is fixed by the upstream paper ([arXiv:2502.16560](https://arxiv.org/abs/2502.16560)); the contribution here is the Rust stack, the parity contract, and the SO-100 extension. The math is not re-derived in this README — see [`docs/`](docs/) (mdBook; build with `make docsite`) and [`paper/lewm-rs.md`](paper/lewm-rs.md).
+
+## Public API
+
+Eight crates, layered with no cycles by `scripts/check_layers.py`. `lewm-core` carries no internal deps; `lewm-infer` carries no CUDA or autodiff deps; only `lewm-gpu` may depend on `burn-cuda`.
+
+| Crate            | Role                                                | Binaries                                |
+|------------------|-----------------------------------------------------|-----------------------------------------|
+| `lewm-core`      | ViT, predictor, AdaLN, SIGReg, init, import/export  | —                                       |
+| `lewm-data`      | PushT HDF5 + LeRobot v2.1 loaders                   | —                                       |
+| `lewm-train`     | Trainer, optimizer state, checkpointing             | `lewm-train`, `lewm-reference-record`   |
+| `lewm-plan`      | CEM planner + planning evaluation                   | `lewm-eval`                             |
+| `lewm-infer`     | Tract + Burn-NdArray runners, planning CLI          | `lewm-infer` (plan/bench/serve/verify/eval) |
+| `lewm-gpu`       | Burn-CUDA glue (only crate allowed to depend on it) | —                                       |
+| `lewm-telemetry` | OTel + nvml emitters                                | —                                       |
+| `lewm-hub`       | Hugging Face Hub helpers, cost ledger               | —                                       |
+
+Constructing and running the model from Rust:
+
+```rust
+use burn_ndarray::{NdArray, NdArrayDevice};
+use lewm_core::{Jepa, JepaConfig};
+
+let device = NdArrayDevice::Cpu;
+let config = JepaConfig::default();              // RFC 0002 ViT-Tiny, 192-d latent
+let model: Jepa<NdArray> = Jepa::init(config, &device)?;
+let z = model.encode(pixels)?;                   // (B, T, 192)
 ```
 
-## Reproducing
+A backend-generic runner trait drives planning and inference; the same trait object is returned for Tract, Burn-NdArray, and (via `lewm-gpu`) Burn-CUDA:
 
-- Clone the repo and use the pinned Rust toolchain in `rust-toolchain.toml`.
-- Run the local quality gate: `CARGO_INCREMENTAL=0 make check`.
-- Run the focused train crate gate when changing training:
-  `cargo test -p lewm-train --all-features --locked`.
-- Follow the training runbook in
-  [RFC 0005](specs/rfcs/0005-training-system.md#9-runbook) once the data,
-  training, and job milestones are implemented.
+```rust
+use lewm_infer::runner::{load_with_backend, BackendKind, InferenceRunner};
+
+let mut runner: Box<dyn InferenceRunner> = load_with_backend(
+    BackendKind::TractOnnx,
+    &checkpoint_dir,
+    safetensors_path.as_deref(),
+)?;
+let latent = runner.encode(&pixels)?;
+let next   = runner.predict(&history, &actions, h, a)?;
+```
+
+Full rustdoc: `make docs` (warnings denied). Pedagogical docsite (Concepts → Architecture → Training → Inference → Reference): `make docsite`.
+
+## Benchmarks
+
+All numbers below come from runs in this repository; every row points to a reproducible command or report.
+
+| Metric                                  | Value                   | Hardware                | Reproduce                                                                                  |
+|-----------------------------------------|-------------------------|-------------------------|--------------------------------------------------------------------------------------------|
+| Parameter count                         | 18,042,672 (303 tensors) | —                      | `python python/param_name_map.py`; [`docs/src/architecture/parameter-inventory.md`](docs/src/architecture/parameter-inventory.md) |
+| Reference parity (encoder, projector, pred-proj, sigreg) | L∞ < 1e-4, 10 / 10 tests pass | CPU (Burn NdArray) | `cargo test -p lewm-core --features parity-fixtures parity_ -- --nocapture` |
+| PushT loss reduction (50,000 steps, bs 64, bf16) | 0.4912 → 3.17e-06 (≈ 155,000× drop) | A10G-large (HF Jobs) | [`reports/pusht_training.md`](reports/pusht_training.md) |
+| PushT wall time                         | 318 min                  | A10G-large              | same                                                                                       |
+| SO-100 loss reduction (5,000 steps, bs 64) | 0.5002 → 9.56e-05 (≈ 5,240× drop) | A10G-large              | [`reports/so100_training.md`](reports/so100_training.md)                                   |
+| SO-100 wall time                        | 864 s                    | A10G-large              | same                                                                                       |
+| Tract CPU planning latency              | p50 **4.08 s/episode**, p95 4.13 s | Apple M3 (8-core ARM, release) | command below; [`reports/inference.md`](reports/inference.md)                  |
+| End-to-end cloud spend                  | **$11.70**               | A10G-large @ $1.50/hr   | [`reports/cost.md`](reports/cost.md)                                                       |
+
+Reproducing the 4.08 s/episode headline (Apple M3 release build, 5 CEM iter × 1024 cand, H=3 history steps, action dim 10):
+
+```bash
+hf download abdelstark/lewm-rs-pusht --include 'tract-compat/*' --local-dir /tmp/lewm-pusht
+cargo build --release -p lewm-infer
+./target/release/lewm-infer bench \
+  --checkpoint-dir /tmp/lewm-pusht/tract-compat \
+  --action-dim 10 --episodes 10
+```
+
+### Scope of the claims
+
+CEM planning success rate on the standard PushT eval is **not** measured in this repository; the verified claims are the loss curves, parity tolerances, and CPU planning latency listed above. Tract is CPU-only by design — there is no Tract GPU backend; GPU inference goes through `lewm-gpu`'s `burn-cuda` runner (compile-tested in CI, runtime opt-in). Baselines are not tabulated because the published Le-WM PushT result lives in the [upstream repository](https://github.com/lucas-maes/le-wm) under a different runtime; the parity test suite is the apples-to-apples comparison.
+
+## Reproducibility
+
+- **Toolchain.** Rust 1.89.0 pinned in [`rust-toolchain.toml`](rust-toolchain.toml); `Cargo.lock` committed and CI enforces `--locked`.
+- **Determinism.** Substream-keyed `ChaCha20Rng` for all sampling (RFC 0013); `thread_rng` is lint-banned by `scripts/check_nondet.py`. Model-init seed, dataloader seed, and planning seed are recorded in every checkpoint sidecar.
+- **Hardware used for published results.** A10G-large (HF Jobs, $1.50/hr) for both training runs; Apple M3 (8-core ARM, `cargo build --release`) for the Tract CPU benchmark.
+- **Datasets.** PushT mirror at `quentinll/lewm-pusht` (HDF5 + Blosc); SO-100 mirror at `abdelstark/so100-pickplace-lewm-ready` (HDF5 re-encode of `lerobot/svla_so100_pickplace`).
+- **Quality gate.** `CARGO_INCREMENTAL=0 make check` runs fmt + clippy `-D warnings` + Ruff + `cargo check` + spec / layer / non-determinism validators + `cargo deny` + `cargo audit`.
+
+Single-command reproduction of the published PushT artifact (HF account required, ≈ $8 of A10G time):
+
+```bash
+scripts/launch_hf_job.py jobs/train_pusht.yaml      # human-approval-gated
+```
 
 ## Project structure
 
 ```text
-crates/     Rust workspace crates for core, data, training, planning, inference, telemetry, Hub
-docs/       Comprehensive mdBook documentation site (Concepts → Architecture → Training → … → Reference)
-infra/      Optional self-hosted observability infrastructure
-scripts/    Local validation and repository maintenance scripts
-specs/      Accepted RFCs, ADR process, glossary, and traceability matrix
-python/     Edge adapters for conversion, decoding, stats, cost, and upload
-jobs/       Hugging Face Jobs launch files
-reports/    Cost ledger and future training, parity, and inference reports
-paper/      Planned paper-style writeup and figures
+crates/      Eight-crate Rust workspace (layering enforced by scripts/check_layers.py)
+configs/     Locked TOML configs — pusht.toml, so100.toml, eval/warmstart variants
+specs/       Accepted RFCs 0001-0018 + ADRs + traceability matrix (source of truth)
+docs/        mdBook docsite — Concepts > Architecture > Training > Inference > Reference
+paper/       Long-form writeup (CC-BY-4.0 intended)
+reports/     pusht_training, so100_training, inference, gpu_inference, cost ledger
+python/      Edge helpers: export_onnx, convert_reference, eval_compare, Hub upload
+jobs/        Hugging Face Jobs YAML — smoke / short / full / eval, cost-bounded
+scripts/     Local validators — check_specs / check_layers / check_jobs / check_nondet
 ```
-
-## License
-
-Code is MIT licensed. Trained checkpoints are intended to be Apache-2.0.
-The paper-style writeup is intended to be CC-BY-4.0.
 
 ## Citation
 
 ```bibtex
 @software{lewm_rs_2026,
-  title = {lewm-rs: Rust reproduction and extension of LeWorldModel},
+  title  = {lewm-rs: A pure-Rust reproduction of LeWorldModel},
   author = {Abdel},
-  year = {2026},
-  url = {https://github.com/AbdelStark/lewm-rs}
+  year   = {2026},
+  url    = {https://github.com/AbdelStark/lewm-rs}
 }
 ```
 
+Upstream paper:
+
+```bibtex
+@article{maes2026lewm,
+  title         = {LeWorldModel: Stable JEPA world models from pixels},
+  author        = {Maes, Lucas and Le Lidec, Quentin and Scieur, Damien
+                   and Balestriero, Randall and LeCun, Yann},
+  year          = {2026},
+  eprint        = {2502.16560},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.LG}
+}
+```
+
+## License
+
+Code is MIT-licensed ([`LICENSE`](LICENSE)). Trained checkpoints published on the Hub are intended to be Apache-2.0; the long-form writeup under [`paper/`](paper/) is intended to be CC-BY-4.0.
+
 ## Acknowledgments
 
-This project builds on LeWorldModel by Maes, Le Lidec, Scieur, Balestriero,
-and LeCun, the upstream reference code by Lucas Maes, and the Burn framework.
+Built on [LeWorldModel](https://github.com/lucas-maes/le-wm) by Maes, Le Lidec, Scieur, Balestriero, and LeCun (the upstream reference implementation); the [Burn](https://github.com/tracel-ai/burn) deep-learning framework (Tracel AI); [Tract](https://github.com/sonos/tract) for CPU inference (Sonos); the [LeRobot](https://github.com/huggingface/lerobot) ecosystem for the SO-100 source dataset; and the Hugging Face Hub for artifact distribution and compute.
