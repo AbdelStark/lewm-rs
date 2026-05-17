@@ -91,7 +91,7 @@ serde_yaml_ng = "0.10"
 # RNG
 rand = { version = "0.8", default-features = false, features = ["std", "std_rng"] }
 rand_chacha = "0.3"
-rand_distr = "0.4"
+rand_distr = "0.5"
 blake3 = "1"
 libm = "0.2"
 
