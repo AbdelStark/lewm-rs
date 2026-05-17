@@ -1,6 +1,6 @@
 # Roadmap and Completion Backlog
 
-Updated: 2026-05-15 (v0.3.2)
+Updated: 2026-05-17 (v0.3.3)
 
 Canonical GitHub tracker: [#189](https://github.com/AbdelStark/lewm-rs/issues/189)
 
@@ -49,6 +49,13 @@ the next vertical slices needed to finish the project.
 | Reports and paper | Complete (eval TBDs remain) | `paper/lewm-rs.md` §6.1 training curves filled; `reports/pusht_training.md`, `reports/so100_training.md`, `reports/inference.md`, `reports/cost.md` ($11.70), `reports/release_checklist.md`; `python/plot_curves.py` + CSV in `paper/figures/` |
 | Quality gate | Passing | `CARGO_INCREMENTAL=0 make check` passes: fmt, clippy, cargo check, Python lint (`make py-lint` via Ruff), specs, jobs, otel, SO-100 contract, nondet lint, cost ledger, deny, audit |
 | Python lint baseline | Implemented | Ruff configured in `python/pyproject.toml` (E, F, W, B, UP, SIM, RUF, I); `make py-lint` from the root and `make check` inside `python/` enforce zero diagnostics across `python/` and `scripts/`; `python/Makefile` activates the optional `make accept` hook |
+| Supply-chain attestation | Implemented | `release.yml` emits GitHub built-in build provenance for binaries, SBOM, and the container image; cosign signs the image by digest; CycloneDX SBOM generated deterministically (`scripts/sbom.py`); reproducible Linux+macOS builds verified by `verify-reproducible` |
+| Dependency automation | Implemented | `.github/dependabot.yml` covers Cargo, GitHub Actions, Docker, and Python; Burn/Tract/HDF5 major upgrades frozen per ADR 0002 and RFC 0007 |
+| HF Jobs cost guard | Implemented | `scripts/launch_hf_job.py --cost-cap-usd` performs pre-flight worst-case spend check (default $20, soft cap from CLAUDE.md); `--image-tag` pins the GHCR tag without editing YAML; `python/hf_pricing.py` covers l4x1 / l4x4 / cpu-upgrade / h100x8 |
+| Container hygiene | Implemented | Dockerfile runs `lewm-train` under `tini` (PID 1), ships a `HEALTHCHECK`, populates OCI metadata (revision/created/version/base.name), accepts build args for the release workflow to stamp |
+| Release runbook | Implemented | `RELEASE.md` documents the pre-flight checklist, tag-cut commands, audit-trail expectations, and rollback procedure |
+| Per-crate docs | Implemented | Each workspace crate ships a `README.md` (layering, module map, public surface, feature flags) cross-linked to its RFC |
+| Pre-commit hooks | Implemented | `.pre-commit-config.yaml` wires gitleaks, ruff, cargo fmt, and the cheap project validators into the standard `pre-commit` framework as a fast local pre-flight |
 
 ## Non-Claims
 

@@ -4,16 +4,25 @@ on:
   push:
     tags:
       - "v*.*.*"
+  workflow_dispatch:
 
 permissions:
   contents: write
   packages: write
   id-token: write
+  attestations: write
+
+concurrency:
+  # Tag pushes are unique by definition; one in-flight per tag is enough.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 
 env:
   RUST_TOOLCHAIN: "1.89.0"
   REPRO_PROFILE: release-lto
   REPRO_TARGET: x86_64-unknown-linux-musl
+  CARGO_NET_RETRY: "3"
+  RUSTUP_MAX_RETRIES: "3"
 
 jobs:
   tag-format:
@@ -113,10 +122,20 @@ jobs:
         run: |
           image='ghcr.io/abdelstark/lewm-rs'
           if [ -f Dockerfile ]; then
-            docker build -t "${image}:${GITHUB_REF_NAME}" -t "${image}:latest" .
+            build_date="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            docker build \
+              --build-arg "BUILD_REVISION=${GITHUB_SHA}" \
+              --build-arg "BUILD_DATE=${build_date}" \
+              --build-arg "SOURCE_VERSION=${GITHUB_REF_NAME}" \
+              -t "${image}:${GITHUB_REF_NAME}" \
+              -t "${image}:latest" \
+              .
             docker push "${image}:${GITHUB_REF_NAME}"
             docker push "${image}:latest"
+            digest="$(docker inspect --format '{{ index .RepoDigests 0 }}' "${image}:${GITHUB_REF_NAME}" | cut -d'@' -f2)"
             printf 'image=%s\n' "${image}" >> "${GITHUB_OUTPUT}"
+            printf 'digest=%s\n' "${digest}" >> "${GITHUB_OUTPUT}"
+            printf 'image_ref=%s@%s\n' "${image}" "${digest}" >> "${GITHUB_OUTPUT}"
           else
             printf '%s\n' 'container build skipped: Dockerfile not present'
           fi
@@ -128,8 +147,15 @@ jobs:
       - name: Sign container image
         if: steps.container_image.outputs.image != ''
         run: |
-          cosign sign --yes "${{ steps.container_image.outputs.image }}:${GITHUB_REF_NAME}"
-          cosign sign --yes "${{ steps.container_image.outputs.image }}:latest"
+          cosign sign --yes "${{ steps.container_image.outputs.image_ref }}"
+
+      - name: Attest container provenance
+        if: steps.container_image.outputs.image != ''
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ${{ steps.container_image.outputs.image }}
+          subject-digest: ${{ steps.container_image.outputs.digest }}
+          push-to-registry: true
 
   release-notes:
     name: release-notes
@@ -226,10 +252,50 @@ jobs:
       - name: Run export verifier smoke
         run: cargo test -p lewm-infer --locked export_verifier_release_smoke
 
+  attestation:
+    name: attestation
+    runs-on: ubuntu-22.04
+    needs: [build-linux-static, build-macos-arm, sbom]
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - name: Download Linux binaries
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-static-binaries
+          path: dist/linux-static-binaries
+      - name: Download macOS binaries
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-arm-binaries
+          path: dist/macos-arm-binaries
+      - name: Download SBOM
+        uses: actions/download-artifact@v4
+        with:
+          name: sbom
+          path: dist/sbom
+
+      - name: Attest binary provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            dist/linux-static-binaries/lewm-*
+            dist/macos-arm-binaries/lewm-*
+
+      - name: Attest SBOM
+        uses: actions/attest-sbom@v2
+        with:
+          subject-path: |
+            dist/linux-static-binaries/lewm-*
+            dist/macos-arm-binaries/lewm-*
+          sbom-path: dist/sbom/sbom.cdx.json
+
   github-release:
     name: github-release
     runs-on: ubuntu-22.04
-    needs: [build-linux-static, build-macos-arm, container, release-notes, sbom, verify-reproducible, infer-export-verifier]
+    needs: [build-linux-static, build-macos-arm, container, release-notes, sbom, verify-reproducible, infer-export-verifier, attestation]
     steps:
       - name: Checkout
         uses: actions/checkout@v4

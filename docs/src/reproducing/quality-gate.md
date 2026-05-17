@@ -6,6 +6,32 @@
 CARGO_INCREMENTAL=0 make check
 ```
 
+## Pre-commit hooks (optional, but recommended)
+
+For a fast local checkpoint before `make check`, install the
+[pre-commit](https://pre-commit.com/) framework once and let it run the
+short, deterministic checks on every staged change:
+
+```sh
+pipx install pre-commit         # or: pip install pre-commit
+pre-commit install              # writes .git/hooks/pre-commit
+pre-commit run --all-files      # one-off sweep
+```
+
+The hook set is defined in `.pre-commit-config.yaml` at the repo root:
+
+- `gitleaks protect --staged` — secret-scan the staged diff.
+- `ruff check` + `ruff format --check` — Python lint on `python/` and
+  `scripts/` against `python/pyproject.toml`.
+- `cargo fmt --all -- --check` — Rust formatting.
+- `scripts/check_layers.py`, `scripts/check_specs.py`,
+  `scripts/check_jobs.py`, `scripts/check_nondet.py` — the cheap project
+  validators.
+
+The hooks are a strictly weaker subset of `make check`; they exist to
+catch the high-confidence issues (secrets, formatting) before the heavier
+clippy / cargo check / cargo deny passes run.
+
 `make check` is the union of:
 
 - `make fmt` — `cargo fmt --all`. Whitespace and import-order normalisation.

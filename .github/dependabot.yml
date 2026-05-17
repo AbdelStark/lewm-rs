@@ -1,0 +1,113 @@
+# Dependabot configuration — keeps Cargo, GitHub Actions, Python edge, and the
+# container base image fresh on a weekly cadence.
+#
+# Policy:
+#  * Cargo and GitHub Actions ecosystems are scanned every Monday at 09:00 UTC,
+#    grouped by ecosystem to minimise PR noise.
+#  * Major-version bumps for ML-critical dependencies (`burn*`, `tract*`,
+#    `hdf5*`) are ignored; they are governed by ADRs and the parity gate per
+#    RFC 0008 / ADR 0002. Minor and patch updates flow through normally.
+#  * Updates labelled `dependencies` and assigned to the repository owner so
+#    they show up on the weekly triage dashboard.
+#  * Maximum of 5 open PRs per ecosystem to keep the queue actionable.
+
+version: 2
+updates:
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Etc/UTC"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "rust"
+    commit-message:
+      prefix: "chore(cargo)"
+      include: "scope"
+    groups:
+      tracing:
+        patterns:
+          - "tracing*"
+          - "opentelemetry*"
+      tokio:
+        patterns:
+          - "tokio*"
+      serde:
+        patterns:
+          - "serde*"
+    ignore:
+      # Burn major-version upgrades require an ADR + full parity re-run.
+      - dependency-name: "burn"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "burn-cuda"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "burn-ndarray"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "burn-autodiff"
+        update-types: ["version-update:semver-major"]
+      # Tract major upgrades change the inference contract (RFC 0007).
+      - dependency-name: "tract-onnx"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "tract-core"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "tract-nnef"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "tract-linalg"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "tract-hir"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      # HDF5 bindings are tightly coupled to the dataset codec set.
+      - dependency-name: "hdf5-metno"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Etc/UTC"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "github-actions"
+    commit-message:
+      prefix: "chore(ci)"
+      include: "scope"
+    groups:
+      actions:
+        patterns:
+          - "*"
+
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Etc/UTC"
+    open-pull-requests-limit: 3
+    labels:
+      - "dependencies"
+      - "docker"
+    commit-message:
+      prefix: "chore(docker)"
+      include: "scope"
+
+  - package-ecosystem: "pip"
+    directory: "/python"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Etc/UTC"
+    open-pull-requests-limit: 3
+    labels:
+      - "dependencies"
+      - "python"
+    commit-message:
+      prefix: "chore(python)"
+      include: "scope"

@@ -6,14 +6,20 @@ from datetime import UTC, datetime
 from decimal import ROUND_CEILING, Decimal
 
 HF_HARDWARE_PRICE_USD_PER_HOUR = {
+    # Source: https://huggingface.co/pricing (last refreshed 2026-05).
+    # Use the higher end of the quoted band: e.g. l4x1 lists at $0.80/h.
     "cpu-basic": Decimal("0.00"),
+    "cpu-upgrade": Decimal("0.03"),
     "cpu-xl": Decimal("1.00"),
     "l4": Decimal("0.80"),
+    "l4x1": Decimal("0.80"),
+    "l4x4": Decimal("3.20"),
     "a10g-small": Decimal("1.00"),
     "a10g-large": Decimal("1.50"),
     "l40s": Decimal("1.80"),
     "a100-large": Decimal("2.50"),
     "h100": Decimal("8.00"),
+    "h100x8": Decimal("64.00"),
 }
 
 

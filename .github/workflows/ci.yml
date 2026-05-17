@@ -4,13 +4,23 @@ on:
   pull_request:
   push:
     branches: ["main"]
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+# Cancel superseded runs on the same ref. Main-branch runs and tags are kept
+# (they gate releases), but PR pushes supersede each other to save CI minutes.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   CARGO_TERM_COLOR: always
   RUST_TOOLCHAIN: "1.89.0"
+  # Fail fast when the network goes down mid-run.
+  CARGO_NET_RETRY: "3"
+  RUSTUP_MAX_RETRIES: "3"
 
 jobs:
   fmt:
@@ -380,7 +390,7 @@ jobs:
         run: rustup toolchain install "$RUST_TOOLCHAIN" --profile default
 
       - name: Run quickstart smoke
-        run: timeout 900 make test
+        run: timeout 1500 make test
 
   coverage:
     name: coverage

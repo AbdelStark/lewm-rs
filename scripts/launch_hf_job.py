@@ -1,5 +1,16 @@
 #!/usr/bin/env python3
-"""Launch a checked-in Hugging Face Job spec safely."""
+"""Launch a checked-in Hugging Face Job spec safely.
+
+The launcher enforces the agent leash (`.ml-intern/cli_agent_config.json`)
+and adds two production guardrails on top of the basic `hf jobs run` wrapper:
+
+* ``--image-tag TAG`` rewrites the GHCR image reference at submission time so
+  a release tag (e.g. ``v0.1.0``) can be pinned without editing the YAML.
+* ``--cost-cap-usd USD`` performs a pre-flight cost estimate using the
+  hardware flavour and the YAML ``timeout`` value, refusing to submit when the
+  *worst-case* spend would exceed the cap. Combined with the post-hoc cost
+  ledger check this gives both upper and lower bounds on accidental spend.
+"""
 
 from __future__ import annotations
 
@@ -11,15 +22,19 @@ import shlex
 import shutil
 import subprocess
 import sys
+from decimal import ROUND_CEILING, Decimal
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 LEASH_PATH = ROOT / ".ml-intern" / "cli_agent_config.json"
 ENV_EXPR_RE = re.compile(r"^\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-(.*))?\}$")
+IMAGE_TAG_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+
+DEFAULT_COST_CAP_USD = Decimal("20.00")  # per-session soft cap (CLAUDE.md)
 
 
 class LaunchError(RuntimeError):
-    pass
+    """A non-retryable refusal: the request is unsafe to submit."""
 
 
 def main() -> int:
@@ -32,6 +47,25 @@ def main() -> int:
         action="store_true",
         help="allow jobs listed as human-approval-required in the leash config",
     )
+    parser.add_argument(
+        "--image-tag",
+        default=os.environ.get("LEWM_IMAGE_TAG"),
+        help=(
+            "override the GHCR image tag (e.g. v0.1.0). Defaults to the value in "
+            "the YAML (typically `latest` for dev). Reads $LEWM_IMAGE_TAG when "
+            "set; the explicit flag wins."
+        ),
+    )
+    parser.add_argument(
+        "--cost-cap-usd",
+        type=parse_cost_cap,
+        default=DEFAULT_COST_CAP_USD,
+        help=(
+            "worst-case (hardware-rate * YAML-timeout) USD ceiling that aborts the "
+            "submission before contacting HF. Default: 20.00 (per-session soft "
+            "cap from CLAUDE.md). Set to 0 to disable."
+        ),
+    )
     args = parser.parse_args()
 
     try:
@@ -39,6 +73,9 @@ def main() -> int:
         job = parse_job(job_path)
         leash = load_leash()
         validate_job(job_path, job, leash, args.allow_approval_required)
+        if args.image_tag:
+            job["image"] = rewrite_image_tag(str(job["image"]), args.image_tag)
+        check_cost_cap(job_path, job, args.cost_cap_usd)
         command = render_command(job, detach=args.detach)
     except LaunchError as error:
         print(f"launch_hf_job.py: {error}", file=sys.stderr)
@@ -53,6 +90,86 @@ def main() -> int:
         return 1
 
     return subprocess.run(command, check=False).returncode
+
+
+def parse_cost_cap(raw: str) -> Decimal:
+    """Parse the ``--cost-cap-usd`` value (Decimal, two-place)."""
+    try:
+        amount = Decimal(raw)
+    except Exception as error:
+        raise argparse.ArgumentTypeError(f"invalid USD amount: {raw!r}") from error
+    if amount < 0:
+        raise argparse.ArgumentTypeError("cost cap must not be negative")
+    return amount.quantize(Decimal("0.01"))
+
+
+def rewrite_image_tag(image: str, new_tag: str) -> str:
+    """Replace the ``:tag`` segment of ``image`` with ``new_tag``."""
+    if not IMAGE_TAG_RE.fullmatch(new_tag):
+        raise LaunchError(f"invalid image tag: {new_tag!r}")
+    if "@" in image:
+        raise LaunchError("image already pins a digest; refuse to overwrite")
+    repo, _, _existing = image.rpartition(":")
+    if not repo:
+        # No tag in the source string; treat the whole thing as the repo.
+        repo = image
+    return f"{repo}:{new_tag}"
+
+
+def check_cost_cap(path: Path, job: dict[str, object], cap_usd: Decimal) -> None:
+    """Refuse to submit if the worst-case spend would exceed ``cap_usd``."""
+    if cap_usd == 0:
+        return
+
+    hardware = str(job["hardware"])
+    timeout = str(job["timeout"])
+    hours = parse_timeout_hours(timeout)
+    price = lookup_price(hardware)
+    if price is None:
+        # Unknown flavour — be conservative and refuse rather than under-estimate.
+        raise LaunchError(
+            f"{path.relative_to(ROOT)}: unknown hardware flavour for cost cap: {hardware!r}"
+        )
+
+    worst_case = (price * hours).quantize(Decimal("0.01"), rounding=ROUND_CEILING)
+    if worst_case > cap_usd:
+        raise LaunchError(
+            f"{path.relative_to(ROOT)}: pre-flight cost ${worst_case} exceeds cap "
+            f"${cap_usd} (hardware {hardware!r}, timeout {timeout!r}, "
+            f"{price} USD/h * {hours} h). Pass --cost-cap-usd to raise the cap, "
+            "or shorten the timeout."
+        )
+
+
+def parse_timeout_hours(timeout: str) -> Decimal:
+    """Convert an HF Jobs timeout string (`90m`, `2h`, `12h`) to hours."""
+    text = timeout.strip().lower()
+    if not text:
+        raise LaunchError("empty timeout")
+    suffix = text[-1]
+    try:
+        amount = Decimal(text[:-1])
+    except Exception as error:
+        raise LaunchError(f"unparseable timeout: {timeout!r}") from error
+    if suffix == "h":
+        return amount
+    if suffix == "m":
+        return (amount / Decimal(60)).quantize(Decimal("0.01"), rounding=ROUND_CEILING)
+    if suffix == "s":
+        return (amount / Decimal(3600)).quantize(Decimal("0.0001"), rounding=ROUND_CEILING)
+    raise LaunchError(f"unrecognised timeout suffix in {timeout!r}; expected s/m/h")
+
+
+def lookup_price(hardware: str) -> Decimal | None:
+    """Look up the per-hour USD price for an HF hardware flavour."""
+    python_dir = ROOT / "python"
+    if str(python_dir) not in sys.path:
+        sys.path.insert(0, str(python_dir))
+    try:
+        from hf_pricing import HF_HARDWARE_PRICE_USD_PER_HOUR  # type: ignore[import-not-found]
+    except ImportError:
+        return None
+    return HF_HARDWARE_PRICE_USD_PER_HOUR.get(hardware)
 
 
 def resolve_job_path(path: Path) -> Path:
