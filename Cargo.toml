@@ -54,7 +54,7 @@ arrow-schema = "58"
 image = { version = "=0.25.10", default-features = false }
 safetensors = "0.7"
 ndarray = "0.16"
-sha2 = "0.10"
+sha2 = "0.11"
 
 # Concurrency
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "fs", "sync", "signal"] }
@@ -66,10 +66,10 @@ rayon = "1.10"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "fmt"] }
 nvtx = "1.3"
-tracing-opentelemetry = "0.28"
-opentelemetry = { version = "0.27", features = ["trace", "metrics"] }
-opentelemetry-otlp = { version = "0.27", features = ["grpc-tonic", "trace", "metrics"] }
-opentelemetry_sdk = "0.27"
+tracing-opentelemetry = "0.32"
+opentelemetry = { version = "0.31", features = ["trace", "metrics"] }
+opentelemetry-otlp = { version = "0.31", features = ["grpc-tonic", "trace", "metrics"] }
+opentelemetry_sdk = "0.31"
 sysinfo = { version = "0.39", default-features = false, features = ["disk", "system"] }
 nvml-wrapper = { version = "0.12.1", default-features = false }
 
@@ -105,7 +105,7 @@ humantime = "2"
 bytes = "1"
 glob = "0.3"
 walkdir = "2"
-ureq = { version = "2", features = ["json"] }
+ureq = { version = "3", features = ["json"] }
 once_cell = "1"
 itertools = "0.13"
 regex = "1"

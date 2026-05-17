@@ -16,7 +16,6 @@ use tracing::{
     field::{Field, Visit},
     span::{Attributes, Id, Record},
 };
-use tracing_opentelemetry::PreSampledTracer;
 use tracing_subscriber::{
     EnvFilter, Layer, Registry,
     layer::{Context, SubscriberExt},
@@ -74,7 +73,7 @@ pub fn init_logging_with_tracer<T>(
     tracer: T,
 ) -> Result<(), TelemetryError>
 where
-    T: OtelTracer + PreSampledTracer + Send + Sync + 'static,
+    T: OtelTracer + Send + Sync + 'static,
     T::Span: Send + Sync + 'static,
 {
     validate_context(&context)?;
