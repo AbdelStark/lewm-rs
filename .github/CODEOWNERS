@@ -16,6 +16,7 @@
 /crates/lewm-train/ @AbdelStark
 /crates/lewm-plan/ @AbdelStark
 /crates/lewm-infer/ @AbdelStark
+/crates/lewm-gpu/ @AbdelStark
 /crates/lewm-telemetry/ @AbdelStark
 /crates/lewm-hub/ @AbdelStark
 
@@ -24,4 +25,15 @@
 /scripts/ @AbdelStark
 /.github/ @AbdelStark
 /docs/ @AbdelStark
+/paper/ @AbdelStark
+/python/ @AbdelStark
+/jobs/ @AbdelStark
 /reports/ @AbdelStark
+/infra/ @AbdelStark
+
+# Release- and supply-chain-critical paths.
+/RELEASE.md @AbdelStark
+/SECURITY.md @AbdelStark
+/Dockerfile @AbdelStark
+/.gitleaks.toml @AbdelStark
+/.pre-commit-config.yaml @AbdelStark

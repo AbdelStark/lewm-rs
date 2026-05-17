@@ -1,0 +1,70 @@
+# CITATION.cff — Citation File Format v1.2.0
+# See https://citation-file-format.github.io/ for the canonical spec.
+#
+# GitHub renders the citation in the right-hand sidebar from this file. Other
+# tools (Zenodo, Zotero) can ingest it directly. Keep the fields in sync with
+# the BibTeX block in `README.md` and the `paper/lewm-rs.md` bibliography.
+cff-version: "1.2.0"
+title: "lewm-rs: A pure-Rust reproduction of LeWorldModel"
+message: >-
+  If you use this software in academic work, please cite both this artifact
+  and the upstream LeWorldModel paper (Maes et al., 2026).
+authors:
+  - given-names: Abdel
+    family-names: Bouaziz
+    alias: AbdelStark
+    affiliation: Starkware
+    email: abdel@starkware.co
+    website: "https://github.com/AbdelStark"
+type: software
+version: 0.1.0
+date-released: "2026-05-17"
+repository-code: "https://github.com/AbdelStark/lewm-rs"
+url: "https://abdelstark.github.io/lewm-rs/"
+license: MIT
+keywords:
+  - JEPA
+  - world-model
+  - robotics
+  - Rust
+  - Burn
+  - Tract
+  - reproducibility
+abstract: >-
+  lewm-rs is a pure-Rust reproduction of LeWorldModel (Maes et al., 2026):
+  a JEPA-style image-conditioned world model trained on PushT and SO-100,
+  with autoregressive latent prediction, SIGReg representation
+  regularization, AdaLN-zero predictor, CEM planning, ONNX export, and
+  Tract CPU inference. The repository ships the full training, planning,
+  parity, and deployment pipeline, all gated by RFCs and a reproducible
+  release supply chain.
+references:
+  - type: article
+    title: "LeWorldModel: Stable JEPA world models from pixels"
+    authors:
+      - given-names: Lucas
+        family-names: Maes
+      - given-names: Quentin
+        family-names: Le Lidec
+      - given-names: Damien
+        family-names: Scieur
+      - given-names: Randall
+        family-names: Balestriero
+      - given-names: Yann
+        family-names: LeCun
+    year: 2026
+    identifiers:
+      - type: other
+        value: "arXiv:2502.16560"
+        description: arXiv preprint identifier
+preferred-citation:
+  type: software
+  title: "lewm-rs: A pure-Rust reproduction of LeWorldModel"
+  authors:
+    - given-names: Abdel
+      family-names: Bouaziz
+      alias: AbdelStark
+  year: 2026
+  url: "https://github.com/AbdelStark/lewm-rs"
+  version: 0.1.0
+  license: MIT

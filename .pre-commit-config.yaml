@@ -1,0 +1,102 @@
+# Pre-commit hooks for lewm-rs.
+#
+# Local-only enforcement that catches obvious problems before CI sees them:
+#   * gitleaks: secret scanning (matches the policy in `.gitleaks.toml`)
+#   * cargo fmt / clippy fast-fail
+#   * Python lint via Ruff (matches `python/pyproject.toml`)
+#   * YAML / TOML / EOF / whitespace hygiene
+#
+# Install once: `pipx install pre-commit && pre-commit install`.
+# Run on demand: `pre-commit run --all-files`.
+# The same checks (and more) gate CI in `.github/workflows/ci.yml`; this hook
+# is a fast local cousin, not a replacement for `make check`.
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: '^(reports/.*\.md|paper/figures/.*\.csv|.*\.lock)$'
+      - id: end-of-file-fixer
+        exclude: '^(.*\.lock|target/.*)$'
+      - id: check-yaml
+        args: ["--allow-multiple-documents"]
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: ["--maxkb=2048"]
+      - id: check-case-conflict
+      - id: check-symlinks
+      - id: destroyed-symlinks
+      - id: mixed-line-ending
+        args: ["--fix=lf"]
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.21.2
+    hooks:
+      - id: gitleaks
+        args: ["protect", "--staged", "--config=.gitleaks.toml", "--redact"]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.6
+    hooks:
+      - id: ruff
+        args: ["check", "--config", "python/pyproject.toml"]
+        files: '^(python|scripts)/.*\.py$'
+      - id: ruff-format
+        args: ["--config", "python/pyproject.toml", "--check"]
+        files: '^(python|scripts)/.*\.py$'
+
+  - repo: local
+    hooks:
+      - id: cargo-fmt
+        name: cargo fmt --all -- --check
+        entry: cargo fmt --all --
+        args: ["--check"]
+        language: system
+        files: '\.rs$'
+        pass_filenames: false
+
+      - id: nondet-lint
+        name: scripts/check_nondet.py
+        entry: python3 scripts/check_nondet.py
+        language: system
+        files: '\.rs$'
+        pass_filenames: false
+
+      - id: layer-check
+        name: scripts/check_layers.py
+        entry: python3 scripts/check_layers.py
+        language: system
+        files: '(crates/.*/Cargo\.toml|scripts/check_layers\.py)$'
+        pass_filenames: false
+
+      - id: spec-check
+        name: scripts/check_specs.py
+        entry: python3 scripts/check_specs.py
+        language: system
+        files: '(specs/|scripts/check_specs\.py)'
+        pass_filenames: false
+
+      - id: jobs-check
+        name: scripts/check_jobs.py
+        entry: python3 scripts/check_jobs.py
+        language: system
+        files: '(jobs/.*\.yaml|scripts/check_jobs\.py)$'
+        pass_filenames: false
+
+ci:
+  autofix_commit_msg: |
+    chore(pre-commit): auto fixes from pre-commit.com hooks
+
+    For more information, see https://pre-commit.ci
+
+    Signed-off-by: pre-commit-ci[bot] <pre-commit-ci@example.com>
+  autofix_prs: false
+  autoupdate_schedule: monthly
+  skip:
+    - cargo-fmt
+    - nondet-lint
+    - layer-check
+    - spec-check
+    - jobs-check

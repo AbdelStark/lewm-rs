@@ -7,6 +7,49 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+### Added
+
+- **MLOps / supply chain**: `.github/dependabot.yml` watches Cargo, GitHub
+  Actions, the Dockerfile, and the Python edge layer on a weekly cadence with
+  Burn / Tract / HDF5 major-version freezes that match ADR 0002 and RFC 0007.
+- **Release supply chain**: the `release` workflow now generates GitHub
+  built-in build provenance attestations for the binaries, the SBOM, and the
+  container image. The image is published with a stable digest, cosign-signed
+  by that digest, and the provenance is pushed to the registry alongside it.
+- **Release runbook**: new top-level `RELEASE.md` with the full pre-flight
+  checklist, tag-cut commands, audit-trail expectations, and the rollback
+  procedure.
+- **Per-crate READMEs**: each of the eight workspace crates now ships a
+  `README.md` with its layering rule, module map, public-surface contract,
+  and feature gates. The READMEs cross-link to the RFCs they implement so the
+  spec ↔ code traceability is one click in either direction.
+- **Local pre-commit**: new `.pre-commit-config.yaml` wires gitleaks, Ruff
+  (`check` + `format --check`), `cargo fmt --check`, and the four Python
+  validators (`check_layers`, `check_specs`, `check_jobs`, `check_nondet`)
+  into the standard `pre-commit` framework. Setup: `pipx install pre-commit
+  && pre-commit install`. The CI gate stays authoritative.
+- **Container hygiene**: the runtime image now ships `tini` as PID 1 for
+  zombie reaping + signal forwarding, a `HEALTHCHECK` that validates the
+  binary + Python edge layer, OCI metadata labels (`revision`, `created`,
+  `version`, `base.name`), and parameterised build args (`BUILD_REVISION`,
+  `BUILD_DATE`, `SOURCE_VERSION`) populated by the release workflow.
+- **HF Jobs cost guard**: `scripts/launch_hf_job.py` now performs a
+  pre-flight worst-case cost estimate (`hardware-rate * YAML-timeout`) and
+  refuses to submit when the spend would exceed `--cost-cap-usd` (default
+  `20.00`, matching the per-session soft cap in `CLAUDE.md`). It also accepts
+  `--image-tag VERSION` (or `LEWM_IMAGE_TAG`) to pin the GHCR image to a
+  release tag without editing the YAML.
+- **HF pricing table**: `python/hf_pricing.py` adds `l4x1`, `l4x4`,
+  `cpu-upgrade`, and `h100x8` flavours so the cost guard and the post-hoc
+  ledger speak the same vocabulary.
+- **CI ergonomics**: `concurrency: cancel-in-progress` for PR runs in `ci`
+  and `nightly` workflows; `workflow_dispatch` triggers added so operators
+  can replay a green build on demand; `CARGO_NET_RETRY` / `RUSTUP_MAX_RETRIES`
+  surfaced to env to ride out transient network blips.
+- **CODEOWNERS**: explicit ownership for `paper/`, `python/`, `jobs/`,
+  `infra/`, `RELEASE.md`, `SECURITY.md`, `Dockerfile`, `.gitleaks.toml`, and
+  `.pre-commit-config.yaml` so review routing matches what is touched.
+
 ### Changed
 
 - `lewm-train` trainer: removed the legacy `pusht_lewm` (14-parameter "minimal

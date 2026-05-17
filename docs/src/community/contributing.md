@@ -19,6 +19,21 @@ Highlights below.
 Run `make check` before sending a PR. The CI mirrors it. See
 [Local quality gate](../reproducing/quality-gate.md).
 
+For a fast local pre-flight, set up `pre-commit` once (see the same
+page); it runs gitleaks, ruff, `cargo fmt --check`, and the cheap
+project validators on every staged change.
+
+## Release process
+
+Releases are cut by the maintainer following the
+[`RELEASE.md`](https://github.com/AbdelStark/lewm-rs/blob/main/RELEASE.md)
+runbook. The pipeline is fully automated once a `vX.Y.Z` tag is pushed:
+reproducible binary builds (linux musl + macOS arm), the GHCR
+container image (cosign-signed, build-provenance-attested), the
+CycloneDX SBOM, the export verifier smoke, and the draft GitHub
+release. The maintainer's only remaining task is the **draft →
+publish** promotion after reviewing the release notes.
+
 ## RFC / ADR rhythm
 
 - Spec changes precede code changes when the change is non-trivial.
