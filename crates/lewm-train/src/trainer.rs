@@ -10,16 +10,11 @@ use crate::checkpoint::{
     CHECKPOINT_SCHEMA_VERSION, CheckpointError, CheckpointPaths, CheckpointRngState,
     CheckpointWriteRequest, ParameterTensor, ParityProbe, load_checkpoint, save_checkpoint,
 };
-use crate::config::{DatasetConfig, DatasetSplit, RootConfig, So100DatasetConfig, TrainingConfig};
+use crate::config::{DatasetConfig, DatasetSplit, RootConfig, So100DatasetConfig};
 use crate::optim::OptimConfig;
 use crate::pusht_full::{
     PUSHT_FULL_LEWM_RUN_ID, PushtFullLewmCore, PushtFullLewmError, PushtFullLewmExample,
     PushtFullLewmImageFeatures, SO100_FULL_LEWM_RUN_ID,
-};
-use crate::pusht_lewm::{
-    PUSHT_ACTION_DIM, PUSHT_MINIMAL_LEWM_LATENT_DIM, PUSHT_MINIMAL_LEWM_PARAM_COUNT,
-    PUSHT_MINIMAL_LEWM_PARAMETER_SPECS, PushtMinimalLewmCore, PushtMinimalLewmExample,
-    PushtMinimalLewmFeatures, loss_and_gradients, parameter_spec_for_flat_index,
 };
 use crate::resume::{
     RUN_ID_FILE, RestoredRngStreams, StartupMode, detect_resume, encode_rng, restore_rng_streams,
@@ -56,6 +51,7 @@ const SMOKE_LR_MIN: f64 = 0.01;
 const SMOKE_MAX_BATCH_SIZE: u64 = 1_024;
 const PUSHT_FIXTURE_FRAME_SIZE: usize = 16;
 const PUSHT_FIXTURE_SAMPLE_COUNT: usize = 128;
+const PUSHT_ACTION_DIM: usize = 2;
 
 /// Error returned by trainer state-machine helpers.
 #[derive(Debug)]
@@ -1216,7 +1212,7 @@ fn write_pusht_train_artifacts(
 ) -> Result<TrainRunReport, TrainerError> {
     let output_dir = request.output_dir;
 
-    let mut source = open_pusht_training_source(request.root, request.data_dir)?;
+    let source = open_pusht_training_source(request.root, request.data_dir)?;
     let startup = detect_resume(
         output_dir,
         request.resume_if_present,
@@ -1256,8 +1252,7 @@ fn write_pusht_train_artifacts(
         );
     }
 
-    let outcome =
-        run_pusht_full_lewm_training(&mut source, request.root, request.max_steps, start)?;
+    let outcome = run_pusht_full_lewm_training(&source, request.root, request.max_steps, start)?;
     let paths = write_pusht_full_lewm_checkpoint(
         output_dir,
         request.config_hash,
@@ -1284,7 +1279,7 @@ fn write_so100_train_artifacts(
 ) -> Result<TrainRunReport, TrainerError> {
     let output_dir = request.output_dir;
 
-    let mut source = open_so100_training_source(request.root)?;
+    let source = open_so100_training_source(request.root)?;
     let startup = detect_resume(
         output_dir,
         request.resume_if_present,
@@ -1324,8 +1319,7 @@ fn write_so100_train_artifacts(
         );
     }
 
-    let outcome =
-        run_so100_full_lewm_training(&mut source, request.root, request.max_steps, start)?;
+    let outcome = run_so100_full_lewm_training(&source, request.root, request.max_steps, start)?;
     let paths = write_so100_full_lewm_checkpoint(
         output_dir,
         request.config_hash,
@@ -1404,6 +1398,12 @@ fn write_train_report(
     Ok(report)
 }
 
+/// Abstract dataset interface required by the full `LeWM` training loop.
+trait TrainingSampleSource {
+    fn len(&self) -> usize;
+    fn get(&self, index: usize) -> Result<PushtSample, TrainerError>;
+}
+
 #[derive(Debug)]
 enum PushtTrainingSource {
     Hdf5 {
@@ -1417,17 +1417,19 @@ enum PushtTrainingSource {
 }
 
 impl PushtTrainingSource {
-    fn len(&self) -> usize {
-        match self {
-            Self::Hdf5 { dataset, .. } => dataset.len(),
-            Self::Fixture { samples, .. } => samples.len(),
-        }
-    }
-
     fn description(&self) -> String {
         match self {
             Self::Hdf5 { path, .. } => format!("pusht-hdf5:{}", path.display()),
             Self::Fixture { descriptor, .. } => descriptor.clone(),
+        }
+    }
+}
+
+impl TrainingSampleSource for PushtTrainingSource {
+    fn len(&self) -> usize {
+        match self {
+            Self::Hdf5 { dataset, .. } => dataset.len(),
+            Self::Fixture { samples, .. } => samples.len(),
         }
     }
 
@@ -1458,15 +1460,17 @@ enum So100TrainingSource {
 }
 
 impl So100TrainingSource {
-    fn len(&self) -> usize {
-        match self {
-            Self::Hdf5 { dataset, .. } => dataset.len(),
-        }
-    }
-
     fn description(&self) -> String {
         match self {
             Self::Hdf5 { path, .. } => format!("so100-hdf5:{}", path.display()),
+        }
+    }
+}
+
+impl TrainingSampleSource for So100TrainingSource {
+    fn len(&self) -> usize {
+        match self {
+            Self::Hdf5 { dataset, .. } => dataset.len(),
         }
     }
 
@@ -1542,44 +1546,6 @@ impl PushtFullLewmTrainingStart {
             grad_explosion_events: 0,
         })
     }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-struct PushtMinimalLewmAdamWState {
-    step: i32,
-    params: [ScalarAdamWParamState; PUSHT_MINIMAL_LEWM_PARAM_COUNT],
-}
-
-impl Default for PushtMinimalLewmAdamWState {
-    fn default() -> Self {
-        Self {
-            step: 0,
-            params: [ScalarAdamWParamState::default(); PUSHT_MINIMAL_LEWM_PARAM_COUNT],
-        }
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-#[allow(dead_code)]
-struct PushtMinimalLewmOutcome {
-    losses: Vec<TrainLossPoint>,
-    model: PushtMinimalLewmCore,
-    optimizer: PushtMinimalLewmAdamWState,
-    step: u64,
-    batch_size: usize,
-    samples_seen: u64,
-    grad_explosion_events: u64,
-}
-
-#[derive(Clone, Debug, Serialize)]
-#[allow(dead_code)]
-struct PushtMinimalLewmRecord {
-    schema_version: &'static str,
-    kind: &'static str,
-    step: u64,
-    params: Vec<f64>,
-    adamw_step: i32,
-    samples_seen: u64,
 }
 
 fn open_pusht_training_source(
@@ -2091,25 +2057,32 @@ fn train_batch_size(root: &RootConfig) -> Result<usize, TrainerError> {
     })
 }
 
+/// Run the full `LeWM` training loop against any dataset source.
+///
+/// The dataset-specific work — extracting the dataset config and shaping
+/// raw samples into `PushtFullLewmExample` instances — is supplied by the
+/// caller via `build_example`. The log tag (`"pusht"` / `"so100"`) appears
+/// in the periodic ETA `eprintln!` so operators can disambiguate runs.
 #[allow(clippy::too_many_lines)]
-fn run_pusht_full_lewm_training(
-    source: &mut PushtTrainingSource,
+fn run_full_lewm_training<S, F>(
+    source: &S,
     root: &RootConfig,
     max_steps: u64,
     start: PushtFullLewmTrainingStart,
-) -> Result<PushtFullLewmOutcome, TrainerError> {
+    log_tag: &str,
+    build_example: F,
+) -> Result<PushtFullLewmOutcome, TrainerError>
+where
+    S: TrainingSampleSource + ?Sized,
+    F: Fn(&PushtSample) -> Result<PushtFullLewmExample, TrainerError>,
+{
     if !root.loss.lambda_sigreg.is_finite() {
         return Err(TrainerError::Data {
-            source: DataError::InvalidTransform(
-                "PushT full LeWM lambda_sigreg must be finite".to_owned(),
-            ),
+            source: DataError::InvalidTransform(format!(
+                "{log_tag} full LeWM lambda_sigreg must be finite"
+            )),
         });
     }
-    let DatasetConfig::Pusht(dataset_config) = &root.dataset else {
-        return Err(TrainerError::UnsupportedTrainDataset {
-            kind: dataset_kind_name(&root.dataset).to_owned(),
-        });
-    };
     let total_steps = train_steps_as_u32(max_steps)?;
     if start.start_step > total_steps {
         return Err(TrainerError::ResumeStepBeyondTarget {
@@ -2156,7 +2129,7 @@ fn run_pusht_full_lewm_training(
                 &mut rng_streams,
             )?;
             let sample = source.get(dataset_index)?;
-            let example = full_lewm_example_from_sample(&sample, dataset_config, &root.model)?;
+            let example = build_example(&sample)?;
             let (sample_loss, gradients) = model
                 .loss_and_gradients(&example, sigreg_weight)
                 .map_err(full_lewm_error)?;
@@ -2212,7 +2185,7 @@ fn run_pusht_full_lewm_training(
             let secs_per_step = elapsed_s / steps_done as f64;
             let eta_s = secs_per_step * f64::from(total_steps - step);
             eprintln!(
-                "[pusht step {step}/{total_steps}] loss={total_loss:.6} pred={pred_loss:.6} \
+                "[{log_tag} step {step}/{total_steps}] loss={total_loss:.6} pred={pred_loss:.6} \
                  lr={learning_rate:.2e} grad={:.3} elapsed={elapsed_s:.0}s eta={eta_s:.0}s",
                 clip.grad_norm_post,
             );
@@ -2231,144 +2204,35 @@ fn run_pusht_full_lewm_training(
     })
 }
 
-#[allow(clippy::too_many_lines)]
-fn run_so100_full_lewm_training(
-    source: &mut So100TrainingSource,
+fn run_pusht_full_lewm_training(
+    source: &PushtTrainingSource,
     root: &RootConfig,
     max_steps: u64,
     start: PushtFullLewmTrainingStart,
 ) -> Result<PushtFullLewmOutcome, TrainerError> {
-    if !root.loss.lambda_sigreg.is_finite() {
-        return Err(TrainerError::Data {
-            source: DataError::InvalidTransform(
-                "SO-100 full LeWM lambda_sigreg must be finite".to_owned(),
-            ),
+    let DatasetConfig::Pusht(dataset_config) = &root.dataset else {
+        return Err(TrainerError::UnsupportedTrainDataset {
+            kind: dataset_kind_name(&root.dataset).to_owned(),
         });
-    }
+    };
+    run_full_lewm_training(source, root, max_steps, start, "pusht", |sample| {
+        full_lewm_example_from_sample(sample, dataset_config, &root.model)
+    })
+}
+
+fn run_so100_full_lewm_training(
+    source: &So100TrainingSource,
+    root: &RootConfig,
+    max_steps: u64,
+    start: PushtFullLewmTrainingStart,
+) -> Result<PushtFullLewmOutcome, TrainerError> {
     let DatasetConfig::So100(dataset_config) = &root.dataset else {
         return Err(TrainerError::UnsupportedTrainDataset {
             kind: dataset_kind_name(&root.dataset).to_owned(),
         });
     };
-    let total_steps = train_steps_as_u32(max_steps)?;
-    if start.start_step > total_steps {
-        return Err(TrainerError::ResumeStepBeyondTarget {
-            checkpoint_step: u64::from(start.start_step),
-            max_steps,
-        });
-    }
-    let batch_size_u32 =
-        u32::try_from(start.batch_size).map_err(|_| TrainerError::InvalidTrainBatchSize {
-            batch_size: start.batch_size,
-        })?;
-    let batch_size = start.batch_size;
-    let schedule = CosineWarmup::from_parts(
-        root.training.lr_peak,
-        root.training.lr_min,
-        root.training.warmup_steps,
-        total_steps.max(root.training.warmup_steps.saturating_add(1)),
-    );
-    let optim_config = OptimConfig::new()
-        .with_beta1(root.training.betas.0)
-        .with_beta2(root.training.betas.1)
-        .with_weight_decay(root.training.weight_decay);
-    let mut model = start.model;
-    let mut optimizer = start.optimizer;
-    let mut rng_streams = start.rng_streams;
-    let mut guard = NanGuard::new();
-    let mut losses = Vec::with_capacity(usize::try_from(total_steps).unwrap_or_default());
-    let mut samples_seen = start.samples_seen;
-    let mut grad_explosion_events = start.grad_explosion_events;
-    let sigreg_weight = root.loss.lambda_sigreg.max(0.0);
-    let train_start = Instant::now(); // determinism-lint: allow Instant::now (wall-clock ETA only)
-
-    for step in (start.start_step.saturating_add(1))..=total_steps {
-        let mut total_loss = 0.0;
-        let mut pred_loss = 0.0;
-        let mut sigreg_proxy_loss = 0.0;
-        let mut sample_gradients = Vec::with_capacity(batch_size);
-        for sample_offset in 0..batch_size {
-            let dataset_index = training_sample_index(
-                step,
-                sample_offset,
-                batch_size,
-                source.len(),
-                &mut rng_streams,
-            )?;
-            let sample = source.get(dataset_index)?;
-            let example =
-                full_lewm_example_from_so100_sample(&sample, dataset_config, &root.model)?;
-            let (sample_loss, gradients) = model
-                .loss_and_gradients(&example, sigreg_weight)
-                .map_err(full_lewm_error)?;
-            total_loss += scale_loss_for_accumulation(sample_loss.total, batch_size_u32)?;
-            pred_loss += scale_loss_for_accumulation(sample_loss.pred, batch_size_u32)?;
-            sigreg_proxy_loss +=
-                scale_loss_for_accumulation(sample_loss.sigreg_proxy, batch_size_u32)?;
-            sample_gradients.push(gradients);
-            samples_seen = samples_seen.saturating_add(1);
-        }
-        let _sigreg_rng_audit_word = rng_streams.sigreg_sketch.next_u64();
-
-        let mut gradients = accumulate_scaled_gradients(&sample_gradients, batch_size_u32)?;
-        let step_u64 = u64::from(step);
-        match guard.observe(step_u64, total_loss, &gradients) {
-            NanGuardDecision::Apply => {},
-            NanGuardDecision::Skip { artifact } | NanGuardDecision::Abort { artifact } => {
-                return Err(TrainerError::TrainGuardRejected {
-                    step: step_u64,
-                    reason: artifact.reason,
-                });
-            },
-        }
-
-        let clip = clip_global_norm(&mut gradients, root.training.grad_clip_norm)?;
-        if grad_explosion_artifact(step_u64, clip.grad_norm_pre).is_some() {
-            grad_explosion_events += 1;
-        }
-        let learning_rate = schedule.lr(step);
-        apply_pusht_full_lewm_adamw(
-            &mut model,
-            &gradients,
-            &mut optimizer,
-            learning_rate,
-            &optim_config,
-        );
-        losses.push(TrainLossPoint {
-            step: step_u64,
-            loss: total_loss,
-            pred_loss,
-            sigreg_proxy_loss,
-            grad_norm_pre: clip.grad_norm_pre,
-            grad_norm_post: clip.grad_norm_post,
-            learning_rate,
-            samples_seen,
-        });
-        if step == 1 || step % 100 == 0 || step == total_steps {
-            let elapsed_s = train_start.elapsed().as_secs_f64();
-            let steps_done = u64::from(step)
-                .saturating_sub(u64::from(start.start_step))
-                .max(1);
-            #[allow(clippy::cast_precision_loss)]
-            let secs_per_step = elapsed_s / steps_done as f64;
-            let eta_s = secs_per_step * f64::from(total_steps - step);
-            eprintln!(
-                "[so100 step {step}/{total_steps}] loss={total_loss:.6} pred={pred_loss:.6} \
-                 lr={learning_rate:.2e} grad={:.3} elapsed={elapsed_s:.0}s eta={eta_s:.0}s",
-                clip.grad_norm_post,
-            );
-        }
-    }
-
-    Ok(PushtFullLewmOutcome {
-        losses,
-        model,
-        optimizer,
-        rng_streams,
-        step: max_steps,
-        batch_size,
-        samples_seen,
-        grad_explosion_events,
+    run_full_lewm_training(source, root, max_steps, start, "so100", |sample| {
+        full_lewm_example_from_so100_sample(sample, dataset_config, &root.model)
     })
 }
 
@@ -2377,109 +2241,6 @@ fn full_lewm_error(source: PushtFullLewmError) -> TrainerError {
     TrainerError::Data {
         source: DataError::InvalidTransform(format!("PushT full LeWM error: {source}")),
     }
-}
-
-#[allow(dead_code)]
-fn run_pusht_minimal_lewm_training(
-    source: &mut PushtTrainingSource,
-    config: &TrainingConfig,
-    lambda_sigreg: f64,
-    max_steps: u64,
-) -> Result<PushtMinimalLewmOutcome, TrainerError> {
-    if !lambda_sigreg.is_finite() {
-        return Err(TrainerError::Data {
-            source: DataError::InvalidTransform(
-                "PushT minimal LeWM lambda_sigreg must be finite".to_owned(),
-            ),
-        });
-    }
-    let total_steps = train_steps_as_u32(max_steps)?;
-    let batch_size_u32 = train_batch_size_as_u32(config.batch_size)?;
-    let batch_size =
-        usize::try_from(batch_size_u32).map_err(|_| TrainerError::InvalidTrainBatchSize {
-            batch_size: config.batch_size,
-        })?;
-    let schedule = CosineWarmup::from_parts(
-        config.lr_peak,
-        config.lr_min,
-        config.warmup_steps,
-        total_steps.max(config.warmup_steps.saturating_add(1)),
-    );
-    let optim_config = OptimConfig::new()
-        .with_beta1(config.betas.0)
-        .with_beta2(config.betas.1)
-        .with_weight_decay(config.weight_decay);
-    let mut model = PushtMinimalLewmCore::initial();
-    let mut optimizer = PushtMinimalLewmAdamWState::default();
-    let mut guard = NanGuard::new();
-    let mut losses = Vec::with_capacity(usize::try_from(total_steps).unwrap_or_default());
-    let mut samples_seen = 0_u64;
-    let mut grad_explosion_events = 0_u64;
-    let sigreg_weight = lambda_sigreg.max(0.0);
-
-    for step in 1..=total_steps {
-        let mut total_loss = 0.0;
-        let mut pred_loss = 0.0;
-        let mut sigreg_proxy_loss = 0.0;
-        let mut sample_gradients = Vec::with_capacity(batch_size);
-        for sample_offset in 0..batch_size {
-            let dataset_index = sequential_training_sample_index(step, sample_offset, batch_size);
-            let sample = source.get(dataset_index)?;
-            let example = minimal_lewm_example_from_sample(&sample, config.history_size)?;
-            let (sample_loss, gradients) = loss_and_gradients(&model, example, sigreg_weight);
-            total_loss += scale_loss_for_accumulation(sample_loss.total, batch_size_u32)?;
-            pred_loss += scale_loss_for_accumulation(sample_loss.pred, batch_size_u32)?;
-            sigreg_proxy_loss +=
-                scale_loss_for_accumulation(sample_loss.sigreg_proxy, batch_size_u32)?;
-            sample_gradients.push(gradients.to_vec());
-            samples_seen = samples_seen.saturating_add(1);
-        }
-
-        let mut gradients = accumulate_scaled_gradients(&sample_gradients, batch_size_u32)?;
-        let step_u64 = u64::from(step);
-        match guard.observe(step_u64, total_loss, &gradients) {
-            NanGuardDecision::Apply => {},
-            NanGuardDecision::Skip { artifact } | NanGuardDecision::Abort { artifact } => {
-                return Err(TrainerError::TrainGuardRejected {
-                    step: step_u64,
-                    reason: artifact.reason,
-                });
-            },
-        }
-
-        let clip = clip_global_norm(&mut gradients, config.grad_clip_norm)?;
-        if grad_explosion_artifact(step_u64, clip.grad_norm_pre).is_some() {
-            grad_explosion_events += 1;
-        }
-        let learning_rate = schedule.lr(step);
-        apply_pusht_minimal_lewm_adamw(
-            &mut model,
-            &gradients,
-            &mut optimizer,
-            learning_rate,
-            &optim_config,
-        );
-        losses.push(TrainLossPoint {
-            step: step_u64,
-            loss: total_loss,
-            pred_loss,
-            sigreg_proxy_loss,
-            grad_norm_pre: clip.grad_norm_pre,
-            grad_norm_post: clip.grad_norm_post,
-            learning_rate,
-            samples_seen,
-        });
-    }
-
-    Ok(PushtMinimalLewmOutcome {
-        losses,
-        model,
-        optimizer,
-        step: max_steps,
-        batch_size,
-        samples_seen,
-        grad_explosion_events,
-    })
 }
 
 fn train_steps_as_u32(steps: u64) -> Result<u32, TrainerError> {
@@ -2514,13 +2275,6 @@ fn training_sample_index(
         .saturating_add(sample_offset);
     let shuffle_offset = usize::try_from(rng_streams.data_shuffle.next_u64()).unwrap_or_default();
     Ok(sequential_index.wrapping_add(shuffle_offset) % dataset_len)
-}
-
-fn sequential_training_sample_index(step: u32, sample_offset: usize, batch_size: usize) -> usize {
-    let step_index = usize::try_from(step.saturating_sub(1)).unwrap_or_default();
-    step_index
-        .saturating_mul(batch_size)
-        .saturating_add(sample_offset)
 }
 
 fn full_lewm_example_from_sample(
@@ -2806,160 +2560,6 @@ fn full_lewm_packed_action(
     Ok(packed)
 }
 
-#[allow(dead_code)]
-fn minimal_lewm_example_from_sample(
-    sample: &PushtSample,
-    history_size: usize,
-) -> Result<PushtMinimalLewmExample, TrainerError> {
-    let action_values = sample.actions.len();
-    let expected_action_values = sample
-        .action_shape
-        .0
-        .checked_mul(PUSHT_ACTION_DIM)
-        .ok_or_else(|| TrainerError::Data {
-            source: DataError::InvalidTransform("PushT action shape overflow".to_owned()),
-        })?;
-    if sample.action_shape.1 != PUSHT_ACTION_DIM || action_values != expected_action_values {
-        return Err(TrainerError::Data {
-            source: DataError::InvalidTransform(format!(
-                "PushT minimal LeWM expects action shape (T, {PUSHT_ACTION_DIM}), found {:?} with {action_values} values",
-                sample.action_shape
-            )),
-        });
-    }
-
-    let frame_count = sample.frame_shape.0;
-    if frame_count == 0 {
-        return Err(TrainerError::Data {
-            source: DataError::InvalidTransform("PushT frame time is zero".to_owned()),
-        });
-    }
-    let source_len = history_size.clamp(1, frame_count);
-    let target_start = source_len.min(frame_count.saturating_sub(1));
-    let target_len = frame_count.saturating_sub(target_start).max(1);
-
-    Ok(PushtMinimalLewmExample {
-        source: sample_temporal_features(sample, 0, source_len)?,
-        target: sample_temporal_features(sample, target_start, target_len)?,
-        action_mean: sample_action_mean(sample)?,
-    })
-}
-
-#[allow(dead_code)]
-fn sample_temporal_features(
-    sample: &PushtSample,
-    start_frame: usize,
-    frame_count: usize,
-) -> Result<PushtMinimalLewmFeatures, TrainerError> {
-    if sample.frames_t.is_empty() {
-        return Err(TrainerError::Data {
-            source: DataError::InvalidTransform("PushT frame buffer is empty".to_owned()),
-        });
-    }
-    let frame_stride = sample
-        .frame_shape
-        .1
-        .checked_mul(sample.frame_shape.2)
-        .and_then(|value| value.checked_mul(sample.frame_shape.3))
-        .ok_or_else(|| TrainerError::Data {
-            source: DataError::InvalidTransform("PushT frame shape overflow".to_owned()),
-        })?;
-    let end_frame = start_frame
-        .checked_add(frame_count)
-        .ok_or_else(|| TrainerError::Data {
-            source: DataError::InvalidTransform("PushT temporal feature range overflow".to_owned()),
-        })?;
-    let end_offset = end_frame
-        .checked_mul(frame_stride)
-        .ok_or_else(|| TrainerError::Data {
-            source: DataError::InvalidTransform(
-                "PushT temporal feature offset overflow".to_owned(),
-            ),
-        })?;
-    if end_frame > sample.frame_shape.0 || end_offset > sample.frames_t.len() {
-        return Err(TrainerError::Data {
-            source: DataError::InvalidTransform(format!(
-                "PushT temporal feature range {start_frame}..{end_frame} exceeds frame shape {:?}",
-                sample.frame_shape
-            )),
-        });
-    }
-
-    let start_offset = start_frame
-        .checked_mul(frame_stride)
-        .ok_or_else(|| TrainerError::Data {
-            source: DataError::InvalidTransform("PushT temporal feature start overflow".to_owned()),
-        })?;
-    let values = &sample.frames_t[start_offset..end_offset];
-    let mut sum = 0.0;
-    let mut energy = 0.0;
-    for value in values {
-        let normalized = (f64::from(*value) / 255.0 * 2.0) - 1.0;
-        sum += normalized;
-        energy += normalized * normalized;
-    }
-    let denominator = usize_to_f64(values.len())?;
-    Ok(PushtMinimalLewmFeatures {
-        pixel_mean: sum / denominator,
-        pixel_energy: energy / denominator,
-        time_fraction: f64::from(sample.meta.start_frame) / 1_000.0,
-    })
-}
-
-#[allow(dead_code)]
-fn sample_action_mean(sample: &PushtSample) -> Result<[f64; PUSHT_ACTION_DIM], TrainerError> {
-    let time = sample.action_shape.0;
-    if time == 0 {
-        return Err(TrainerError::Data {
-            source: DataError::InvalidTransform("PushT action time is zero".to_owned()),
-        });
-    }
-    let mut sums = [0.0; PUSHT_ACTION_DIM];
-    for chunk in sample.actions.chunks_exact(PUSHT_ACTION_DIM) {
-        for (dim, value) in chunk.iter().copied().enumerate() {
-            if !value.is_finite() {
-                return Err(TrainerError::Data {
-                    source: DataError::InvalidTransform(
-                        "PushT action value must be finite".to_owned(),
-                    ),
-                });
-            }
-            sums[dim] += f64::from(value);
-        }
-    }
-    let denominator = usize_to_f64(time)?;
-    Ok([sums[0] / denominator, sums[1] / denominator])
-}
-
-#[allow(dead_code)]
-fn apply_pusht_minimal_lewm_adamw(
-    model: &mut PushtMinimalLewmCore,
-    gradients: &[f64],
-    optimizer: &mut PushtMinimalLewmAdamWState,
-    learning_rate: f64,
-    config: &OptimConfig,
-) {
-    optimizer.step += 1;
-    for (param_index, gradient) in gradients
-        .iter()
-        .copied()
-        .enumerate()
-        .take(PUSHT_MINIMAL_LEWM_PARAM_COUNT)
-    {
-        let spec = parameter_spec_for_flat_index(param_index);
-        let updated = adamw_update_scalar(
-            model.parameter(param_index),
-            gradient,
-            &mut optimizer.params[param_index],
-            optimizer.step,
-            learning_rate,
-            config,
-            spec.apply_weight_decay,
-        );
-        model.set_parameter(param_index, updated);
-    }
-}
-
 fn apply_pusht_full_lewm_adamw(
     model: &mut PushtFullLewmCore,
     gradients: &[f64],
@@ -2988,12 +2588,14 @@ fn apply_pusht_full_lewm_adamw(
     }
 }
 
-fn write_pusht_full_lewm_checkpoint(
+fn write_full_lewm_checkpoint(
     output_dir: &Path,
     config_hash: &str,
     seed: u64,
     scheduler_total_steps: u64,
     outcome: &PushtFullLewmOutcome,
+    run_id: &'static str,
+    record_kind: &str,
 ) -> Result<CheckpointPaths, TrainerError> {
     let parameters = outcome
         .model
@@ -3011,7 +2613,7 @@ fn write_pusht_full_lewm_checkpoint(
     };
     let record = PushtFullLewmRecord {
         schema_version: "1.1.0".to_owned(),
-        kind: "lewm-rs-pusht-full-module-lewm-record".to_owned(),
+        kind: record_kind.to_owned(),
         step: outcome.step,
         params: outcome.model.flat_parameters().to_vec(),
         adamw_step: outcome.optimizer.step,
@@ -3022,7 +2624,7 @@ fn write_pusht_full_lewm_checkpoint(
     let burn_record = serde_json::to_vec(&record)?;
     let request = CheckpointWriteRequest {
         output_dir,
-        run_id: PUSHT_FULL_LEWM_RUN_ID,
+        run_id,
         step: outcome.step,
         epoch: 0,
         wall_time_s: 0.0,
@@ -3038,6 +2640,24 @@ fn write_pusht_full_lewm_checkpoint(
     save_checkpoint(&request).map_err(TrainerError::from)
 }
 
+fn write_pusht_full_lewm_checkpoint(
+    output_dir: &Path,
+    config_hash: &str,
+    seed: u64,
+    scheduler_total_steps: u64,
+    outcome: &PushtFullLewmOutcome,
+) -> Result<CheckpointPaths, TrainerError> {
+    write_full_lewm_checkpoint(
+        output_dir,
+        config_hash,
+        seed,
+        scheduler_total_steps,
+        outcome,
+        PUSHT_FULL_LEWM_RUN_ID,
+        "lewm-rs-pusht-full-module-lewm-record",
+    )
+}
+
 fn write_so100_full_lewm_checkpoint(
     output_dir: &Path,
     config_hash: &str,
@@ -3045,47 +2665,15 @@ fn write_so100_full_lewm_checkpoint(
     scheduler_total_steps: u64,
     outcome: &PushtFullLewmOutcome,
 ) -> Result<CheckpointPaths, TrainerError> {
-    let parameters = outcome
-        .model
-        .parameter_specs()
-        .iter()
-        .map(|spec| full_lewm_parameter_tensor(&outcome.model, spec))
-        .collect::<Result<Vec<_>, _>>()?;
-    let parity = ParityProbe {
-        encoder_cls_l_inf: outcome.losses.last().map_or(0.0, |point| point.pred_loss),
-        predictor_l_inf: last_train_loss(&outcome.losses),
-        sigreg_value: outcome
-            .losses
-            .last()
-            .map_or(0.0, |point| point.sigreg_proxy_loss),
-    };
-    let record = PushtFullLewmRecord {
-        schema_version: "1.1.0".to_owned(),
-        kind: "lewm-rs-so100-full-module-lewm-record".to_owned(),
-        step: outcome.step,
-        params: outcome.model.flat_parameters().to_vec(),
-        adamw_step: outcome.optimizer.step,
-        adamw_params: outcome.optimizer.params.clone(),
-        samples_seen: outcome.samples_seen,
-        scheduler_total_steps,
-    };
-    let burn_record = serde_json::to_vec(&record)?;
-    let request = CheckpointWriteRequest {
+    write_full_lewm_checkpoint(
         output_dir,
-        run_id: SO100_FULL_LEWM_RUN_ID,
-        step: outcome.step,
-        epoch: 0,
-        wall_time_s: 0.0,
-        git_short_sha: option_env!("LEWM_GIT_SHA").unwrap_or("unknown"),
         config_hash,
-        rng_state: checkpoint_rng_state(seed, outcome.step, &outcome.rng_streams),
-        metrics_last_step: full_train_checkpoint_metrics(outcome),
-        burn_record: &burn_record,
-        parameters: &parameters,
-        parity: &parity,
-    };
-
-    save_checkpoint(&request).map_err(TrainerError::from)
+        seed,
+        scheduler_total_steps,
+        outcome,
+        SO100_FULL_LEWM_RUN_ID,
+        "lewm-rs-so100-full-module-lewm-record",
+    )
 }
 
 fn full_lewm_parameter_tensor(
@@ -3174,115 +2762,6 @@ fn f32_values(bytes: &[u8]) -> Vec<f32> {
         .chunks_exact(4)
         .map(|chunk| f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))
         .collect()
-}
-
-#[allow(dead_code)]
-fn write_pusht_minimal_lewm_checkpoint(
-    output_dir: &Path,
-    config_hash: &str,
-    seed: u64,
-    outcome: &PushtMinimalLewmOutcome,
-) -> Result<CheckpointPaths, TrainerError> {
-    let parameters = PUSHT_MINIMAL_LEWM_PARAMETER_SPECS
-        .iter()
-        .copied()
-        .map(|spec| minimal_lewm_parameter_tensor(&outcome.model, spec))
-        .collect::<Result<Vec<_>, _>>()?;
-    let parity = ParityProbe {
-        encoder_cls_l_inf: outcome.losses.last().map_or(0.0, |point| point.pred_loss),
-        predictor_l_inf: last_train_loss(&outcome.losses),
-        sigreg_value: outcome
-            .losses
-            .last()
-            .map_or(0.0, |point| point.sigreg_proxy_loss),
-    };
-    let record = PushtMinimalLewmRecord {
-        schema_version: "1.0.0",
-        kind: "lewm-rs-pusht-minimal-lewm-record",
-        step: outcome.step,
-        params: outcome.model.flat_parameters().to_vec(),
-        adamw_step: outcome.optimizer.step,
-        samples_seen: outcome.samples_seen,
-    };
-    let burn_record = serde_json::to_vec(&record)?;
-    let request = CheckpointWriteRequest {
-        output_dir,
-        run_id: "pusht-minimal-lewm-v1",
-        step: outcome.step,
-        epoch: 0,
-        wall_time_s: 0.0,
-        git_short_sha: option_env!("LEWM_GIT_SHA").unwrap_or("unknown"),
-        config_hash,
-        rng_state: CheckpointRngState {
-            global_seed: seed,
-            step_at_save: outcome.step,
-            data_shuffle: "sequential-window-modulo-v1".to_owned(),
-            sigreg_sketch: "minimal-lewm-latent-scale-proxy-v1".to_owned(),
-            dropout: "disabled-for-minimal-lewm".to_owned(),
-            cem: "disabled-for-minimal-lewm".to_owned(),
-            model_init: "pusht-minimal-lewm-deterministic-init-v1".to_owned(),
-        },
-        metrics_last_step: train_checkpoint_metrics(outcome),
-        burn_record: &burn_record,
-        parameters: &parameters,
-        parity: &parity,
-    };
-
-    save_checkpoint(&request).map_err(TrainerError::from)
-}
-
-#[allow(dead_code)]
-fn minimal_lewm_parameter_tensor(
-    model: &PushtMinimalLewmCore,
-    spec: crate::pusht_lewm::PushtMinimalLewmParameterSpec,
-) -> Result<ParameterTensor, TrainerError> {
-    let group_values = model.parameter_values(spec);
-    let values = group_values.iter().copied().map(f32_from_f64).collect();
-    Ok(ParameterTensor::f32(
-        spec.name,
-        vec![PUSHT_MINIMAL_LEWM_LATENT_DIM],
-        values,
-    )?)
-}
-
-#[allow(dead_code)]
-fn train_checkpoint_metrics(outcome: &PushtMinimalLewmOutcome) -> BTreeMap<String, f64> {
-    let mut metrics = BTreeMap::new();
-    metrics.insert("loss/train".to_owned(), last_train_loss(&outcome.losses));
-    metrics.insert(
-        "loss/prediction".to_owned(),
-        outcome.losses.last().map_or(0.0, |point| point.pred_loss),
-    );
-    metrics.insert(
-        "loss/sigreg_proxy".to_owned(),
-        outcome
-            .losses
-            .last()
-            .map_or(0.0, |point| point.sigreg_proxy_loss),
-    );
-    metrics.insert(
-        "optim/grad_norm_pre".to_owned(),
-        outcome
-            .losses
-            .last()
-            .map_or(0.0, |point| point.grad_norm_pre),
-    );
-    metrics.insert(
-        "optim/grad_norm_post".to_owned(),
-        outcome
-            .losses
-            .last()
-            .map_or(0.0, |point| point.grad_norm_post),
-    );
-    metrics.insert(
-        "train/samples_seen".to_owned(),
-        smoke_step_as_f64(outcome.samples_seen).unwrap_or(0.0),
-    );
-    metrics.insert(
-        "train/grad_explosion_events".to_owned(),
-        smoke_step_as_f64(outcome.grad_explosion_events).unwrap_or(0.0),
-    );
-    metrics
 }
 
 fn pusht_fixture_samples(horizon: usize) -> Result<Vec<PushtSample>, TrainerError> {

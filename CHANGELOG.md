@@ -7,6 +7,25 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+### Changed
+
+- `lewm-train` trainer: removed the legacy `pusht_lewm` (14-parameter "minimal
+  LeWM") module and its orphaned 600-line dead-code chain inside
+  `trainer.rs` (`run_pusht_minimal_lewm_training`,
+  `write_pusht_minimal_lewm_checkpoint`, `apply_pusht_minimal_lewm_adamw`,
+  `PushtMinimalLewm{AdamWState,Outcome,Record}`, the `_features` /
+  `_example_from_sample` helpers, and `sequential_training_sample_index`).
+  The replacement `pusht_full` path has subsumed it for the entire RFC 0005
+  release line; nothing inside or outside the workspace referenced these
+  symbols. Net: −1 463 lines from `lewm-train`.
+- `lewm-train` trainer: unified the two near-identical PushT and SO-100 full
+  LeWM training loops behind a single generic `run_full_lewm_training` driven
+  by a new `TrainingSampleSource` trait and an `&dyn Fn` example builder.
+  `write_pusht_full_lewm_checkpoint` / `write_so100_full_lewm_checkpoint`
+  delegate to a shared `write_full_lewm_checkpoint`. No behaviour change; the
+  per-step iteration order, RNG advancement, and on-disk artifacts are
+  identical (validated by the existing 57-test trainer suite).
+
 ### Added
 
 - Python lint baseline: Ruff configured in `python/pyproject.toml` (rule
