@@ -10,7 +10,7 @@
 # Image is published at `ghcr.io/abdelstark/lewm-rs`. HF Jobs pin to the
 # release tag (see `jobs/*.yaml` `image:` lines) so reruns are reproducible.
 
-FROM rust:1.89.0-bookworm AS builder
+FROM rust:1.95.0-bookworm AS builder
 
 WORKDIR /src
 
