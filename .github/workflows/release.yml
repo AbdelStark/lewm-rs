@@ -42,7 +42,7 @@ jobs:
     needs: [tag-format]
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Build release binaries in reproducible container
         run: |
@@ -73,7 +73,7 @@ jobs:
             '
 
       - name: Upload Linux binaries
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: linux-static-binaries
           path: dist/linux-static-binaries/lewm-*
@@ -84,7 +84,7 @@ jobs:
     needs: [tag-format]
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install Rust
         run: rustup toolchain install "$RUST_TOOLCHAIN" --profile default --target aarch64-apple-darwin
@@ -93,7 +93,7 @@ jobs:
         run: REPRO_TARGET=aarch64-apple-darwin REPRO_TARGET_DIR=target/reproducible-macos-arm REPRO_OUTPUT_DIR=dist/macos-arm-binaries scripts/build_reproducible_release.sh
 
       - name: Upload macOS binaries
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: macos-arm-binaries
           path: dist/macos-arm-binaries/lewm-*
@@ -107,11 +107,11 @@ jobs:
       packages: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Log in to GHCR when Dockerfile exists
         if: hashFiles('Dockerfile') != ''
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -151,7 +151,7 @@ jobs:
 
       - name: Attest container provenance
         if: steps.container_image.outputs.image != ''
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@v4
         with:
           subject-name: ${{ steps.container_image.outputs.image }}
           subject-digest: ${{ steps.container_image.outputs.digest }}
@@ -163,7 +163,7 @@ jobs:
     needs: [tag-format]
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Prepare release notes
         run: |
@@ -171,7 +171,7 @@ jobs:
           awk '/^## \[/ { seen++ } seen <= 2 { print }' CHANGELOG.md > dist/release-notes.md
 
       - name: Upload release notes
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: release-notes
           path: dist/release-notes.md
@@ -182,10 +182,10 @@ jobs:
     needs: [tag-format]
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.13"
 
@@ -195,7 +195,7 @@ jobs:
             python3 scripts/sbom.py --output dist/sbom.cdx.json
 
       - name: Upload SBOM
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: sbom
           path: dist/sbom.cdx.json
@@ -206,10 +206,10 @@ jobs:
     needs: [tag-format, build-linux-static]
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Download published Linux binaries
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: linux-static-binaries
           path: dist/published
@@ -244,7 +244,7 @@ jobs:
     needs: [tag-format]
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install Rust
         run: rustup toolchain install "$RUST_TOOLCHAIN" --profile default
@@ -262,30 +262,30 @@ jobs:
       attestations: write
     steps:
       - name: Download Linux binaries
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: linux-static-binaries
           path: dist/linux-static-binaries
       - name: Download macOS binaries
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: macos-arm-binaries
           path: dist/macos-arm-binaries
       - name: Download SBOM
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: sbom
           path: dist/sbom
 
       - name: Attest binary provenance
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@v4
         with:
           subject-path: |
             dist/linux-static-binaries/lewm-*
             dist/macos-arm-binaries/lewm-*
 
       - name: Attest SBOM
-        uses: actions/attest-sbom@v2
+        uses: actions/attest-sbom@v4
         with:
           subject-path: |
             dist/linux-static-binaries/lewm-*
@@ -298,10 +298,10 @@ jobs:
     needs: [build-linux-static, build-macos-arm, container, release-notes, sbom, verify-reproducible, infer-export-verifier, attestation]
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Download release artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: dist
 
