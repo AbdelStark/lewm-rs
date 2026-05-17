@@ -8,6 +8,8 @@ use std::time::Duration;
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use serde_json::{Value, json};
+use ureq::http::Response;
+use ureq::{Body, config::Config};
 
 use crate::HubError;
 use crate::upload::{
@@ -179,9 +181,10 @@ impl EnvironmentHubTransport {
 
     /// Build a transport for a specific Hub-compatible endpoint.
     pub fn with_endpoint(endpoint: impl Into<String>) -> Self {
+        let config = Config::builder().http_status_as_error(false).build();
         Self {
             endpoint: endpoint.into().trim_end_matches('/').to_owned(),
-            agent: ureq::AgentBuilder::new().build(),
+            agent: ureq::Agent::new_with_config(config),
         }
     }
 }
@@ -237,11 +240,11 @@ impl HubTransport for EnvironmentHubTransport {
             .agent
             .get(&self.url(&path))
             .query("blobs", "true")
-            .set("Authorization", &format!("Bearer {token}"))
-            .set("User-Agent", USER_AGENT)
+            .header("Authorization", &format!("Bearer {token}"))
+            .header("User-Agent", USER_AGENT)
             .call()
-            .map_err(map_ureq_error);
-        let value = match response {
+            .map_err(|e| map_ureq_error(&e))?;
+        let value = match check_status(response) {
             Ok(response) => response_json(response)?,
             Err(HubError::HttpStatus { status: 404, .. }) => return Ok(None),
             Err(error) => return Err(error),
@@ -338,10 +341,11 @@ impl EnvironmentHubTransport {
         let response = self
             .agent
             .get(&self.url(path))
-            .set("Authorization", &format!("Bearer {token}"))
-            .set("User-Agent", USER_AGENT)
+            .header("Authorization", &format!("Bearer {token}"))
+            .header("User-Agent", USER_AGENT)
             .call()
-            .map_err(map_ureq_error)?;
+            .map_err(|e| map_ureq_error(&e))?;
+        let response = check_status(response)?;
         response_json(response)
     }
 
@@ -349,21 +353,24 @@ impl EnvironmentHubTransport {
         let response = self
             .agent
             .post(&self.url(path))
-            .set("Authorization", &format!("Bearer {token}"))
-            .set("User-Agent", USER_AGENT)
+            .header("Authorization", &format!("Bearer {token}"))
+            .header("User-Agent", USER_AGENT)
             .send_json(payload)
-            .map_err(map_ureq_error)?;
+            .map_err(|e| map_ureq_error(&e))?;
+        let response = check_status(response)?;
         response_json(response)
     }
 
     fn post_ndjson(&self, token: &str, path: &str, payload: &str) -> Result<(), HubError> {
-        self.agent
+        let response = self
+            .agent
             .post(&self.url(path))
-            .set("Authorization", &format!("Bearer {token}"))
-            .set("User-Agent", USER_AGENT)
-            .set("Content-Type", "application/x-ndjson")
-            .send_string(payload)
-            .map_err(map_ureq_error)?;
+            .header("Authorization", &format!("Bearer {token}"))
+            .header("User-Agent", USER_AGENT)
+            .header("Content-Type", "application/x-ndjson")
+            .send(payload)
+            .map_err(|e| map_ureq_error(&e))?;
+        check_status(response)?;
         Ok(())
     }
 
@@ -411,28 +418,37 @@ impl EnvironmentHubTransport {
     }
 }
 
-fn response_json(response: ureq::Response) -> Result<Value, HubError> {
+fn response_json(mut response: Response<Body>) -> Result<Value, HubError> {
     let body = response
-        .into_string()
+        .body_mut()
+        .read_to_string()
         .map_err(|source| HubError::Network(format!("could not read Hub response: {source}")))?;
     Ok(serde_json::from_str(&body)?)
 }
 
-fn map_ureq_error(error: ureq::Error) -> HubError {
-    match error {
-        ureq::Error::Status(status, response) => {
-            let retry_after = response.header("Retry-After").and_then(parse_retry_after);
-            let message = response
-                .into_string()
-                .unwrap_or_else(|source| format!("could not read error response: {source}"));
-            HubError::HttpStatus {
-                status,
-                retry_after,
-                message,
-            }
-        },
-        ureq::Error::Transport(error) => HubError::Network(error.to_string()),
+fn check_status(mut response: Response<Body>) -> Result<Response<Body>, HubError> {
+    let status = response.status().as_u16();
+    if (200..300).contains(&status) {
+        return Ok(response);
     }
+    let retry_after = response
+        .headers()
+        .get("Retry-After")
+        .and_then(|v| v.to_str().ok())
+        .and_then(parse_retry_after);
+    let message = response
+        .body_mut()
+        .read_to_string()
+        .unwrap_or_else(|source| format!("could not read error response: {source}"));
+    Err(HubError::HttpStatus {
+        status,
+        retry_after,
+        message,
+    })
+}
+
+fn map_ureq_error(error: &ureq::Error) -> HubError {
+    HubError::Network(error.to_string())
 }
 
 fn parse_retry_after(value: &str) -> Option<Duration> {

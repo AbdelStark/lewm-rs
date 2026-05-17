@@ -177,7 +177,7 @@ pub(super) fn validate_predict_shapes(
             reason: format!("actions must have 1 * H * A = {action_expected} elements"),
         });
     }
-    if history.len() % h != 0 {
+    if !history.len().is_multiple_of(h) {
         return Err(RunnerError::InvalidShape {
             reason: "history length must be divisible by H".to_owned(),
         });

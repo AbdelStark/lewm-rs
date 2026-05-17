@@ -303,7 +303,7 @@ mod tests {
             &root,
             &context.run_id,
             1,
-            Duration::from_secs(60),
+            Duration::from_mins(1),
         )?;
 
         writer.emit_scalar(&context, MetricName::LossTotal, 11, 2.5)?;

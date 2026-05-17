@@ -6,7 +6,7 @@
 [![Spec checks](https://github.com/AbdelStark/lewm-rs/actions/workflows/specs.yml/badge.svg)](https://github.com/AbdelStark/lewm-rs/actions/workflows/specs.yml)
 [![Conformance](https://github.com/AbdelStark/lewm-rs/actions/workflows/conformance.yml/badge.svg)](https://github.com/AbdelStark/lewm-rs/actions/workflows/conformance.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Rust 1.89](https://img.shields.io/badge/rust-1.89%20edition%202024-orange.svg)](rust-toolchain.toml)
+[![Rust 1.95](https://img.shields.io/badge/rust-1.95%20edition%202024-orange.svg)](rust-toolchain.toml)
 [![Burn 0.20.1](https://img.shields.io/badge/burn-0.20.1-informational.svg)](https://github.com/tracel-ai/burn)
 [![Tract 0.22.1](https://img.shields.io/badge/tract-0.22.1-informational.svg)](https://github.com/sonos/tract)
 [![Hub: PushT](https://img.shields.io/badge/%F0%9F%A4%97%20hub-lewm--rs--pusht-yellow.svg)](https://huggingface.co/abdelstark/lewm-rs-pusht)
@@ -53,7 +53,7 @@ flowchart LR
 ```bash
 git clone https://github.com/AbdelStark/lewm-rs.git
 cd lewm-rs
-rustup show active-toolchain                       # 1.89.0 pinned by rust-toolchain.toml
+rustup show active-toolchain                       # 1.95.0 pinned by rust-toolchain.toml
 cargo build --release --workspace --locked
 ```
 
@@ -177,7 +177,7 @@ CEM planning success rate on the standard PushT eval is **not** measured in this
 
 ## Reproducibility
 
-- **Toolchain.** Rust 1.89.0 pinned in [`rust-toolchain.toml`](rust-toolchain.toml); `Cargo.lock` committed and CI enforces `--locked`.
+- **Toolchain.** Rust 1.95.0 pinned in [`rust-toolchain.toml`](rust-toolchain.toml); `Cargo.lock` committed and CI enforces `--locked`.
 - **Determinism.** Substream-keyed `ChaCha20Rng` for all sampling (RFC 0013); `thread_rng` is lint-banned by `scripts/check_nondet.py`. Model-init seed, dataloader seed, and planning seed are recorded in every checkpoint sidecar.
 - **Hardware used for published results.** A10G-large (HF Jobs, $1.50/hr) for both training runs; Apple M3 (8-core ARM, `cargo build --release`) for the Tract CPU benchmark.
 - **Datasets.** PushT mirror at `quentinll/lewm-pusht` (HDF5 + Blosc); SO-100 mirror at `abdelstark/so100-pickplace-lewm-ready` (HDF5 re-encode of `lerobot/svla_so100_pickplace`).

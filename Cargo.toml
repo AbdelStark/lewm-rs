@@ -18,7 +18,7 @@ edition = "2024"
 license = "MIT"
 authors = ["Abdel <abdel@starkware.co>"]
 repository = "https://github.com/AbdelStark/lewm-rs"
-rust-version = "1.89"
+rust-version = "1.95"
 
 [workspace.dependencies]
 # Internal crates
@@ -48,13 +48,13 @@ tract-linalg = { version = "=0.22.1", features = ["multithread-mm"] }
 
 # Data
 hdf5-metno = { version = "0.10", features = ["static"] }
-parquet = "56"
-arrow-array = "56"
-arrow-schema = "56"
-image = { version = "=0.25.8", default-features = false }
-safetensors = "0.5"
+parquet = "58"
+arrow-array = "58"
+arrow-schema = "58"
+image = { version = "=0.25.10", default-features = false }
+safetensors = "0.7"
 ndarray = "0.16"
-sha2 = "0.10"
+sha2 = "0.11"
 
 # Concurrency
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "fs", "sync", "signal"] }
@@ -66,20 +66,20 @@ rayon = "1.10"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "fmt"] }
 nvtx = "1.3"
-tracing-opentelemetry = "0.28"
-opentelemetry = { version = "0.27", features = ["trace", "metrics"] }
-opentelemetry-otlp = { version = "0.27", features = ["grpc-tonic", "trace", "metrics"] }
-opentelemetry_sdk = "0.27"
-sysinfo = { version = "0.36", default-features = false, features = ["disk", "system"] }
+tracing-opentelemetry = "0.32"
+opentelemetry = { version = "0.31", features = ["trace", "metrics"] }
+opentelemetry-otlp = { version = "0.31", features = ["grpc-tonic", "trace", "metrics"] }
+opentelemetry_sdk = "0.31"
+sysinfo = { version = "0.39", default-features = false, features = ["disk", "system"] }
 nvml-wrapper = { version = "0.12.1", default-features = false }
 
 # Serialization, config, CLI
 base64 = "0.22"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-toml = "0.8"
+toml = "1"
 clap = { version = "4.5", features = ["derive", "env", "wrap_help"] }
-config = "0.14"
+config = "0.15"
 validator = { version = "0.20", features = ["derive"] }
 
 # Error handling
@@ -89,9 +89,9 @@ miette = { version = "7", features = ["fancy"] }
 serde_yaml_ng = "0.10"
 
 # RNG
-rand = { version = "0.8", default-features = false, features = ["std", "std_rng"] }
-rand_chacha = "0.3"
-rand_distr = "0.4"
+rand = { version = "0.10", default-features = false, features = ["std", "std_rng"] }
+rand_chacha = "0.10"
+rand_distr = "0.6"
 blake3 = "1"
 libm = "0.2"
 
@@ -100,20 +100,20 @@ hf-hub = { version = "0.4", default-features = false, features = ["tokio", "ureq
 
 # Utilities
 chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
-indicatif = "0.17"
+indicatif = "0.18"
 humantime = "2"
 bytes = "1"
 glob = "0.3"
 walkdir = "2"
-ureq = { version = "2", features = ["json"] }
+ureq = { version = "3", features = ["json"] }
 once_cell = "1"
-itertools = "0.13"
+itertools = "0.14"
 regex = "1"
 
 # Testing
 proptest = "1"
 insta = "1"
-criterion = "0.5"
+criterion = "0.8"
 
 [workspace.lints.rust]
 unsafe_code = "deny"

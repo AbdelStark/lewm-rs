@@ -18,7 +18,7 @@ const BYTES_PER_GIB: f32 = 1024.0 * 1024.0 * 1024.0;
 pub const SYSTEM_FAST_CADENCE: Duration = Duration::from_secs(30);
 
 /// Cadence for disk usage system metrics.
-pub const SYSTEM_DISK_CADENCE: Duration = Duration::from_secs(5 * 60);
+pub const SYSTEM_DISK_CADENCE: Duration = Duration::from_mins(5);
 
 /// One NVML GPU metric sample.
 #[derive(Debug, Clone, Copy, PartialEq)]

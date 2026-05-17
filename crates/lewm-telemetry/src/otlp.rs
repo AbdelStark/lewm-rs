@@ -9,9 +9,10 @@ use opentelemetry::{
 use opentelemetry_otlp::WithExportConfig;
 use opentelemetry_sdk::{
     Resource,
-    export::trace::SpanExporter,
-    runtime,
-    trace::{self, BatchConfigBuilder, BatchSpanProcessor, Tracer, TracerProvider},
+    trace::{
+        self, BatchConfigBuilder, BatchSpanProcessor, SdkTracer as Tracer, SdkTracerProvider,
+        SpanExporter,
+    },
 };
 
 use crate::{SpanName, TelemetryContext, TelemetryError};
@@ -25,7 +26,7 @@ const OTLP_FLUSH_INTERVAL: std::time::Duration = std::time::Duration::from_secs(
 /// `OTLP` trace exporter handle.
 #[derive(Clone)]
 pub struct OtlpTracer {
-    provider: Arc<TracerProvider>,
+    provider: Arc<SdkTracerProvider>,
     tracer: Tracer,
 }
 
@@ -68,7 +69,9 @@ impl OtlpTracer {
     ///
     /// Returns an error when any span processor fails to flush.
     pub fn force_flush(&self) -> Result<(), TelemetryError> {
-        collect_trace_results(self.provider.force_flush())
+        self.provider
+            .force_flush()
+            .map_err(|err| TelemetryError::TraceExporter(err.to_string()))
     }
 
     /// Flush and shut down the exporter.
@@ -83,10 +86,10 @@ impl OtlpTracer {
     }
 
     fn from_exporter(exporter: impl SpanExporter + 'static, context: &TelemetryContext) -> Self {
-        let processor = BatchSpanProcessor::builder(exporter, runtime::Tokio)
+        let processor = BatchSpanProcessor::builder(exporter)
             .with_batch_config(otlp_batch_config())
             .build();
-        let provider = TracerProvider::builder()
+        let provider = SdkTracerProvider::builder()
             .with_span_processor(processor)
             .with_resource(resource_attributes(context))
             .build();
@@ -200,11 +203,13 @@ fn init_tracer_from_endpoint(
 }
 
 fn resource_attributes(context: &TelemetryContext) -> Resource {
-    Resource::new(vec![
-        KeyValue::new("service.name", SERVICE_NAME),
-        KeyValue::new("run.id", context.run_id.clone()),
-        KeyValue::new("git_short_sha", context.git_short_sha.clone()),
-    ])
+    Resource::builder_empty()
+        .with_attributes([
+            KeyValue::new("service.name", SERVICE_NAME),
+            KeyValue::new("run.id", context.run_id.clone()),
+            KeyValue::new("git_short_sha", context.git_short_sha.clone()),
+        ])
+        .build()
 }
 
 fn span_attributes(
@@ -237,31 +242,13 @@ fn otlp_batch_config() -> trace::BatchConfig {
         .build()
 }
 
-fn collect_trace_results(
-    results: Vec<opentelemetry::trace::TraceResult<()>>,
-) -> Result<(), TelemetryError> {
-    let errors = results
-        .into_iter()
-        .filter_map(Result::err)
-        .map(|err| err.to_string())
-        .collect::<Vec<_>>();
-    if errors.is_empty() {
-        Ok(())
-    } else {
-        Err(TelemetryError::TraceExporter(errors.join("; ")))
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use std::{
-        future::Future,
-        pin::Pin,
-        sync::{Arc, Mutex},
-    };
+    use std::sync::{Arc, Mutex};
 
     use opentelemetry::Key;
-    use opentelemetry_sdk::export::trace::{ExportResult, SpanData};
+    use opentelemetry_sdk::error::OTelSdkResult;
+    use opentelemetry_sdk::trace::SpanData;
 
     use super::*;
 
@@ -288,18 +275,12 @@ mod tests {
     }
 
     impl SpanExporter for RecordingSpanExporter {
-        fn export(
-            &mut self,
-            batch: Vec<SpanData>,
-        ) -> Pin<Box<dyn Future<Output = ExportResult> + Send + 'static>> {
-            let spans = self.spans.clone();
-            Box::pin(async move {
-                spans
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner)
-                    .extend(batch);
-                Ok(())
-            })
+        async fn export(&self, batch: Vec<SpanData>) -> OTelSdkResult {
+            self.spans
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .extend(batch);
+            Ok(())
         }
 
         fn set_resource(&mut self, resource: &Resource) {
@@ -365,7 +346,7 @@ mod tests {
 
     fn assert_resource(resource: &Resource, key: &'static str, value: &str) {
         let actual = resource
-            .get(Key::from_static_str(key))
+            .get(&Key::from_static_str(key))
             .map(|value| value.to_string());
         assert_eq!(actual.as_deref(), Some(value));
     }

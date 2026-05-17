@@ -2,7 +2,9 @@
 
 use std::time::Duration;
 
-use criterion::{Criterion, black_box, criterion_group, criterion_main};
+use std::hint::black_box;
+
+use criterion::{Criterion, criterion_group, criterion_main};
 use lewm_core::{
     BICUBIC_ALIGN_CORNERS, DeviceKey, PositionEmbedding, build_causal_mask, gelu_erf,
     gelu_tanh_approx, interpolate_pos_embed,

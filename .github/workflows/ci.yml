@@ -17,7 +17,7 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
-  RUST_TOOLCHAIN: "1.89.0"
+  RUST_TOOLCHAIN: "1.95.0"
   # Fail fast when the network goes down mid-run.
   CARGO_NET_RETRY: "3"
   RUSTUP_MAX_RETRIES: "3"
@@ -28,7 +28,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install Rust
         run: rustup toolchain install "$RUST_TOOLCHAIN" --profile default --component rustfmt
@@ -57,7 +57,7 @@ jobs:
             feature_args: "--no-default-features --features cpu-only"
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install Rust
         run: rustup toolchain install "$RUST_TOOLCHAIN" --profile default --component clippy
@@ -86,7 +86,7 @@ jobs:
             feature_args: "--no-default-features --features cpu-only"
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install Rust
         run: rustup toolchain install "$RUST_TOOLCHAIN" --profile default
@@ -115,7 +115,7 @@ jobs:
             feature_args: "--no-default-features --features cpu-only"
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           lfs: true
 
@@ -134,7 +134,7 @@ jobs:
       REFERENCE_SF_PATH: /tmp/lewm-parity-dumps/reference_model.safetensors
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           lfs: true
 
@@ -143,7 +143,7 @@ jobs:
 
       - name: Restore parity dump cache
         id: cache-parity
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: /tmp/lewm-parity-dumps
           key: parity-dumps-${{ hashFiles('tests/fixtures/parity_fixture.npz') }}
@@ -181,7 +181,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install cargo-deny
         uses: taiki-e/install-action@v2
@@ -196,7 +196,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install cargo-audit
         uses: taiki-e/install-action@v2
@@ -214,12 +214,12 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.13"
 
@@ -254,10 +254,10 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.13"
 
@@ -269,10 +269,10 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.13"
 
@@ -284,10 +284,10 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.13"
 
@@ -299,10 +299,10 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.13"
 
@@ -314,10 +314,10 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.13"
 
@@ -332,10 +332,10 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.13"
 
@@ -347,7 +347,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install Rust
         run: rustup toolchain install "$RUST_TOOLCHAIN" --profile default
@@ -360,10 +360,10 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.13"
 
@@ -382,7 +382,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           lfs: true
 
@@ -398,7 +398,7 @@ jobs:
     continue-on-error: true
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           lfs: true
 

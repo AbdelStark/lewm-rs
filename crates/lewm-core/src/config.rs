@@ -128,7 +128,7 @@ impl VitConfig {
 
     /// Number of patches per image side.
     pub fn grid_size(&self) -> Option<usize> {
-        if self.patch_size == 0 || self.image_size % self.patch_size != 0 {
+        if self.patch_size == 0 || !self.image_size.is_multiple_of(self.patch_size) {
             return None;
         }
 
@@ -142,7 +142,9 @@ impl VitConfig {
 
     /// Attention head dimension implied by the encoder config.
     pub fn head_dim(&self) -> Option<usize> {
-        if self.num_attention_heads == 0 || self.hidden_size % self.num_attention_heads != 0 {
+        if self.num_attention_heads == 0
+            || !self.hidden_size.is_multiple_of(self.num_attention_heads)
+        {
             return None;
         }
 
@@ -155,13 +157,13 @@ impl VitConfig {
 
         if self.patch_size == 0 {
             errors.push("encoder.patch_size must be non-zero".to_owned());
-        } else if self.image_size % self.patch_size != 0 {
+        } else if !self.image_size.is_multiple_of(self.patch_size) {
             errors.push("encoder.image_size must be divisible by encoder.patch_size".to_owned());
         }
 
         if self.num_attention_heads == 0 {
             errors.push("encoder.num_attention_heads must be non-zero".to_owned());
-        } else if self.hidden_size % self.num_attention_heads != 0 {
+        } else if !self.hidden_size.is_multiple_of(self.num_attention_heads) {
             errors.push(
                 "encoder.hidden_size must be divisible by encoder.num_attention_heads".to_owned(),
             );

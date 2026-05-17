@@ -92,7 +92,7 @@ impl ActionNormalizer {
         map_value: impl Fn(f32, f32, f32) -> f32,
     ) -> Result<Vec<f32>, DataError> {
         let action_dim = self.action_dim();
-        if src.len() % action_dim != 0 {
+        if !src.len().is_multiple_of(action_dim) {
             return Err(DataError::InvalidTransform(format!(
                 "action buffer length {} is not divisible by action_dim {action_dim}",
                 src.len()
@@ -224,7 +224,7 @@ impl TransformStats {
         ];
 
         let metadata = None;
-        safetensors::serialize_to_file(tensors, &metadata, path)
+        safetensors::serialize_to_file(tensors, metadata, path)
             .map_err(|source| DataError::safetensors(path, source))
     }
 
@@ -367,7 +367,7 @@ fn read_u8_array<const N: usize>(
 }
 
 fn parse_f32_data(name: &str, data: &[u8]) -> Result<Vec<f32>, DataError> {
-    if data.len() % std::mem::size_of::<f32>() != 0 {
+    if !data.len().is_multiple_of(std::mem::size_of::<f32>()) {
         return Err(DataError::InvalidTransform(format!(
             "{name} byte length {} is not divisible by {}",
             data.len(),
