@@ -7,7 +7,7 @@
 
 ## 1. Prerequisites
 
-- **Rust toolchain.** Pinned to `1.89.0` in `rust-toolchain.toml`.
+- **Rust toolchain.** Pinned to `1.95.0` in `rust-toolchain.toml`.
   `rustup` will install it automatically when you `cargo` anything in
   the repo.
 - **Python 3.13** for the Python helpers and ONNX export. A `pyproject.toml`

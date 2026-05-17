@@ -22,7 +22,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-  RUST_TOOLCHAIN: "1.89.0"
+  RUST_TOOLCHAIN: "1.95.0"
   CARGO_NET_RETRY: "3"
   RUSTUP_MAX_RETRIES: "3"
 

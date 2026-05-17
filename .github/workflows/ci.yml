@@ -17,7 +17,7 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
-  RUST_TOOLCHAIN: "1.89.0"
+  RUST_TOOLCHAIN: "1.95.0"
   # Fail fast when the network goes down mid-run.
   CARGO_NET_RETRY: "3"
   RUSTUP_MAX_RETRIES: "3"

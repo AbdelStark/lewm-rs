@@ -72,7 +72,7 @@ deployment.
 | File | Role |
 |------|------|
 | `Cargo.toml` (root) | Workspace members, profiles, shared dep versions, lint table. |
-| `rust-toolchain.toml` | Pinned Rust toolchain (currently 1.89.0). |
+| `rust-toolchain.toml` | Pinned Rust toolchain (currently 1.95.0). |
 | `clippy.toml` | Clippy configuration overrides. |
 | `rustfmt.toml` | Rustfmt configuration. |
 | `deny.toml` | `cargo-deny` policy for licenses, advisories, sources. |

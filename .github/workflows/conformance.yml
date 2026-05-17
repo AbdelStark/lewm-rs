@@ -12,7 +12,7 @@ permissions:
 
 env:
   DISCUSSION_CATEGORY_NAME: "General"
-  RUST_TOOLCHAIN: "1.89.0"
+  RUST_TOOLCHAIN: "1.95.0"
 
 jobs:
   conformance:

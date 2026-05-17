@@ -5,7 +5,7 @@ lewm-rs — pure-Rust workspace reproducing LeWorldModel (Maes et al., 2026): tr
 <stack>
 | Layer            | Technology              | Version   | Notes                                              |
 |------------------|-------------------------|-----------|----------------------------------------------------|
-| Toolchain        | Rust                    | 1.89.0    | Pinned in `rust-toolchain.toml`; edition 2024     |
+| Toolchain        | Rust                    | 1.95.0    | Pinned in `rust-toolchain.toml`; edition 2024     |
 | Build            | Cargo workspace         | resolver 2| 8 crates under `crates/`                           |
 | ML framework     | Burn                    | =0.20.1   | Pinned exact; `burn-cuda`, `burn-ndarray` backends |
 | CPU inference    | Tract                   | =0.22.1   | Pinned exact; ONNX (opset 17 fixed-batch)          |
@@ -79,7 +79,7 @@ conformance/             # Conformance gate stubs
 - Naming: snake_case (functions, modules, files), CamelCase (types, traits), SCREAMING_SNAKE (consts). Crate names use kebab-case (`lewm-core`), library identifiers use snake (`lewm_core`).
 - Imports: rustfmt enforces `imports_granularity = "Crate"`, `group_imports = "StdExternalCrate"`, `imports_layout = "HorizontalVertical"`. Do not hand-format imports.
 - Width: 100 cols (`max_width = 100`). Trailing comma vertical.
-- Edition: 2024. `rust-version = "1.89"` is pinned via the workspace.
+- Edition: 2024. `rust-version = "1.95"` is pinned via the workspace.
 - Errors: each crate exposes a typed error (e.g. `LewmCoreError`) via `thiserror`. Bins may use `anyhow`. Never silently `?`-bubble into `anyhow` from library code.
 - Logging: `tracing` macros; structured fields. Avoid `println!`/`eprintln!` in libs (clippy `print_stdout = warn`).
 - Determinism: no `std::collections::HashMap` for iteration order in observed paths — see `skills/determinism-rng.md`. No `thread_rng` (lint-banned).

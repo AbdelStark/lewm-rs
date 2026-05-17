@@ -18,7 +18,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  RUST_TOOLCHAIN: "1.89.0"
+  RUST_TOOLCHAIN: "1.95.0"
   REPRO_PROFILE: release-lto
   REPRO_TARGET: x86_64-unknown-linux-musl
   CARGO_NET_RETRY: "3"
