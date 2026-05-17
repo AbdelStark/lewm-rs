@@ -1399,8 +1399,27 @@ fn write_train_report(
 }
 
 /// Abstract dataset interface required by the full `LeWM` training loop.
+///
+/// Implementors expose a logical sample count and indexed sample access, so
+/// [`run_full_lewm_training`] can drive both `PushT` and SO-100 datasets
+/// through one shared loop. Implementations must:
+///
+/// - report a stable [`len`] for the duration of a training run (the loop
+///   builds dataset indices via `index % len`-style shuffling);
+/// - return semantically identical samples for identical `(index, run)`
+///   pairs to preserve the RFC 0013 determinism guarantees;
+/// - surface I/O or schema errors via [`TrainerError`] rather than panicking.
+///
+/// [`len`]: TrainingSampleSource::len
 trait TrainingSampleSource {
+    /// Number of indexable samples available in this dataset view.
     fn len(&self) -> usize;
+    /// Materialize the sample at `index`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TrainerError::Data`] when the underlying dataset rejects the
+    /// index or the sample fails downstream validation.
     fn get(&self, index: usize) -> Result<PushtSample, TrainerError>;
 }
 
