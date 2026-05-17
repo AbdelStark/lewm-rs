@@ -144,7 +144,7 @@ pub fn deserialize_rng(bytes: &[u8]) -> Result<ChaCha20Rng, LewmCoreError> {
 mod tests {
     use std::collections::BTreeSet;
 
-    use rand::RngCore;
+    use rand::Rng;
 
     use super::*;
 

@@ -549,7 +549,7 @@ fn io_error(path: impl Into<PathBuf>, source: std::io::Error) -> ResumeError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rand::RngCore;
+    use rand::Rng;
     use std::process;
     use std::time::{SystemTime, UNIX_EPOCH};
 

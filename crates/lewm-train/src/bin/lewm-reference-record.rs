@@ -764,7 +764,7 @@ mod tests {
             })
             .collect::<Result<Vec<_>, _>>()?;
         let metadata: Option<HashMap<String, String>> = None;
-        safetensors::tensor::serialize_to_file(views, &metadata, path)?;
+        safetensors::tensor::serialize_to_file(views, metadata, path)?;
         Ok(())
     }
 }

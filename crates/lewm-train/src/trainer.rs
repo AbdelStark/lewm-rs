@@ -33,7 +33,7 @@ use lewm_data::{
     SampleMeta as PushtSampleMeta, So100Config as DataSo100Config, So100Dataset,
     Split as DataSplit,
 };
-use rand::RngCore;
+use rand::Rng;
 use safetensors::tensor::{Dtype, SafeTensors};
 use serde::{Deserialize, Serialize};
 

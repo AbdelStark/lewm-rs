@@ -224,7 +224,7 @@ impl TransformStats {
         ];
 
         let metadata = None;
-        safetensors::serialize_to_file(tensors, &metadata, path)
+        safetensors::serialize_to_file(tensors, metadata, path)
             .map_err(|source| DataError::safetensors(path, source))
     }
 

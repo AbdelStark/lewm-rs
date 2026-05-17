@@ -534,7 +534,7 @@ fn serialize_parameters_to_safetensors(
     }
 
     let metadata: Option<HashMap<String, String>> = None;
-    safetensors::tensor::serialize(views, &metadata).map_err(CheckpointError::from)
+    safetensors::tensor::serialize(views, metadata).map_err(CheckpointError::from)
 }
 
 fn write_atomic_bytes(path: &Path, bytes: &[u8]) -> Result<(), CheckpointError> {
