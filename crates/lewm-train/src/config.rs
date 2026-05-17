@@ -156,7 +156,7 @@ impl RootConfig {
     #[must_use]
     pub fn validation_warnings(&self) -> Vec<String> {
         let mut warnings = Vec::new();
-        if self.loss.sigreg_num_proj % 32 != 0 {
+        if !self.loss.sigreg_num_proj.is_multiple_of(32) {
             warnings.push(
                 "loss.sigreg_num_proj is not divisible by 32; this may reduce kernel efficiency"
                     .to_string(),

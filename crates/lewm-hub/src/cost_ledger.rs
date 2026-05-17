@@ -490,10 +490,10 @@ mod tests {
 
     #[test]
     fn cost_calculation_rounds_up_to_nearest_minute() -> Result<(), Box<dyn std::error::Error>> {
-        assert_eq!(rounded_billable_minutes(Duration::from_secs(60)), 1);
+        assert_eq!(rounded_billable_minutes(Duration::from_mins(1)), 1);
         assert_eq!(rounded_billable_minutes(Duration::from_secs(61)), 2);
         assert_eq!(
-            cost_for_wall_time(Duration::from_secs(60), 150)?,
+            cost_for_wall_time(Duration::from_mins(1), 150)?,
             UsdAmount::from_cents(3)
         );
         assert_eq!(

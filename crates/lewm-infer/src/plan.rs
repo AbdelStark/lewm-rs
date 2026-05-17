@@ -166,7 +166,7 @@ impl CpuCem {
         if z_history.is_empty() {
             return Err(invalid_input("z_history must be non-empty"));
         }
-        if z_history.len() % z_goal.len() != 0 {
+        if !z_history.len().is_multiple_of(z_goal.len()) {
             return Err(PlanError::InvalidInput {
                 reason: "z_history length must be divisible by z_goal latent dimension".to_owned(),
             });

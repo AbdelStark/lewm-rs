@@ -214,13 +214,13 @@ mod tests {
         };
 
         let writer =
-            TrackioWriter::with_flush_policy(&root, &context.run_id, 2, Duration::from_secs(60))?;
+            TrackioWriter::with_flush_policy(&root, &context.run_id, 2, Duration::from_mins(1))?;
         writer.emit_scalar(&context, MetricName::LossTotal, 3, 1.5)?;
         writer.emit_scalar(&context, MetricName::OptimLr, 3, 0.001)?;
         writer.flush()?;
 
         let writer =
-            TrackioWriter::with_flush_policy(&root, &context.run_id, 2, Duration::from_secs(60))?;
+            TrackioWriter::with_flush_policy(&root, &context.run_id, 2, Duration::from_mins(1))?;
         writer.emit_scalar(&context, MetricName::DataQueueDepth, 4, 8.0)?;
         writer.flush()?;
 

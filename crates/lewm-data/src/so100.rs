@@ -660,13 +660,13 @@ mod tests {
             100u8.saturating_add(u8::try_from((r + y + x + c) % 101).unwrap_or(0))
         });
         let actions = Array2::from_shape_fn((rows, 6), |(r, c)| {
-            let row = u16::try_from(r).map(f32::from).unwrap_or(f32::INFINITY);
-            let col = u16::try_from(c).map(f32::from).unwrap_or(f32::INFINITY);
+            let row = u16::try_from(r).map_or(f32::INFINITY, f32::from);
+            let col = u16::try_from(c).map_or(f32::INFINITY, f32::from);
             row + (col * 0.25)
         });
         let joint_pos = Array2::from_shape_fn((rows, 6), |(r, c)| {
-            let row = u16::try_from(r).map(f32::from).unwrap_or(f32::INFINITY);
-            let col = u16::try_from(c).map(f32::from).unwrap_or(f32::INFINITY);
+            let row = u16::try_from(r).map_or(f32::INFINITY, f32::from);
+            let col = u16::try_from(c).map_or(f32::INFINITY, f32::from);
             row + (col * 0.5)
         });
 

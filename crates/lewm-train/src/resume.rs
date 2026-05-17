@@ -487,7 +487,7 @@ fn base64_encode(bytes: &[u8]) -> String {
 
 fn base64_decode(encoded: &str) -> Result<Vec<u8>, ResumeError> {
     let bytes = encoded.as_bytes();
-    if bytes.len() % 4 != 0 {
+    if !bytes.len().is_multiple_of(4) {
         return Err(ResumeError::InvalidBase64 {
             reason: "length must be a multiple of 4".to_owned(),
         });

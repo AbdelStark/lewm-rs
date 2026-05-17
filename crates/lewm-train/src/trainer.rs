@@ -2869,7 +2869,7 @@ fn usize_to_f64(value: usize) -> Result<f64, TrainerError> {
 
 /// Return whether mini-eval should run at `epoch`.
 pub const fn should_run_eval(epoch: u64, eval_every_n_epochs: u64) -> bool {
-    eval_every_n_epochs > 0 && epoch > 0 && epoch % eval_every_n_epochs == 0
+    eval_every_n_epochs > 0 && epoch > 0 && epoch.is_multiple_of(eval_every_n_epochs)
 }
 
 fn io_error(path: impl Into<PathBuf>, source: std::io::Error) -> TrainerError {

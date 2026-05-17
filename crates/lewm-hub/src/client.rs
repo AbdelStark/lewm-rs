@@ -243,7 +243,7 @@ impl HubTransport for EnvironmentHubTransport {
             .header("Authorization", &format!("Bearer {token}"))
             .header("User-Agent", USER_AGENT)
             .call()
-            .map_err(map_ureq_error)?;
+            .map_err(|e| map_ureq_error(&e))?;
         let value = match check_status(response) {
             Ok(response) => response_json(response)?,
             Err(HubError::HttpStatus { status: 404, .. }) => return Ok(None),
@@ -344,7 +344,7 @@ impl EnvironmentHubTransport {
             .header("Authorization", &format!("Bearer {token}"))
             .header("User-Agent", USER_AGENT)
             .call()
-            .map_err(map_ureq_error)?;
+            .map_err(|e| map_ureq_error(&e))?;
         let response = check_status(response)?;
         response_json(response)
     }
@@ -356,7 +356,7 @@ impl EnvironmentHubTransport {
             .header("Authorization", &format!("Bearer {token}"))
             .header("User-Agent", USER_AGENT)
             .send_json(payload)
-            .map_err(map_ureq_error)?;
+            .map_err(|e| map_ureq_error(&e))?;
         let response = check_status(response)?;
         response_json(response)
     }
@@ -369,7 +369,7 @@ impl EnvironmentHubTransport {
             .header("User-Agent", USER_AGENT)
             .header("Content-Type", "application/x-ndjson")
             .send(payload)
-            .map_err(map_ureq_error)?;
+            .map_err(|e| map_ureq_error(&e))?;
         check_status(response)?;
         Ok(())
     }
@@ -447,7 +447,7 @@ fn check_status(mut response: Response<Body>) -> Result<Response<Body>, HubError
     })
 }
 
-fn map_ureq_error(error: ureq::Error) -> HubError {
+fn map_ureq_error(error: &ureq::Error) -> HubError {
     HubError::Network(error.to_string())
 }
 
