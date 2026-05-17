@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Python edge helpers for lewm-rs evaluation workflows."
 requires-python = ">=3.13,<4"
 dependencies = [
-    "av>=16,<17",
+    "av>=16,<18",
     "blake3>=1,<2",
     "h5py>=3.14,<4",
     "numpy>=2.2,<3",
