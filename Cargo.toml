@@ -18,7 +18,7 @@ edition = "2024"
 license = "MIT"
 authors = ["Abdel <abdel@starkware.co>"]
 repository = "https://github.com/AbdelStark/lewm-rs"
-rust-version = "1.89"
+rust-version = "1.95"
 
 [workspace.dependencies]
 # Internal crates
@@ -48,9 +48,9 @@ tract-linalg = { version = "=0.22.1", features = ["multithread-mm"] }
 
 # Data
 hdf5-metno = { version = "0.10", features = ["static"] }
-parquet = "56"
-arrow-array = "56"
-arrow-schema = "56"
+parquet = "58"
+arrow-array = "58"
+arrow-schema = "58"
 image = { version = "=0.25.8", default-features = false }
 safetensors = "0.5"
 ndarray = "0.16"
