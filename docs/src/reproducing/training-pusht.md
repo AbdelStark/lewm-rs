@@ -58,6 +58,19 @@ after the train command completes and after `python/export_onnx.py
 exact 255 Burn destination tensors and all 303 PyTorch source keys required
 by the ONNX export contract.
 
+After the approved 50 k-step run exists, dry-run the F1 ONNX handoff before
+executing any upload:
+
+```sh
+scripts/f1_export_pusht_onnx.py \
+  --run-prefix train/pusht-full-burn-jepa-<UTC timestamp>
+```
+
+The wrapper prints the Hub download, checkpoint contract check, dual ONNX
+export, ONNX verification, and `onnx-full/` upload-preflight commands. Add
+`--execute` only after reviewing the dry run, and add `--upload` only after the
+verified ONNX artifacts are ready to publish.
+
 Before launching the paid job, run the local contract smoke:
 
 ```sh

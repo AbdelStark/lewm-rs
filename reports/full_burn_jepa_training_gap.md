@@ -115,25 +115,19 @@ F1 still needs a production PushT training run that produces a real trained
 
 1. With human approval, run `jobs/train_pusht.yaml` against the production
    PushT data/config long enough to produce `step_0050000.safetensors`.
-2. Only after a real full-layout 50k PushT checkpoint exists, run:
+2. Only after a real full-layout 50k PushT checkpoint exists, run the F1
+   post-job handoff wrapper. It downloads the named Hub run, checks the
+   safetensors contract, exports both ONNX variants, verifies them, and
+   dry-runs the Hub upload:
 
 ```text
-uv run --project python --extra parity python python/export_onnx.py \
-  --safetensors <full-pusht-step_0050000.safetensors> \
-  --meta tests/fixtures/reference_model.meta.json \
-  --output-dir /tmp/pusht-onnx-full \
-  --variant both \
-  --action-dim 10
-
-uv run --project python --extra parity python python/verify_onnx.py \
-  --dir /tmp/pusht-onnx-full
-
-python3 python/upload_checkpoints.py \
-  --src /tmp/pusht-onnx-full \
-  --dst abdelstark/lewm-rs-pusht \
-  --path-prefix onnx-full/ \
-  --dry-run
+scripts/f1_export_pusht_onnx.py \
+  --run-prefix train/pusht-full-burn-jepa-<UTC timestamp>
 ```
+
+The wrapper prints commands by default. Add `--execute` only after reviewing
+the dry run. Add `--upload` only after `python/verify_onnx.py` has passed and
+the release owner has approved the Hub upload.
 
 ## Acceptance Gate
 
