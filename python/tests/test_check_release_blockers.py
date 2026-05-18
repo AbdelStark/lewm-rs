@@ -18,8 +18,11 @@ REQUIRED_EVIDENCE_BY_ID = {
         "jobs/train_so100_warmstart.yaml",
         ".ml-intern/cli_agent_config.json",
         "reports/pusht_warmstart_source_smoke.json",
+        "reports/pusht_warmstart_hub_audit.json",
         "scripts/pusht_warmstart_source_smoke.py",
         "scripts/check_pusht_warmstart_source_smoke_report.py",
+        "scripts/audit_pusht_warmstart_sources.py",
+        "scripts/check_pusht_warmstart_hub_audit_report.py",
         "reports/phase_a_handoff.json",
     ],
     "F13": [

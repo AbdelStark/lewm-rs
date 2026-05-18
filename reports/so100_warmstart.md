@@ -99,6 +99,21 @@ python3 scripts/check_warmstart_source.py \
 check_warmstart_source.py: .../step_0050000.mpk: schema_version must be '1.1.0', got '1.0.0'
 ```
 
+The broader public Hub audit reaches the same conclusion for every current
+PushT `.mpk` in `abdelstark/lewm-rs-pusht`:
+
+```text
+python3 scripts/audit_pusht_warmstart_sources.py \
+  --report reports/pusht_warmstart_hub_audit.json
+
+PushT warm-start Hub audit: candidates=6 compatible=0 status=blocked
+```
+
+`reports/pusht_warmstart_hub_audit.json` records all six public candidates and
+their verifier failures. Each current candidate declares `schema_version =
+1.0.0`, so none satisfy the `schema_version = 1.1.0` source contract required
+by `scripts/check_warmstart_source.py`.
+
 The config exists:
 
 ```text

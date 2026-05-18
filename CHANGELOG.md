@@ -76,6 +76,10 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   a bounded 14-tensor host-core checkpoint rather than a trained 255-tensor
   Burn/Jepa mirror, and no longer present the legacy 2026-05-15 step-50000
   `.mpk` as a valid SO-100 warm-start source.
+  `scripts/audit_pusht_warmstart_sources.py` and
+  `reports/pusht_warmstart_hub_audit.json` now audit every public PushT `.mpk`
+  candidate and show that all six current Hub candidates are rejected by the
+  warm-start verifier because they still declare `schema_version = 1.0.0`.
 - **Release blocker gate**: new `conformance/release_blockers.json` and
   `scripts/check_release_blockers.py` keep `make check` schema-validating known
   blockers while making `make accept` fail until the F1 ONNX and F3 warm-start

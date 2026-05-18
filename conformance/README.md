@@ -5,6 +5,9 @@
 `reports/phase_a_handoff.json` with `scripts/check_phase_a_handoff.py`, which
 pins the ordered F1/F3 operator commands and cross-checks that those Phase A
 blockers remain blocked until their human-approved jobs and uploads complete.
+For F3, `make check` also validates `reports/pusht_warmstart_hub_audit.json`
+with `scripts/check_pusht_warmstart_hub_audit_report.py` so the committed
+public-Hub source audit stays structurally aligned with the warm-start blocker.
 `make accept` runs the release blocker validator without `--allow-open`, so
 release acceptance fails while any listed blocker has status `blocked`,
 `pending`, or `open`.

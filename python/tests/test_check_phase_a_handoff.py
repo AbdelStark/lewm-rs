@@ -88,14 +88,18 @@ def handoff_payload() -> dict[str, object]:
                     "jobs/train_so100_warmstart.yaml",
                     ".ml-intern/cli_agent_config.json",
                     "reports/pusht_warmstart_source_smoke.json",
+                    "reports/pusht_warmstart_hub_audit.json",
                     "scripts/pusht_warmstart_source_smoke.py",
                     "scripts/check_pusht_warmstart_source_smoke_report.py",
+                    "scripts/audit_pusht_warmstart_sources.py",
+                    "scripts/check_pusht_warmstart_hub_audit_report.py",
                     "scripts/check_warmstart_source.py",
                 ],
                 "blocked_on": ["compatible PushT source and human approval"],
                 "commands": {
                     "preflight": [
                         ["python3", "scripts/check_pusht_warmstart_source_smoke_report.py"],
+                        ["python3", "scripts/check_pusht_warmstart_hub_audit_report.py"],
                         [
                             "LEWM_PUSHT_WARMSTART_MPK=train/<compatible-bounded-run>/step_0050000.mpk",
                             "python3",

@@ -37,6 +37,7 @@ EXPECTED_TASKS = (
             "jobs/train_so100_warmstart.yaml",
             "--allow-approval-required",
             "scripts/check_pusht_warmstart_source_smoke_report.py",
+            "scripts/check_pusht_warmstart_hub_audit_report.py",
         ),
     },
 )
@@ -211,6 +212,12 @@ def validate_f3_command_stages(commands: dict[str, list[list[str]]], path: Path)
         "F3.preflight",
         path,
         "scripts/check_pusht_warmstart_source_smoke_report.py",
+    )
+    require_any_command(
+        preflight,
+        "F3.preflight",
+        path,
+        "scripts/check_pusht_warmstart_hub_audit_report.py",
     )
     require_any_command(
         preflight,
