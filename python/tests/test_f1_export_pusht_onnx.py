@@ -50,6 +50,17 @@ def test_hub_run_workflow_orders_download_contract_export_verify_upload() -> Non
         "tests/fixtures/reference_model.meta.json"
     )
     assert commands[2][commands[2].index("--output-dir") + 1] == "/tmp/f1/onnx-full"
+    assert commands[3][0:8] == [
+        "uv",
+        "run",
+        "--project",
+        "python",
+        "--frozen",
+        "--extra",
+        "parity",
+        "--with",
+    ]
+    assert commands[3][8] == "onnxruntime>=1.22,<2"
     assert commands[3][-2:] == ["--dir", "/tmp/f1/onnx-full"]
     assert commands[4][0:6] == ["uv", "run", "--project", "python", "--frozen", "python"]
     assert commands[4][-1] == "--dry-run"

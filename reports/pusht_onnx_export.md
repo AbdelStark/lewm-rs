@@ -220,7 +220,7 @@ Predictor ONNX written: /tmp/lewm-reference-onnx-contract-check/onnxruntime/pred
 Encoder ONNX written: /tmp/lewm-reference-onnx-contract-check/tract-compat/encoder.onnx (opset=17, dynamic_batch=False)
 Predictor ONNX written: /tmp/lewm-reference-onnx-contract-check/tract-compat/predictor.onnx (action_dim=10, opset=17, dynamic_batch=False)
 
-uv run --project python --extra parity python python/verify_onnx.py \
+uv run --project python --extra parity --with 'onnxruntime>=1.22,<2' python python/verify_onnx.py \
   --dir /tmp/lewm-reference-onnx-contract-check
 
 onnx verify: variant=onnxruntime ok=true batches=1,2 encoder_shape=(2, 192) predictor_shape=(2, 3, 192) action_dim=10
@@ -230,6 +230,30 @@ onnx verify: variant=tract-compat ok=true batches=1 encoder_shape=(1, 192) predi
 This validates the exporter against a valid full-layout checkpoint. It does not
 complete F1 because the source is the locked upstream reference conversion, not
 the missing lewm-rs 50k PushT training checkpoint.
+
+Post-job wrapper smoke, using the one-step full-layout checkpoint recorded in
+`reports/full_pusht_contract_smoke.json`:
+
+```text
+scripts/f1_export_pusht_onnx.py \
+  --safetensors <local-full-layout-step-0000001.safetensors> \
+  --work-dir /tmp/lewm-f1-wrapper-smoke \
+  --output-dir /tmp/lewm-f1-wrapper-smoke/onnx-full \
+  --execute
+
+Checkpoint contract ok: recovered 303 of 303 expected PyTorch keys
+Burn destination tensors: 255
+Encoder ONNX written: /tmp/lewm-f1-wrapper-smoke/onnx-full/onnxruntime/encoder.onnx
+Predictor ONNX written: /tmp/lewm-f1-wrapper-smoke/onnx-full/onnxruntime/predictor.onnx
+Encoder ONNX written: /tmp/lewm-f1-wrapper-smoke/onnx-full/tract-compat/encoder.onnx
+Predictor ONNX written: /tmp/lewm-f1-wrapper-smoke/onnx-full/tract-compat/predictor.onnx
+onnx verify: variant=onnxruntime ok=true batches=1,2
+onnx verify: variant=tract-compat ok=true batches=1
+hf upload ... abdelstark/lewm-rs-pusht /tmp/lewm-f1-wrapper-smoke/onnx-full onnx-full/
+```
+
+This validates the F1 wrapper's ordered contract-check, export, ONNX verify,
+and upload-dry-run path without launching a paid job or uploading artifacts.
 
 ## Required Resolution
 

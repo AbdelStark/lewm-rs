@@ -17,6 +17,7 @@ DEFAULT_WORK_DIR = Path("/tmp/lewm-f1-pusht-onnx")
 DEFAULT_META = Path("tests/fixtures/reference_model.meta.json")
 REQUIRED_RUN_PREFIX = "train/pusht-full-burn-jepa-"
 LEGACY_BOUNDED_RUN_PREFIX = "train/pusht-full-lewm-"
+ONNXRUNTIME_DEP = "onnxruntime>=1.22,<2"
 RUN_SUFFIX_RE = re.compile(r"^\d{8}T\d{6}Z$")
 
 
@@ -153,6 +154,23 @@ def uv_python_command(script: str, *args: str) -> list[str]:
     ]
 
 
+def uv_python_with_command(script: str, *args: str, package: str) -> list[str]:
+    return [
+        "uv",
+        "run",
+        "--project",
+        "python",
+        "--frozen",
+        "--extra",
+        "parity",
+        "--with",
+        package,
+        "python",
+        script,
+        *args,
+    ]
+
+
 def contract_command(safetensors: Path) -> list[str]:
     return uv_python_command(
         "python/export_onnx.py",
@@ -184,7 +202,12 @@ def export_command(
 
 
 def verify_command(output_dir: Path) -> list[str]:
-    return uv_python_command("python/verify_onnx.py", "--dir", str(output_dir))
+    return uv_python_with_command(
+        "python/verify_onnx.py",
+        "--dir",
+        str(output_dir),
+        package=ONNXRUNTIME_DEP,
+    )
 
 
 def upload_command(output_dir: Path, repo: str, *, upload: bool) -> list[str]:

@@ -49,7 +49,9 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   CLI, while real uploads still require both. The F1 handoff wrapper now
   rejects legacy `train/pusht-full-lewm-*` prefixes before printing or running
   commands, so the known bounded-core 50k artifact cannot be mistaken for a
-  full Burn/Jepa source run.
+  full Burn/Jepa source run. Its ONNX verification stage now injects
+  `onnxruntime` explicitly instead of assuming the `parity` Python extra
+  provides it.
 - **SO-100 warm-start wiring + preflight**: `lewm-train` now consumes
   `training.warmstart_from` for fresh SO-100 full-module training starts,
   transfers shared PushT modules through the RFC 0012 warm-start boundary,
