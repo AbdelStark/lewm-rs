@@ -4,11 +4,13 @@
 **Issue:** F1 / #243
 **Status:** Still blocked by artifact mismatch after live Hub re-check
 
-## Objective
+## Attempted Source
 
-Export the full PushT checkpoint at
+The initial F1 attempt tried to export the advertised PushT checkpoint at
 `abdelstark/lewm-rs-pusht/train/pusht-full-lewm-20260515T100908Z/step_0050000.safetensors`
-to both release ONNX layouts, then upload them under `onnx-full/`:
+to both release ONNX layouts, then upload them under `onnx-full/`. That source
+is now rejected: it is the legacy bounded-core artifact, not the full Burn/Jepa
+checkpoint required for F1.
 
 | Variant | Target | Expected path |
 |---------|--------|---------------|

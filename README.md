@@ -201,6 +201,19 @@ tag that contains the current full Burn/Jepa training and export-gate code.
 The verifier checks the tag's OCI source and revision labels before any paid
 HF Job is submitted.
 
+If GHCR package permissions are still blocked, the approval-gated source-build
+fallback builds the same code from an exact git revision inside HF Jobs:
+
+```bash
+LEWM_SOURCE_REVISION=REPLACE_WITH_SOURCE_REVISION \
+  python3 scripts/launch_hf_job.py jobs/train_pusht_source.yaml \
+    --dry-run \
+    --allow-approval-required
+```
+
+Replace `REPLACE_WITH_SOURCE_REVISION` with a full 40-character git SHA and
+remove `--dry-run` only after explicit human approval.
+
 After that job publishes `train/pusht-full-burn-jepa-YYYYMMDDTHHMMSSZ/`, dry-run
 the F1 ONNX handoff before executing or uploading:
 

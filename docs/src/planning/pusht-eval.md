@@ -20,15 +20,18 @@ budget.
 **Target:** ≥ 87 % on the 50-episode test set (matching the upstream
 LeWM paper).
 
-**Current:** <span class="lewm-badge lewm-badge--partial">Eval pending</span>
-on the lewm-rs PushT 50 k-step checkpoint. The wiring is complete —
+**Current:** <span class="lewm-badge lewm-badge--partial">Eval blocked</span>
+until F1 publishes trained full Burn/Jepa `onnx-full/` PushT artifacts. The
+historical `train/pusht-full-lewm-*` 50 k-step checkpoint is a bounded-core
+artifact and is not accepted as the F1 ONNX source. The wiring is complete —
 `lewm_train::eval::JepaCemCostModel` adapts the parity-verified
 `Jepa<B>` to `lewm_plan::CemCostModel` with strict horizon-plan,
 latent-dim, action-dim, and history-len validation, and a unit-tested
 end-to-end CEM round-trip on a compact synthetic JEPA (4 tests in
-`crates/lewm-train/src/eval.rs`). What remains is the **runtime**:
-load the trained PushT checkpoint, spawn the `gym-pusht` subprocess,
-and run the loop documented in §7 below.
+`crates/lewm-train/src/eval.rs`). What remains is the **runtime input and
+adapter**: load the F1-trained ONNX artifacts through the inference runner,
+wire that model-backed planner into `lewm-eval`, spawn the `gym-pusht`
+subprocess, and run the loop documented below.
 
 ## 2. The episode protocol
 
@@ -105,18 +108,19 @@ checkpoint's output dir:
 
 The markdown sibling is rendered into the model card.
 
-## 7. Reproducing
+## 7. Current plumbing smoke
 
 ```sh
 lewm-eval pusht \
-    --checkpoint abdelstark/lewm-rs-pusht/train/.../step_0050000.mpk \
-    --num-episodes 50 \
-    --cem-iter 5 --cem-cand 1024 \
-    --out reports/eval_pusht_50ep.json
+    --mock-rpc \
+    --episodes 1 \
+    --output-dir /tmp/lewm-pusht-eval-smoke
 ```
 
-The eval respects the `rng:cem` substream so re-runs with the same
-checkpoint and seed produce identical per-episode results.
+This validates the report writer, config loading, episode loop, and
+deterministic mock RPC path. It is not the final F2 scored evaluation. The
+final F2 command must use the F1 `onnx-full/` artifacts once they exist and
+the model-backed planner adapter is wired into this binary.
 
 ## 8. Source pointers
 

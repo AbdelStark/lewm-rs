@@ -83,9 +83,12 @@ action dim $= 10$ (frameskip-packed PushT actions).
 
 ## Deployment surface
 
-- **Hugging Face Hub**: model + ONNX artifacts at
+- **Hugging Face Hub**: model artifacts at
   [`abdelstark/lewm-rs-pusht`](https://huggingface.co/abdelstark/lewm-rs-pusht)
   and [`abdelstark/lewm-rs-so100`](https://huggingface.co/abdelstark/lewm-rs-so100).
+  The PushT `onnx-full/` artifacts for the trained full Burn/Jepa checkpoint
+  are still blocked by F1; current root ONNX files are reference exports, not
+  exports from the historical 50 k-step bounded-core run.
 - **Demo Space**: live Gradio CEM planning at
   [`abdelstark/lewm-rs-demo`](https://huggingface.co/spaces/abdelstark/lewm-rs-demo).
 - **Container**: `ghcr.io/abdelstark/lewm-rs:latest`
@@ -105,12 +108,11 @@ site as <span class="lewm-badge lewm-badge--partial">Partial</span> or
 <span class="lewm-badge lewm-badge--todo">Planned</span> badges where
 relevant:
 
-1. **`lewm_core::Jepa` end-to-end training**: the current 50 k-step PushT
-   run uses `PushtFullLewmCore` (a simplified core); the full Burn ViT
-   (`lewm_core::Jepa`, 303 parameter tensors / 18.04 M parameters,
-   parity-validated) is not yet wired into the training loop. The ONNX
-   export therefore uses converted PyTorch reference weights, not a
-   natively Rust-trained ViT checkpoint.
+1. **Full-layout PushT release checkpoint**: the historical 50 k-step PushT
+   run uses `PushtFullLewmCore` (a simplified bounded core). The current
+   trainer has an approval-gated full Burn/Jepa mode, but no human-approved
+   50 k-step `train/pusht-full-burn-jepa-*` checkpoint has been published yet.
+   The F1 ONNX release artifacts remain blocked until that checkpoint exists.
 2. **Planning eval**: CEM planning success rate on PushT and latent-MSE /
    Spearman on SO-100.
 3. **Warm-start ablation**: training SO-100 from PushT weights vs. random.

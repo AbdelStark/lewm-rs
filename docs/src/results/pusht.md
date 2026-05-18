@@ -1,8 +1,8 @@
-# PushT 50 k-step training
+# PushT 50 k-step bounded-core training
 
-> **Motivation.** This is the headline training result. 50 000 steps,
-> 318 minutes, a $1.55 \times 10^5$-fold loss reduction, zero gradient
-> explosions, zero collapse-probe trips.
+> **Motivation.** This is the historical bounded-core training result.
+> It completed 50 000 steps in 318 minutes with a $1.55 \times 10^5$-fold
+> loss reduction, zero gradient explosions, and zero collapse-probe trips.
 >
 > **Position.** First sub-page in [Part VII — Results](./pusht.md).
 >
@@ -120,7 +120,7 @@ cargo run -p lewm-train -- \
     --output-dir /tmp/lewm-pusht \
     --max-steps 10 train
 
-# Cloud full run (HF Jobs)
+# Current approval-gated F1 full Burn/Jepa run (HF Jobs)
 python3 scripts/verify_runtime_image.py \
     --image-tag REPLACE_WITH_RUNTIME_IMAGE_TAG
 
@@ -129,6 +129,8 @@ scripts/launch_hf_job.py jobs/train_pusht.yaml \
     --image-tag REPLACE_WITH_RUNTIME_IMAGE_TAG
 ```
 
-The HF Jobs spec is committed at `jobs/train_pusht.yaml`. With seed = 0
-and the pinned config hash, a re-run on the same hardware should
-converge to the same final loss within TOL-005 (rel. < 1 %).
+The historical bounded-core run above is not the current F1 release job.
+`jobs/train_pusht.yaml` now selects the full Burn/Jepa path and must publish
+`train/pusht-full-burn-jepa-*` artifacts before the F1 ONNX export can run.
+For the exact approval gates and source-build fallback, see
+[Reproducing PushT training](../reproducing/training-pusht.md).

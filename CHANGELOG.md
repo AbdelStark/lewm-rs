@@ -26,7 +26,9 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   Added `jobs/train_pusht_source.yaml` as a human-approval-required no-GHCR F1
   fallback that builds from an explicit `LEWM_SOURCE_REVISION`. The Phase A
   handoff and approval packet now pin both the GHCR-backed F1 path and the
-  source-build fallback without treating them as separate paid runs.
+  source-build fallback without treating them as separate paid runs. Public
+  docs now distinguish the historical bounded-core PushT result from the
+  still-blocked F1 full Burn/Jepa release checkpoint and `onnx-full/` artifacts.
 - **Burn 0.20.1 → 0.21.0** (per ADR 0003). Updated all seven workspace
   Burn dependencies (`burn`, `burn-core`, `burn-cuda`, `burn-ndarray`,
   `burn-autodiff`, `burn-import`, `burn-train`). Migrated five
