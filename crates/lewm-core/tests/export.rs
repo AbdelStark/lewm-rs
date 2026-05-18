@@ -18,6 +18,9 @@ use safetensors::tensor::Dtype;
 
 type CpuBackend = NdArray<f32>;
 
+const ONNX_EXPORT_DESTINATION_KEYS: &str =
+    include_str!("../../../tests/fixtures/onnx_export_destination_keys.txt");
+
 #[test]
 fn export_collects_jepa_parameters_in_module_visit_order() -> Result<(), Box<dyn std::error::Error>>
 {
@@ -83,6 +86,26 @@ fn export_writes_valid_safetensors_with_batch_norm_state() -> Result<(), Box<dyn
         &[1],
     )?;
     assert_tensor(&exported, "pred_proj.norm.running_mean", Dtype::F32, &[12])?;
+    Ok(())
+}
+
+#[test]
+fn export_default_jepa_matches_onnx_destination_contract() -> Result<(), Box<dyn std::error::Error>>
+{
+    let device = NdArrayDevice::default();
+    let model = Jepa::<CpuBackend>::init(JepaConfig::default(), &device)?;
+    let mut names = collect_parameters(&model)?
+        .into_iter()
+        .map(|tensor| tensor.name)
+        .collect::<Vec<_>>();
+    names.sort();
+    let expected = ONNX_EXPORT_DESTINATION_KEYS
+        .lines()
+        .map(str::to_owned)
+        .collect::<Vec<_>>();
+
+    assert_eq!(expected.len(), 255);
+    assert_eq!(names, expected);
     Ok(())
 }
 

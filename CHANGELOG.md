@@ -84,6 +84,10 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   checkpoints use bounded run IDs / record kinds / train-report modes, and
   `scripts/check_jobs.py` rejects bounded PushT jobs that publish under
   `pusht-full*` paths.
+- **ONNX export key contract**: the Rust `Jepa` safetensors exporter now skips
+  generated `sigreg.consts.*` tensors, matching the import contract and the
+  Python ONNX exporter map. A shared fixture locks the 255 Burn destination
+  tensor names used to recover the 303 PyTorch source keys before F1 upload.
 - **`lewm-train` eval adapter**: new `lewm_train::eval` module provides
   `JepaCemCostModel<B>`, a `lewm_plan::CemCostModel` adapter that
   tensorises CEM batches and forwards to the parity-verified

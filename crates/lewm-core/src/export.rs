@@ -259,6 +259,9 @@ impl ExportVisitor {
         if name.is_empty() {
             return;
         }
+        if is_generated_sigreg_tensor(&name) {
+            return;
+        }
         match element_count(&shape) {
             Ok(expected) if expected == value_count => self.tensors.push(ExportedTensor {
                 name,
@@ -288,6 +291,10 @@ impl ExportVisitor {
             Err(ExportError::ParameterErrors(errors))
         }
     }
+}
+
+fn is_generated_sigreg_tensor(name: &str) -> bool {
+    name.starts_with("sigreg.consts.")
 }
 
 #[derive(Serialize)]

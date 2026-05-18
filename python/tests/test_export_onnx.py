@@ -12,6 +12,16 @@ if str(PYTHON_DIR) not in sys.path:
 
 import export_onnx as export  # noqa: E402
 
+ROOT = Path(__file__).resolve().parents[2]
+
+
+def test_destination_key_fixture_matches_export_map() -> None:
+    fixture = ROOT / "tests" / "fixtures" / "onnx_export_destination_keys.txt"
+    expected = [line for line in fixture.read_text(encoding="utf-8").splitlines() if line]
+
+    assert len(expected) == export.pnm.REFERENCE_DESTINATION_TENSOR_COUNT
+    assert expected == list(export.pnm.expected_destination_keys())
+
 
 def test_selected_variants_expands_both() -> None:
     assert export.selected_variants("both") == ("onnxruntime", "tract-compat")

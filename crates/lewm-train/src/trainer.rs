@@ -3898,6 +3898,12 @@ mod tests {
         assert!(loaded.burn_record.len() > 1024);
         let tensors = SafeTensors::deserialize(&loaded.safetensors_bytes)?;
         assert!(tensors.names().len() > 14);
+        assert!(
+            !tensors
+                .names()
+                .iter()
+                .any(|name| name.starts_with("sigreg.consts."))
+        );
         assert!(tensors.tensor("encoder.embeddings.cls_token").is_ok());
         assert!(tensors.tensor("predictor.pos_embed").is_ok());
         Ok(())
