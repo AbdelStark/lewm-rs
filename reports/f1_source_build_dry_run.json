@@ -6,7 +6,7 @@
   "status": "preflight_passed_pending_human_approval",
   "job": "jobs/train_pusht_source.yaml",
   "source_revision": "87b03271172512d01e20602d2b8b2f16e2a89ee3",
-  "source_revision_note": "This is the pushed main commit fetched inside the no-GHCR source-build job. It includes the current F1/F3 release-gate evidence and source-build dependency hardening.",
+  "source_revision_note": "This is the pushed main commit fetched inside the no-GHCR source-build job. It includes the F1/F3 release-gate hardening and source-build dependency hardening selected for the paid run; this report-refresh commit itself does not change the training or export code.",
   "dry_run_command": [
     "LEWM_SOURCE_REVISION=87b03271172512d01e20602d2b8b2f16e2a89ee3",
     "python3",

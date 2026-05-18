@@ -37,8 +37,9 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   check instead of relying on transitive Python package dependencies. The F1
   source-build dry-run report now pins the pushed revision with that hardening
   and its checker re-renders the stored dry-run command to detect stale evidence.
-  That source-build fallback evidence now points at the current pushed release
-  gate commit instead of the earlier dependency-only hardening commit.
+  That source-build fallback evidence now points at the latest pushed
+  release-gate hardening commit instead of the earlier dependency-only
+  hardening commit.
   Runtime image and source-build fallback handoff commands now derive their
   retry tag or source revision from current repository evidence instead of
   hard-coding the first failed runtime-image attempt, and
