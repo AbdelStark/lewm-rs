@@ -55,6 +55,11 @@ train/pusht-full-lewm-20260515T100908Z/step_0050000.mpk         1266 bytes
 train/pusht-full-lewm-20260515T100908Z/step_0050000.safetensors 1264 bytes
 ```
 
+`reports/pusht_full_safetensors_hub_audit.json` is the machine-readable
+public-Hub audit for this blocker. It currently finds six public `.safetensors`
+files, zero ready F1 full-run candidates, and records the legacy 50k
+`pusht-full-lewm-*` path as a 14-tensor bounded host-core artifact.
+
 Safetensors inspection shows 14 bounded-core tensors, not the 303 tensors
 required by the locked PushT reference / `python/export_onnx.py` mapping:
 
@@ -189,6 +194,10 @@ The Python edge tooling is ready for a valid full PushT checkpoint:
   no-Hub, no-spend operator preflight for the F1 train job. Its optional
   `--report` flag writes JSON evidence with the parsed `303/303` PyTorch-key
   recovery, 255 Burn destination tensors, and safetensors SHA-256.
+- `scripts/audit_pusht_full_safetensors.py` performs a no-token public-Hub
+  safetensors header audit without downloading full checkpoint payloads, and
+  `scripts/check_pusht_full_safetensors_hub_audit_report.py` validates the
+  committed report in `make check`.
 
 Focused validation:
 

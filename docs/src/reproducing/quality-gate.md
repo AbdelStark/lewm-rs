@@ -79,6 +79,8 @@ make accept
 - `scripts/check_phase_a_approval.py`; this validates the paid Phase A
   approval packet and catches the F1+F3 combined cost exceeding the $20
   session cap.
+- `scripts/check_pusht_full_safetensors_hub_audit_report.py`; this validates
+  the committed public-Hub safetensors audit that currently keeps F1 blocked.
 - `scripts/check_pusht_warmstart_hub_audit_report.py`; this validates the
   committed public-Hub `.mpk` audit that currently keeps F3 blocked.
 - Future hooks for hub-artifact verification and release inventory.

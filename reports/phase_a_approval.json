@@ -38,6 +38,9 @@
         "jobs/train_pusht.yaml",
         ".ml-intern/cli_agent_config.json",
         "reports/full_pusht_contract_smoke.json",
+        "reports/pusht_full_safetensors_hub_audit.json",
+        "scripts/audit_pusht_full_safetensors.py",
+        "scripts/check_pusht_full_safetensors_hub_audit_report.py",
         "reports/full_burn_jepa_training_gap.md",
         "scripts/f1_export_pusht_onnx.py"
       ]

@@ -33,6 +33,9 @@ def handoff_payload() -> dict[str, object]:
                     "reports/pusht_onnx_export.md",
                     "reports/full_burn_jepa_training_gap.md",
                     "reports/full_pusht_contract_smoke.json",
+                    "reports/pusht_full_safetensors_hub_audit.json",
+                    "scripts/audit_pusht_full_safetensors.py",
+                    "scripts/check_pusht_full_safetensors_hub_audit_report.py",
                     "reports/phase_a_approval.json",
                     "scripts/f1_export_pusht_onnx.py",
                     "scripts/check_phase_a_approval.py",
@@ -43,6 +46,10 @@ def handoff_payload() -> dict[str, object]:
                 "commands": {
                     "preflight": [
                         ["python3", "scripts/check_full_pusht_contract_smoke_report.py"],
+                        [
+                            "python3",
+                            "scripts/check_pusht_full_safetensors_hub_audit_report.py",
+                        ],
                         [
                             "python3",
                             "scripts/launch_hf_job.py",

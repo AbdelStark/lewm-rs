@@ -20,6 +20,7 @@ EXPECTED_TASKS = (
         "required_tokens": (
             "jobs/train_pusht.yaml",
             "--allow-approval-required",
+            "scripts/check_pusht_full_safetensors_hub_audit_report.py",
             "scripts/f1_export_pusht_onnx.py",
             "--run-prefix",
             "train/pusht-full-burn-jepa-REPLACE_WITH_UTC_TIMESTAMP",
@@ -166,7 +167,18 @@ def validate_f1_command_stages(commands: dict[str, list[list[str]]], path: Path)
     preflight = require_command_group(commands, "preflight", "F1", path)
     require_no_token(preflight, "--execute", "F1.preflight", path)
     require_no_token(preflight, "--upload", "F1.preflight", path)
-    require_any_command(preflight, "F1.preflight", path, "scripts/check_full_pusht_contract_smoke_report.py")
+    require_any_command(
+        preflight,
+        "F1.preflight",
+        path,
+        "scripts/check_full_pusht_contract_smoke_report.py",
+    )
+    require_any_command(
+        preflight,
+        "F1.preflight",
+        path,
+        "scripts/check_pusht_full_safetensors_hub_audit_report.py",
+    )
     require_any_command(
         preflight,
         "F1.preflight",

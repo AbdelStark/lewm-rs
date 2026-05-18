@@ -51,7 +51,12 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   commands, so the known bounded-core 50k artifact cannot be mistaken for a
   full Burn/Jepa source run. Its ONNX verification stage now injects
   `onnxruntime` explicitly instead of assuming the `parity` Python extra
-  provides it.
+  provides it. `scripts/audit_pusht_full_safetensors.py` and
+  `reports/pusht_full_safetensors_hub_audit.json` now audit public PushT
+  `.safetensors` headers without downloading full checkpoint payloads, showing
+  all six current public candidates fail the F1 full-run source preflight and
+  that zero `train/pusht-full-burn-jepa-*` step-50000 candidates are ready for
+  the export wrapper.
 - **SO-100 warm-start wiring + preflight**: `lewm-train` now consumes
   `training.warmstart_from` for fresh SO-100 full-module training starts,
   transfers shared PushT modules through the RFC 0012 warm-start boundary,

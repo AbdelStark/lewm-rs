@@ -28,7 +28,10 @@ REQUIRED_EVIDENCE_BY_ID: dict[str, tuple[str, ...]] = {
     "F1": (
         "reports/full_burn_jepa_training_gap.md",
         "reports/full_pusht_contract_smoke.json",
+        "reports/pusht_full_safetensors_hub_audit.json",
         "scripts/f1_export_pusht_onnx.py",
+        "scripts/audit_pusht_full_safetensors.py",
+        "scripts/check_pusht_full_safetensors_hub_audit_report.py",
         "reports/phase_a_handoff.json",
         "reports/phase_a_approval.json",
         "scripts/check_phase_a_approval.py",

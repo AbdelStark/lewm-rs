@@ -1,0 +1,196 @@
+{
+  "candidate_count": 6,
+  "candidates": [
+    {
+      "download_url": "https://huggingface.co/abdelstark/lewm-rs-pusht/resolve/main/smoke/pusht-20260514T095542Z/step_0000050.safetensors",
+      "observed": {
+        "dtypes": [
+          "F32"
+        ],
+        "first_tensors": [
+          "smoke_scalar.bias",
+          "smoke_scalar.weight"
+        ],
+        "format": "safetensors",
+        "inferred_family": "unknown",
+        "metadata_keys": [],
+        "tensor_count": 2
+      },
+      "path": "smoke/pusht-20260514T095542Z/step_0000050.safetensors",
+      "reason": "smoke/pusht-20260514T095542Z/step_0000050.safetensors: path must start with 'train/pusht-full-burn-jepa-'; tensor count 2 does not match expected full Burn/Jepa destination tensor count 255",
+      "size": 160,
+      "status": "rejected",
+      "violations": [
+        "path must start with 'train/pusht-full-burn-jepa-'",
+        "tensor count 2 does not match expected full Burn/Jepa destination tensor count 255"
+      ]
+    },
+    {
+      "download_url": "https://huggingface.co/abdelstark/lewm-rs-pusht/resolve/main/train/pusht-full-lewm-20260515T100908Z/step_0050000.safetensors",
+      "observed": {
+        "dtypes": [
+          "F32"
+        ],
+        "first_tensors": [
+          "action_encoder.bias",
+          "action_encoder.x.weight",
+          "action_encoder.y.weight",
+          "encoder.bias",
+          "encoder.energy.weight",
+          "encoder.pixel.weight",
+          "encoder.time.weight",
+          "pred_proj.bias",
+          "pred_proj.weight",
+          "predictor.action.weight"
+        ],
+        "format": "safetensors",
+        "inferred_family": "bounded_pusht_host_core",
+        "metadata_keys": [],
+        "tensor_count": 14
+      },
+      "path": "train/pusht-full-lewm-20260515T100908Z/step_0050000.safetensors",
+      "reason": "train/pusht-full-lewm-20260515T100908Z/step_0050000.safetensors: path uses legacy bounded prefix 'train/pusht-full-lewm-'; F1 requires 'train/pusht-full-burn-jepa-'; tensor count 14 does not match expected full Burn/Jepa destination tensor count 255",
+      "size": 1264,
+      "status": "rejected",
+      "violations": [
+        "path uses legacy bounded prefix 'train/pusht-full-lewm-'; F1 requires 'train/pusht-full-burn-jepa-'",
+        "tensor count 14 does not match expected full Burn/Jepa destination tensor count 255"
+      ]
+    },
+    {
+      "download_url": "https://huggingface.co/abdelstark/lewm-rs-pusht/resolve/main/train/pusht-minimal-lewm-short-20260514T133423Z/step_0000010.safetensors",
+      "observed": {
+        "dtypes": [
+          "F32"
+        ],
+        "first_tensors": [
+          "action_encoder.bias",
+          "action_encoder.x.weight",
+          "action_encoder.y.weight",
+          "encoder.bias",
+          "encoder.energy.weight",
+          "encoder.pixel.weight",
+          "encoder.time.weight",
+          "pred_proj.bias",
+          "pred_proj.weight",
+          "predictor.action.weight"
+        ],
+        "format": "safetensors",
+        "inferred_family": "bounded_pusht_host_core",
+        "metadata_keys": [],
+        "tensor_count": 14
+      },
+      "path": "train/pusht-minimal-lewm-short-20260514T133423Z/step_0000010.safetensors",
+      "reason": "train/pusht-minimal-lewm-short-20260514T133423Z/step_0000010.safetensors: path must start with 'train/pusht-full-burn-jepa-'; tensor count 14 does not match expected full Burn/Jepa destination tensor count 255",
+      "size": 1264,
+      "status": "rejected",
+      "violations": [
+        "path must start with 'train/pusht-full-burn-jepa-'",
+        "tensor count 14 does not match expected full Burn/Jepa destination tensor count 255"
+      ]
+    },
+    {
+      "download_url": "https://huggingface.co/abdelstark/lewm-rs-pusht/resolve/main/train/pusht-short-20260514T114211Z/step_0000010.safetensors",
+      "observed": {
+        "dtypes": [
+          "F32"
+        ],
+        "first_tensors": [
+          "pusht_probe.bias",
+          "pusht_probe.pixel_weight",
+          "pusht_probe.time_weight"
+        ],
+        "format": "safetensors",
+        "inferred_family": "unknown",
+        "metadata_keys": [],
+        "tensor_count": 3
+      },
+      "path": "train/pusht-short-20260514T114211Z/step_0000010.safetensors",
+      "reason": "train/pusht-short-20260514T114211Z/step_0000010.safetensors: path must start with 'train/pusht-full-burn-jepa-'; tensor count 3 does not match expected full Burn/Jepa destination tensor count 255",
+      "size": 256,
+      "status": "rejected",
+      "violations": [
+        "path must start with 'train/pusht-full-burn-jepa-'",
+        "tensor count 3 does not match expected full Burn/Jepa destination tensor count 255"
+      ]
+    },
+    {
+      "download_url": "https://huggingface.co/abdelstark/lewm-rs-pusht/resolve/main/train/pusht-tiny-jepa-short-20260514T123936Z/step_0000010.safetensors",
+      "observed": {
+        "dtypes": [
+          "F32"
+        ],
+        "first_tensors": [
+          "action_encoder.bias",
+          "action_encoder.x_weight",
+          "action_encoder.y_weight",
+          "encoder.bias",
+          "encoder.energy_weight",
+          "encoder.pixel_weight",
+          "encoder.time_weight",
+          "pred_proj.bias",
+          "pred_proj.scale",
+          "predictor.action_scale"
+        ],
+        "format": "safetensors",
+        "inferred_family": "unknown",
+        "metadata_keys": [],
+        "tensor_count": 14
+      },
+      "path": "train/pusht-tiny-jepa-short-20260514T123936Z/step_0000010.safetensors",
+      "reason": "train/pusht-tiny-jepa-short-20260514T123936Z/step_0000010.safetensors: path must start with 'train/pusht-full-burn-jepa-'; tensor count 14 does not match expected full Burn/Jepa destination tensor count 255",
+      "size": 1256,
+      "status": "rejected",
+      "violations": [
+        "path must start with 'train/pusht-full-burn-jepa-'",
+        "tensor count 14 does not match expected full Burn/Jepa destination tensor count 255"
+      ]
+    },
+    {
+      "download_url": "https://huggingface.co/abdelstark/lewm-rs-pusht/resolve/main/train/pusht-tiny-jepa-short-20260514T124237Z/step_0000010.safetensors",
+      "observed": {
+        "dtypes": [
+          "F32"
+        ],
+        "first_tensors": [
+          "action_encoder.bias",
+          "action_encoder.x_weight",
+          "action_encoder.y_weight",
+          "encoder.bias",
+          "encoder.energy_weight",
+          "encoder.pixel_weight",
+          "encoder.time_weight",
+          "pred_proj.bias",
+          "pred_proj.scale",
+          "predictor.action_scale"
+        ],
+        "format": "safetensors",
+        "inferred_family": "unknown",
+        "metadata_keys": [],
+        "tensor_count": 14
+      },
+      "path": "train/pusht-tiny-jepa-short-20260514T124237Z/step_0000010.safetensors",
+      "reason": "train/pusht-tiny-jepa-short-20260514T124237Z/step_0000010.safetensors: path must start with 'train/pusht-full-burn-jepa-'; tensor count 14 does not match expected full Burn/Jepa destination tensor count 255",
+      "size": 1256,
+      "status": "rejected",
+      "violations": [
+        "path must start with 'train/pusht-full-burn-jepa-'",
+        "tensor count 14 does not match expected full Burn/Jepa destination tensor count 255"
+      ]
+    }
+  ],
+  "expected": {
+    "destination_tensor_count": 255,
+    "required_path_pattern": "train/pusht-full-burn-jepa-YYYYMMDDTHHMMSSZ/step_0050000.safetensors",
+    "source_key_count_after_contract_check": 303
+  },
+  "ready_count": 0,
+  "repo": "abdelstark/lewm-rs-pusht",
+  "revision": "main",
+  "schema_version": "1.0.0",
+  "source": "https://huggingface.co/api/models/abdelstark/lewm-rs-pusht/tree/main?recursive=1",
+  "source_verifier": "scripts/f1_export_pusht_onnx.py --execute",
+  "status": "blocked",
+  "summary": "No public PushT safetensors file currently satisfies the F1 full-run source preflight.",
+  "updated": "2026-05-18"
+}
