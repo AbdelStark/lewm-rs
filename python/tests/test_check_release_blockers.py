@@ -20,6 +20,7 @@ REQUIRED_EVIDENCE_BY_ID = {
         "reports/phase_a_handoff.json",
         "reports/phase_a_approval.json",
         "scripts/check_phase_a_approval.py",
+        "reports/runtime_image_publish.md",
     ],
     "F3": [
         "jobs/train_so100_warmstart.yaml",
@@ -36,6 +37,10 @@ REQUIRED_EVIDENCE_BY_ID = {
     ],
     "F13": [
         "conformance/release_blockers.json",
+    ],
+    "F11": [
+        ".github/workflows/runtime-image.yml",
+        "reports/runtime_image_publish.md",
     ],
 }
 REQUIRED_RESOLUTION_BY_ID = {

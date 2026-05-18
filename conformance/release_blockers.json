@@ -22,7 +22,8 @@
         "reports/phase_a_approval.json",
         "scripts/check_phase_a_approval.py",
         "reports/pusht_training.md",
-        "reports/release_checklist.md"
+        "reports/release_checklist.md",
+        "reports/runtime_image_publish.md"
       ],
       "required_resolution": [
         "Publish a concrete non-latest GHCR runtime image tag from the intended git commit.",
@@ -214,7 +215,8 @@
       "evidence": [
         ".github/workflows/release.yml",
         ".github/workflows/runtime-image.yml",
-        "reports/release_checklist.md"
+        "reports/release_checklist.md",
+        "reports/runtime_image_publish.md"
       ],
       "required_resolution": [
         "Grant AbdelStark/lewm-rs Write access to the ghcr.io/abdelstark/lewm-rs package settings.",

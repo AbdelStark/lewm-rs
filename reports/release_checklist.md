@@ -65,7 +65,7 @@ This document tracks all items needed before tagging a public release.
 | `CHANGELOG.md` release section | ⏳ Pending | Move [Unreleased] → [1.0.0] when ready |
 | Git tag `v1.0.0` | ⏳ Pending | After all required items complete |
 | GitHub release draft | ⏳ Pending | Link to model cards, ONNX artifacts, demo |
-| GHCR container image | ⚠️ Blocked | Needs user to grant repo GITHUB_TOKEN write access to package; after that, `runtime-image.yml` can publish a concrete pre-release F1 runtime tag and `scripts/verify_runtime_image.py` must pass before paid launch |
+| GHCR container image | ⚠️ Blocked | `runtime-image.yml` run `26035809317` reached GHCR login and completed the Docker build, then failed on `denied: permission_denied: write_package`; needs user to grant repo GITHUB_TOKEN write access to package. After that, rerun the workflow and `scripts/verify_runtime_image.py` before paid launch. See `reports/runtime_image_publish.md`. |
 | `cargo publish` (if applicable) | ⏳ N/A | crates.io publish not planned for v1.0.0 |
 
 ## Billing guardrails

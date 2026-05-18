@@ -20,7 +20,9 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   submission. Added a manual `runtime-image` workflow for publishing concrete
   pre-release runtime tags without pushing `latest`. The release blocker gate
   now requires the runtime image verifier/workflow evidence and preserves the
-  F1 GHCR tag verification criteria in `required_resolution`.
+  F1 GHCR tag verification criteria in `required_resolution`. A runtime-image
+  attempt for `f1-runtime-97880d0` now documents the current GHCR package
+  permission blocker (`write_package`) in `reports/runtime_image_publish.md`.
 - **Burn 0.20.1 → 0.21.0** (per ADR 0003). Updated all seven workspace
   Burn dependencies (`burn`, `burn-core`, `burn-cuda`, `burn-ndarray`,
   `burn-autodiff`, `burn-import`, `burn-train`). Migrated five

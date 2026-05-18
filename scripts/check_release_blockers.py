@@ -37,6 +37,7 @@ REQUIRED_EVIDENCE_BY_ID: dict[str, tuple[str, ...]] = {
         "reports/phase_a_handoff.json",
         "reports/phase_a_approval.json",
         "scripts/check_phase_a_approval.py",
+        "reports/runtime_image_publish.md",
     ),
     "F3": (
         "jobs/train_so100_warmstart.yaml",
@@ -53,6 +54,10 @@ REQUIRED_EVIDENCE_BY_ID: dict[str, tuple[str, ...]] = {
     ),
     "F13": (
         "conformance/release_blockers.json",
+    ),
+    "F11": (
+        ".github/workflows/runtime-image.yml",
+        "reports/runtime_image_publish.md",
     ),
 }
 REQUIRED_RESOLUTION_SUBSTRINGS_BY_ID: dict[str, tuple[str, ...]] = {
