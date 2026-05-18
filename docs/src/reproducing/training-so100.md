@@ -33,10 +33,10 @@ training config.
 ## 4. Train
 
 ```sh
-scripts/launch_hf_job.py jobs/full_so100.yaml
+scripts/launch_hf_job.py jobs/train_so100.yaml --allow-approval-required
 ```
 
-`jobs/full_so100.yaml` uses `configs/so100.toml`, which differs from
+`jobs/train_so100.yaml` uses `configs/so100.toml`, which differs from
 `configs/pusht.toml` in:
 
 - `action_dim = 6` (raw 6-DOF joints).
@@ -51,13 +51,15 @@ $\beta$, AdaLN-zero defaults, SIGReg defaults) match PushT.
 ## 5. Warm-start variant
 
 ```sh
-scripts/launch_hf_job.py jobs/full_so100_warmstart.yaml
+LEWM_PUSHT_WARMSTART_MPK=train/<run>/step_<N>.mpk \
+scripts/launch_hf_job.py jobs/train_so100_warmstart.yaml --allow-approval-required
 ```
 
-This loads the PushT step-50000 weights into the encoder, projector,
-predictor, and pred-proj before training, then trains for 5 000 steps
-on SO-100. The action encoder is randomly initialised (different
-input channel count).
+This job fails closed unless `LEWM_PUSHT_WARMSTART_MPK` points at a
+compatible PushT `.mpk` source checkpoint. It loads shared PushT
+modules into the encoder, projector, predictor, and pred-proj before
+training, then trains for 5 000 steps on SO-100. The action encoder is
+freshly initialised because SO-100 has a different action input count.
 
 The two runs (from-scratch and warm-start) can be compared via the
 SO-100 eval CLI. See [Warm-start ablation](../planning/warm-start.md).
@@ -77,4 +79,4 @@ Step-100 loss should be close to the cloud BF16 result.
 ## 7. Reports
 
 - Full report: [`reports/so100_training.md`](https://github.com/AbdelStark/lewm-rs/blob/main/reports/so100_training.md).
-- Job spec: [`jobs/full_so100.yaml`](https://github.com/AbdelStark/lewm-rs/blob/main/jobs/).
+- Job spec: [`jobs/train_so100.yaml`](https://github.com/AbdelStark/lewm-rs/blob/main/jobs/train_so100.yaml).

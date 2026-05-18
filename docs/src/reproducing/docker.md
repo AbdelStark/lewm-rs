@@ -35,14 +35,14 @@ HF Jobs spec files live under `jobs/`:
 |------|---------|
 | `jobs/smoke_pusht.yaml` | 50-step smoke train on PushT, CPU. |
 | `jobs/short_pusht.yaml` | 10-step "real" train path on PushT. |
-| `jobs/full_pusht.yaml` | 50 k-step full train on A10G-large. |
-| `jobs/full_so100.yaml` | 5 k-step SO-100 train on A10G-large. |
-| `jobs/full_so100_warmstart.yaml` | 5 k-step SO-100 warm-start from PushT. |
+| `jobs/train_pusht.yaml` | Approval-gated 50 k-step PushT train on A10G-large. |
+| `jobs/train_so100.yaml` | Approval-gated 5 k-step SO-100 train on A10G-large. |
+| `jobs/train_so100_warmstart.yaml` | Approval-gated 5 k-step SO-100 warm-start from PushT; requires a compatible `.mpk` source path. |
 
 Launch with the helper:
 
 ```sh
-scripts/launch_hf_job.py jobs/full_pusht.yaml
+scripts/launch_hf_job.py jobs/train_pusht.yaml --allow-approval-required
 ```
 
 The helper:
@@ -50,7 +50,7 @@ The helper:
 1. Validates the YAML against the schema in
    `scripts/check_jobs.py`.
 2. Resolves `${HF_TOKEN}` and other env-var placeholders.
-3. Calls `hf jobs create` to schedule the job.
+3. Calls `hf jobs run` to schedule the job.
 4. Returns the job ID for monitoring.
 
 ## 4. Job lifecycle
@@ -60,8 +60,8 @@ The helper:
 - Logs (stdout) are tailed to the HF Jobs UI live.
 - Checkpoints are pushed to the Hub repo via the trainer's UPLOAD
   state.
-- On crash, the job can be re-launched with `--resume`, which sets
-  `--resume-if-present` on the trainer.
+- On crash, re-launching the same training job preserves the trainer's
+  `--resume-if-present` behavior when the job spec includes it.
 
 ## 5. Cost
 
@@ -75,7 +75,8 @@ launches that would exceed the project ceiling.
 
 `scripts/check_jobs.py` validates every job spec:
 
-- Image is `ghcr.io/abdelstark/lewm-rs:*`.
+- Image is the expected GHCR runtime image, except source-building approval
+  jobs that intentionally use `rust:1.95.0-bookworm`.
 - Command uses only binaries / scripts present in the image.
 - Hardware tier is on the approved list.
 - Required env vars are declared.

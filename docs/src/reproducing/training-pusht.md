@@ -26,27 +26,28 @@ faithful reproduction leave them at the defaults.
 ## 3. Launch
 
 ```sh
-scripts/launch_hf_job.py jobs/full_pusht.yaml
+scripts/launch_hf_job.py jobs/train_pusht.yaml --allow-approval-required
 ```
 
-`jobs/full_pusht.yaml` declares:
+`jobs/train_pusht.yaml` declares:
 
 - Image: `ghcr.io/abdelstark/lewm-rs:latest` (built from the checked-in
   `Dockerfile`).
 - Hardware: A10G-large.
-- Env: `HF_TOKEN`, `LEWM_RUN_LABEL`.
+- Env: `HF_TOKEN`, `TRACKIO_PROJECT`, `TRACKIO_RUN`, and optional OTLP endpoint.
 - Command:
 
   ```sh
-  lewm-train --config configs/pusht.toml \
-             --device cuda \
-             --output-dir /scratch/$RUN_ID \
-             train \
-             --upload --upload-repo abdelstark/lewm-rs-pusht
+  lewm-train train \
+      --config configs/pusht.toml \
+      --data-dir /tmp/data \
+      --output-dir /tmp/out \
+      --resume-if-present \
+      --max-steps ${LEWM_MAX_STEPS:-1000}
   ```
 
-The job uploads intermediate checkpoints every 5 000 steps and the
-final checkpoint at step 50 000.
+The job uploads the trainer output directory to the PushT Hub repo after
+the train command completes.
 
 ## 4. Monitoring
 
@@ -61,12 +62,9 @@ While the job is running:
 
 The HF Jobs runner is robust to most failures. If a job dies mid-run:
 
-```sh
-scripts/launch_hf_job.py jobs/full_pusht.yaml --resume
-```
-
-The trainer picks up at the last complete checkpoint via
-`--resume-if-present` (which is implied by the `--resume` job flag).
+Re-launch the same job after confirming the previous output directory is
+still available. The trainer picks up at the last complete checkpoint via
+the job spec's `--resume-if-present` flag.
 The resume is bit-identical-state from the sidecar; see
 [Determinism](../training/determinism.md).
 
@@ -114,5 +112,5 @@ the run should not have launched.
 ## 9. Where to read
 
 - Full report: [`reports/pusht_training.md`](https://github.com/AbdelStark/lewm-rs/blob/main/reports/pusht_training.md).
-- HF Jobs spec: [`jobs/full_pusht.yaml`](https://github.com/AbdelStark/lewm-rs/blob/main/jobs/).
+- HF Jobs spec: [`jobs/train_pusht.yaml`](https://github.com/AbdelStark/lewm-rs/blob/main/jobs/train_pusht.yaml).
 - Dockerfile: [`Dockerfile`](https://github.com/AbdelStark/lewm-rs/blob/main/Dockerfile).

@@ -45,7 +45,10 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   refuses to run unless `LEWM_PUSHT_WARMSTART_MPK` names a compatible PushT
   `.mpk` source, downloads SO-100 data, runs the warm-start config with an
   explicit `training.warmstart_from` override, and uploads to
-  `train/so100-warmstart-*`.
+  `train/so100-warmstart-*`. Reproduction/result docs now use the checked-in
+  `train_*.yaml` job names and describe the PushT 50k artifact as a bounded
+  14-tensor host-core checkpoint rather than a trained 303-tensor Burn/Jepa
+  checkpoint.
 - **`lewm-train` eval adapter**: new `lewm_train::eval` module provides
   `JepaCemCostModel<B>`, a `lewm_plan::CemCostModel` adapter that
   tensorises CEM batches and forwards to the parity-verified

@@ -72,7 +72,7 @@ across the run, consistent with a well-conditioned optimisation.
 
 The 50 k-step training run uses **`PushtFullLewmCore`**, a
 14-parameter Rust-native simplified core, not the full Burn `Jepa`
-(303 parameters). This is the "bounded model" path that allowed end-to-end
+(303 tensors). This is the "bounded model" path that allowed end-to-end
 training to land while the full Burn-ViT training path was being
 wired in.
 
@@ -99,14 +99,14 @@ project spend including the bounded smoke runs is \$11.70. Cap is
 
 | File | Description | Where |
 |------|-------------|-------|
-| `step_0050000.safetensors` | Burn model weights (303 tensors) | `abdelstark/lewm-rs-pusht/train/pusht-full-lewm-20260515T100908Z/` |
-| `step_0050000.mpk` | Full Burn checkpoint (model + optimizer + RNG) | same |
+| `step_0050000.safetensors` | Bounded host-core parameter mirror (14 tensors, ~1.2 KB) | `abdelstark/lewm-rs-pusht/train/pusht-full-lewm-20260515T100908Z/` |
+| `step_0050000.mpk` | Bounded host-core checkpoint (model + optimizer + RNG, ~1.2 KB) | same |
 | `step_0050000.json` | Sidecar metadata | same |
 | `step_0050000.parity.json` | Parity probe output | same |
 | `train_losses.jsonl` | Per-step loss log (50 000 rows) | same |
 | `train_report.json` | Training summary (schema v1.0.0) | same |
-| `encoder.onnx`, `predictor.onnx` (onnxruntime variant) | ONNX graphs for the Space | repo root |
-| `tract-compat/encoder.onnx`, `tract-compat/predictor.onnx` | Tract-compat ONNX | `tract-compat/` |
+| `encoder.onnx`, `predictor.onnx` | Reference ONNX graphs for the Space, not exported from the 50 k-step checkpoint | repo root |
+| `tract-compat/encoder.onnx`, `tract-compat/predictor.onnx` | Reference Tract-compat ONNX, not exported from the 50 k-step checkpoint | `tract-compat/` |
 | `stats.safetensors` | Action normalisation stats | repo root |
 | Model card | `README.md` | repo root |
 
@@ -121,9 +121,9 @@ cargo run -p lewm-train -- \
     --max-steps 10 train
 
 # Cloud full run (HF Jobs)
-scripts/launch_hf_job.py jobs/full_pusht.yaml
+scripts/launch_hf_job.py jobs/train_pusht.yaml --allow-approval-required
 ```
 
-The HF Jobs spec is committed at `jobs/full_pusht.yaml`. With seed = 0
+The HF Jobs spec is committed at `jobs/train_pusht.yaml`. With seed = 0
 and the pinned config hash, a re-run on the same hardware should
 converge to the same final loss within TOL-005 (rel. < 1 %).
