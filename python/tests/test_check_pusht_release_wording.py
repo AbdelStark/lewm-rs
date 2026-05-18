@@ -16,6 +16,8 @@ def write_valid_docs(root: Path) -> None:
             "Historical bounded-core PushT training\n"
             "F1 full Burn/Jepa PushT release checkpoint is still pending\n"
             "train/pusht-full-burn-jepa-*\n"
+            "all public PushT `.mpk` sources currently fail\n"
+            "compatible current bounded-core PushT `.mpk` source\n"
         ),
         "CHANGELOG.md": "PushT bounded-core training job submitted\n",
         "docs/src/results/cost.md": (
@@ -43,6 +45,16 @@ def write_valid_docs(root: Path) -> None:
         "reports/release_checklist.md": (
             "Bounded-core only\n"
             "zero ready `train/pusht-full-burn-jepa-*` candidates\n"
+            "all six public PushT `.mpk` candidates are incompatible\n"
+        ),
+        "reports/so100_training.md": (
+            "Provide a compatible current bounded-core PushT `.mpk` source\n"
+            "approval-gated SO-100 warm-start job\n"
+            "Evaluate from-scratch vs. warm-start once both checkpoints exist\n"
+        ),
+        "python/model_cards/README_so100.md": (
+            "Blocked pending compatible PushT `.mpk` source\n"
+            "Launch is blocked until a compatible current bounded-core PushT `.mpk` source exists\n"
         ),
     }
     for relative_path, text in docs.items():
@@ -97,3 +109,21 @@ def test_rejects_missing_bounded_core_correction(tmp_path: Path) -> None:
     assert result.returncode == 1
     assert "ROADMAP.md: missing required wording" in result.stderr
     assert "Historical bounded-core PushT training" in result.stderr
+
+
+def test_rejects_stale_warmstart_epoch_source_claim(tmp_path: Path) -> None:
+    write_valid_docs(tmp_path)
+    (tmp_path / "ROADMAP.md").write_text(
+        "Historical bounded-core PushT training\n"
+        "F1 full Burn/Jepa PushT release checkpoint is still pending\n"
+        "train/pusht-full-burn-jepa-*\n"
+        "all public PushT `.mpk` sources currently fail\n"
+        "compatible current bounded-core PushT `.mpk` source\n"
+        "SO-100 warm-start from PushT epoch-10\n",
+        encoding="utf-8",
+    )
+
+    result = run_check(tmp_path)
+
+    assert result.returncode == 1
+    assert "from PushT epoch-10" in result.stderr

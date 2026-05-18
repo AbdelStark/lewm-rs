@@ -38,6 +38,7 @@ REQUIRED_EVIDENCE_BY_ID = {
         "scripts/check_pusht_warmstart_source_smoke_report.py",
         "scripts/audit_pusht_warmstart_sources.py",
         "scripts/check_pusht_warmstart_hub_audit_report.py",
+        "scripts/check_pusht_release_wording.py",
         "reports/phase_a_handoff.json",
     ],
     "F13": [

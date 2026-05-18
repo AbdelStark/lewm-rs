@@ -27,12 +27,15 @@ FORBIDDEN_PHRASES = (
     "full PushT training",
     "PushT full run",
     "Full Burn-Jepa end-to-end training",
+    "from PushT epoch-10",
 )
 REQUIRED_TOKENS_BY_FILE = {
     Path("ROADMAP.md"): (
         "Historical bounded-core PushT training",
         "F1 full Burn/Jepa PushT release checkpoint is still pending",
         "train/pusht-full-burn-jepa-*",
+        "all public PushT `.mpk` sources currently fail",
+        "compatible current bounded-core PushT `.mpk` source",
     ),
     Path("docs/src/results/cost.md"): (
         "PushT 50 k-step bounded-core run",
@@ -61,6 +64,16 @@ REQUIRED_TOKENS_BY_FILE = {
     Path("reports/release_checklist.md"): (
         "Bounded-core only",
         "zero ready `train/pusht-full-burn-jepa-*` candidates",
+        "all six public PushT `.mpk` candidates are incompatible",
+    ),
+    Path("reports/so100_training.md"): (
+        "Provide a compatible current bounded-core PushT `.mpk` source",
+        "approval-gated SO-100 warm-start job",
+        "Evaluate from-scratch vs. warm-start once both checkpoints exist",
+    ),
+    Path("python/model_cards/README_so100.md"): (
+        "Blocked pending compatible PushT `.mpk` source",
+        "Launch is blocked until a compatible current bounded-core PushT `.mpk` source exists",
     ),
 }
 

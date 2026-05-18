@@ -77,7 +77,10 @@ run_id.txt                 — job run identifier
 
 ## Next Steps
 
-1. Run warm-start ablation evaluation: `lewm-plan eval --checkpoint
-   step_0005000.mpk --data-dir <so100-hdf5>`.
-2. Upload final model card with eval metrics.
-3. Wire full Burn ViT into SO-100 training path to enable parity-validated run.
+1. Provide a compatible current bounded-core PushT `.mpk` source, or migrate
+   the warm-start path to the full Burn/Jepa contract, then run the
+   approval-gated SO-100 warm-start job.
+2. Evaluate from-scratch vs. warm-start once both checkpoints exist, then
+   compute the warm-start loss and Spearman deltas.
+3. Upload final model card with eval metrics.
+4. Wire full Burn ViT into SO-100 training path to enable parity-validated run.

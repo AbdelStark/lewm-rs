@@ -124,8 +124,11 @@ with linked evidence:
   ONNX exporter. Need a human-approved full Burn/Jepa F1 run under
   `train/pusht-full-burn-jepa-*`, then export `onnx-full/`, run CEM planning
   eval, and measure success rate on 50 test episodes. Target ≥ 87%.
-- **SO-100 warm-start** (#194): scratch checkpoint shipped; needs the warm-started run
-  from PushT epoch-10 and Spearman delta to close the ablation.
+- **SO-100 warm-start** (#194, #245): scratch checkpoint shipped, but all
+  public PushT `.mpk` sources currently fail the warm-start source contract.
+  Needs a compatible current bounded-core PushT `.mpk` source, or a formal
+  migration to full Burn/Jepa warm-start, before the paid warm-start run and
+  Spearman delta can close the ablation.
 
 ## Issue Hygiene
 
@@ -151,8 +154,10 @@ Immediate next actions:
 3. Run CEM planning eval with the exported ONNX and record the success rate
    (target ≥ 87 %) — closes the acceptance criterion for #193.
 4. Upload the PushT model card with the measured eval metrics.
-5. Launch the SO-100 warm-started training arm and compute the warm-start
-   Spearman delta (closes the acceptance criterion for #194).
+5. Provide a compatible current bounded-core PushT `.mpk` source, or migrate
+   SO-100 warm-start to the full Burn/Jepa contract, then launch the
+   approval-gated warm-start training arm and compute the Spearman delta
+   (closes the acceptance criterion for #194).
 
 Remaining release steps (user actions required):
 5. Fix GHCR package permissions (see Blockers above).
