@@ -82,7 +82,9 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   blockers are resolved. `reports/phase_a_handoff.json` and
   `scripts/check_phase_a_handoff.py` now pin the ordered F1/F3 handoff
   commands, human-approval gates, accepted/rejected PushT source prefixes, and
-  warm-start source requirements in one machine-checked artifact.
+  warm-start source requirements in one machine-checked artifact. The handoff
+  validator also cross-checks `conformance/release_blockers.json` so F1/F3
+  cannot drift away from their blocked Phase A release status.
 - **Model-card accuracy**: local PushT and SO-100 Hub cards now label the
   current uploads as bounded trainer artifacts instead of full release
   checkpoints, and `scripts/upload_model_cards.py --dry-run` no longer requires

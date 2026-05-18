@@ -120,9 +120,38 @@ def handoff_payload() -> dict[str, object]:
     }
 
 
-def run_check(path: Path) -> subprocess.CompletedProcess[str]:
+def blocker_payload(statuses: dict[str, str] | None = None) -> dict[str, object]:
+    statuses = statuses or {}
+    return {
+        "schema_version": "1.0.0",
+        "updated": "2026-05-18",
+        "blockers": [
+            {
+                "id": "F1",
+                "issue": 243,
+                "phase": "A",
+                "status": statuses.get("F1", "blocked"),
+                "evidence": ["reports/phase_a_handoff.json"],
+                "required_resolution": ["resolve"],
+            },
+            {
+                "id": "F3",
+                "issue": 245,
+                "phase": "A",
+                "status": statuses.get("F3", "blocked"),
+                "evidence": ["reports/phase_a_handoff.json"],
+                "required_resolution": ["resolve"],
+            },
+        ],
+    }
+
+
+def run_check(path: Path, blockers: Path | None = None) -> subprocess.CompletedProcess[str]:
+    command = [sys.executable, str(SCRIPT), "--path", str(path)]
+    if blockers is not None:
+        command.extend(["--blockers", str(blockers)])
     return subprocess.run(
-        [sys.executable, str(SCRIPT), "--path", str(path)],
+        command,
         cwd=ROOT,
         text=True,
         capture_output=True,
@@ -170,3 +199,15 @@ def test_rejects_f3_without_warmstart_env(tmp_path: Path) -> None:
 
     assert result.returncode == 1
     assert "F3.source_env must be 'LEWM_PUSHT_WARMSTART_MPK'" in result.stderr
+
+
+def test_rejects_resolved_phase_a_blocker(tmp_path: Path) -> None:
+    handoff = tmp_path / "phase_a_handoff.json"
+    blockers = tmp_path / "release_blockers.json"
+    handoff.write_text(json.dumps(handoff_payload()), encoding="utf-8")
+    blockers.write_text(json.dumps(blocker_payload(statuses={"F1": "resolved"})), encoding="utf-8")
+
+    result = run_check(handoff, blockers)
+
+    assert result.returncode == 1
+    assert "F1.status must stay blocked" in result.stderr

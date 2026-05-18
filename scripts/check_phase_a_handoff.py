@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 DEFAULT_HANDOFF = Path("reports/phase_a_handoff.json")
+DEFAULT_BLOCKERS = Path("conformance/release_blockers.json")
 EXPECTED_TASKS = (
     {
         "id": "F1",
@@ -56,6 +57,12 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=DEFAULT_HANDOFF,
         help=f"Phase A handoff file ({DEFAULT_HANDOFF})",
+    )
+    parser.add_argument(
+        "--blockers",
+        type=Path,
+        default=DEFAULT_BLOCKERS,
+        help=f"release blocker file used for cross-checking ({DEFAULT_BLOCKERS})",
     )
     return parser.parse_args()
 
@@ -178,11 +185,11 @@ def validate_task(task: Any, expected: dict[str, Any], handoff_path: Path) -> No
             )
 
 
-def load_handoff(path: Path) -> dict[str, Any]:
+def load_json(path: Path, *, label: str) -> dict[str, Any]:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError as exc:
-        raise HandoffError(f"missing Phase A handoff file: {path}") from exc
+        raise HandoffError(f"missing {label}: {path}") from exc
     except json.JSONDecodeError as exc:
         raise HandoffError(f"{path}: invalid JSON: {exc}") from exc
     if not isinstance(payload, dict):
@@ -190,7 +197,57 @@ def load_handoff(path: Path) -> dict[str, Any]:
     return payload
 
 
-def validate_handoff(payload: dict[str, Any], path: Path) -> None:
+def repo_relative(path: Path) -> str | None:
+    try:
+        return str(path.resolve().relative_to(repo_root()))
+    except ValueError:
+        return None
+
+
+def validate_blocker_alignment(
+    tasks: list[Any],
+    blockers_payload: dict[str, Any],
+    handoff_path: Path,
+    blockers_path: Path,
+) -> None:
+    blockers = blockers_payload.get("blockers")
+    if not isinstance(blockers, list):
+        raise HandoffError(f"{blockers_path}: blockers must be a list")
+    by_id = {
+        entry.get("id"): entry
+        for entry in blockers
+        if isinstance(entry, dict) and isinstance(entry.get("id"), str)
+    }
+    handoff_evidence = repo_relative(handoff_path)
+    for task in tasks:
+        if not isinstance(task, dict):
+            raise HandoffError(f"{handoff_path}: task must be an object")
+        task_id = task.get("id")
+        blocker = by_id.get(task_id)
+        if not isinstance(blocker, dict):
+            raise HandoffError(f"{blockers_path}: missing blocker {task_id}")
+        if blocker.get("issue") != task.get("issue"):
+            raise HandoffError(f"{blockers_path}: {task_id}.issue does not match handoff")
+        if blocker.get("phase") != "A":
+            raise HandoffError(f"{blockers_path}: {task_id}.phase must be 'A'")
+        if blocker.get("status") != "blocked":
+            raise HandoffError(f"{blockers_path}: {task_id}.status must stay blocked")
+        evidence = blocker.get("evidence")
+        if not isinstance(evidence, list):
+            raise HandoffError(f"{blockers_path}: {task_id}.evidence must be a list")
+        if handoff_evidence is not None and handoff_evidence not in evidence:
+            raise HandoffError(
+                f"{blockers_path}: {task_id}.evidence must include {handoff_evidence!r}"
+            )
+
+
+def validate_handoff(
+    payload: dict[str, Any],
+    *,
+    path: Path,
+    blockers_payload: dict[str, Any],
+    blockers_path: Path,
+) -> None:
     if payload.get("schema_version") != "1.0.0":
         raise HandoffError(f"{path}: schema_version must be '1.0.0'")
     require_str(payload, "updated", path)
@@ -207,13 +264,22 @@ def validate_handoff(payload: dict[str, Any], path: Path) -> None:
         raise HandoffError(f"{path}: expected {len(EXPECTED_TASKS)} Phase A task(s)")
     for task, expected in zip(tasks, EXPECTED_TASKS, strict=True):
         validate_task(task, expected, path)
+    validate_blocker_alignment(tasks, blockers_payload, path, blockers_path)
 
 
 def main() -> int:
-    path = resolve_path(parse_args().path)
+    args = parse_args()
+    path = resolve_path(args.path)
+    blockers_path = resolve_path(args.blockers)
     try:
-        payload = load_handoff(path)
-        validate_handoff(payload, path)
+        payload = load_json(path, label="Phase A handoff file")
+        blockers_payload = load_json(blockers_path, label="release blocker file")
+        validate_handoff(
+            payload,
+            path=path,
+            blockers_payload=blockers_payload,
+            blockers_path=blockers_path,
+        )
     except HandoffError as exc:
         print(f"check_phase_a_handoff.py: {exc}", file=sys.stderr)
         return 1
