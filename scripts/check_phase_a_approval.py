@@ -70,6 +70,7 @@ EXPECTED_TASKS = {
         "issue": 245,
         "job": "jobs/train_so100_warmstart.yaml",
         "env_prefix": "LEWM_PUSHT_WARMSTART_MPK=train/",
+        "source_verifier": "scripts/check_warmstart_source.py",
         "template_placeholders": ("REPLACE_WITH_COMPATIBLE_BOUNDED_RUN",),
         "dry_run_tokens": (
             "LEWM_PUSHT_WARMSTART_MPK=train/REPLACE_WITH_COMPATIBLE_BOUNDED_RUN/step_0050000.mpk",
@@ -83,6 +84,15 @@ EXPECTED_TASKS = {
             "scripts/launch_hf_job.py",
             "jobs/train_so100_warmstart.yaml",
             "--allow-approval-required",
+        ),
+        "required_evidence": (
+            "reports/pusht_warmstart_source_smoke.json",
+            "reports/pusht_warmstart_hub_audit.json",
+            "scripts/pusht_warmstart_source_smoke.py",
+            "scripts/check_pusht_warmstart_source_smoke_report.py",
+            "scripts/audit_pusht_warmstart_sources.py",
+            "scripts/check_pusht_warmstart_hub_audit_report.py",
+            "scripts/check_warmstart_source.py",
         ),
     },
 }
@@ -269,6 +279,42 @@ def validate_source_build_preflight(
         )
 
 
+def validate_required_evidence(
+    task: dict[str, Any],
+    expected: dict[str, Any],
+    evidence: list[str],
+    report_path: Path,
+) -> None:
+    """Pin task-specific reports and checkers that must back approval."""
+    for required in expected.get("required_evidence", ()):
+        if required not in evidence:
+            raise ApprovalError(
+                f"{report_path}: {task['id']}.evidence must include {required!r}"
+            )
+
+
+def validate_source_verifier(
+    task: dict[str, Any],
+    expected: dict[str, Any],
+    evidence: list[str],
+    report_path: Path,
+) -> None:
+    """Require source-artifact launch tasks to name their verifier."""
+    verifier = expected.get("source_verifier")
+    if not isinstance(verifier, str):
+        return
+
+    declared = require_str(task, "source_verifier", report_path)
+    if declared != verifier:
+        raise ApprovalError(
+            f"{report_path}: {task['id']}.source_verifier must be {verifier!r}"
+        )
+    if declared not in evidence:
+        raise ApprovalError(
+            f"{report_path}: {task['id']}.evidence must include {declared!r}"
+        )
+
+
 def validate_job_cost(task: dict[str, Any], expected: dict[str, Any], report_path: Path) -> Decimal:
     job_path = str(expected["job"])
     job = launch_hf_job.parse_job(ROOT / job_path)
@@ -416,6 +462,8 @@ def validate_task(
     require_str(task, "title", report_path)
     require_str_list(task, "blocked_on", report_path)
     evidence = require_str_list(task, "evidence", report_path)
+    validate_required_evidence(task, expected, evidence, report_path)
+    validate_source_verifier(task, expected, evidence, report_path)
     validate_source_build_preflight(task, expected, evidence, report_path)
     validate_template_declaration(task, expected, report_path)
     validate_evidence(evidence, task_id, report_path)

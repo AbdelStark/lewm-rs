@@ -99,6 +99,7 @@ def approval_payload(**updates: object) -> dict[str, object]:
                 "issue": 245,
                 "title": "Launch SO-100 warm-start ablation",
                 "job": "jobs/train_so100_warmstart.yaml",
+                "source_verifier": "scripts/check_warmstart_source.py",
                 "hardware": "a10g-large",
                 "timeout": "6h",
                 "price_usd_per_hour": "1.50",
@@ -128,6 +129,10 @@ def approval_payload(**updates: object) -> dict[str, object]:
                     ".ml-intern/cli_agent_config.json",
                     "reports/pusht_warmstart_source_smoke.json",
                     "reports/pusht_warmstart_hub_audit.json",
+                    "scripts/pusht_warmstart_source_smoke.py",
+                    "scripts/check_pusht_warmstart_source_smoke_report.py",
+                    "scripts/audit_pusht_warmstart_sources.py",
+                    "scripts/check_pusht_warmstart_hub_audit_report.py",
                     "scripts/check_warmstart_source.py",
                 ],
             },
@@ -336,3 +341,42 @@ def test_rejects_resolved_fallback_command_mismatch(tmp_path: Path) -> None:
 
     assert result.returncode == 1
     assert "resolved_fallback_approval_command must match" in result.stderr
+
+
+def test_rejects_f3_without_source_verifier(tmp_path: Path) -> None:
+    path = tmp_path / "phase_a_approval.json"
+    payload = approval_payload()
+    tasks = payload["tasks"]
+    assert isinstance(tasks, list)
+    f3 = tasks[1]
+    assert isinstance(f3, dict)
+    f3["source_verifier"] = "scripts/other_verifier.py"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    result = run_check(path)
+
+    assert result.returncode == 1
+    assert "F3.source_verifier must be 'scripts/check_warmstart_source.py'" in result.stderr
+
+
+def test_rejects_f3_without_hub_audit_checker_evidence(tmp_path: Path) -> None:
+    path = tmp_path / "phase_a_approval.json"
+    payload = approval_payload()
+    tasks = payload["tasks"]
+    assert isinstance(tasks, list)
+    f3 = tasks[1]
+    assert isinstance(f3, dict)
+    evidence = f3["evidence"]
+    assert isinstance(evidence, list)
+    f3["evidence"] = [
+        item for item in evidence if item != "scripts/check_pusht_warmstart_hub_audit_report.py"
+    ]
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    result = run_check(path)
+
+    assert result.returncode == 1
+    assert (
+        "F3.evidence must include 'scripts/check_pusht_warmstart_hub_audit_report.py'"
+        in result.stderr
+    )
