@@ -31,6 +31,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   still-blocked F1 full Burn/Jepa release checkpoint and `onnx-full/` artifacts.
   The concrete F1 source-build dry-run evidence is now machine-checked by
   `scripts/check_f1_source_build_dry_run_report.py`.
+  PushT Hub audit scripts now accept absolute or out-of-repo `--report` paths
+  without crashing after a successful audit.
 - **Burn 0.20.1 → 0.21.0** (per ADR 0003). Updated all seven workspace
   Burn dependencies (`burn`, `burn-core`, `burn-cuda`, `burn-ndarray`,
   `burn-autodiff`, `burn-import`, `burn-train`). Migrated five

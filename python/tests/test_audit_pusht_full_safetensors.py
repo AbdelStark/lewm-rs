@@ -75,3 +75,12 @@ def test_build_report_marks_ready_candidate_for_contract_check() -> None:
 
     assert report["ready_count"] == 1
     assert report["status"] == "ready_for_contract_check"
+
+
+def test_display_path_accepts_external_report_path(tmp_path: Path) -> None:
+    external = tmp_path / "hub-audit.json"
+
+    assert audit.display_path(external) == str(external)
+    assert audit.display_path(ROOT / "reports" / "pusht_full_safetensors_hub_audit.json") == (
+        "reports/pusht_full_safetensors_hub_audit.json"
+    )

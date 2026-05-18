@@ -297,6 +297,14 @@ def write_report(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
+def display_path(path: Path) -> str:
+    """Return a repo-relative path when possible, otherwise the absolute path."""
+    try:
+        return str(path.resolve().relative_to(ROOT))
+    except ValueError:
+        return str(path)
+
+
 def main() -> int:
     args = parse_args()
     report_path = resolve_path(args.report)
@@ -321,7 +329,7 @@ def main() -> int:
     print(
         "PushT full safetensors Hub audit: "
         f"candidates={report['candidate_count']} ready={report['ready_count']} "
-        f"status={report['status']} report={report_path.relative_to(ROOT)}"
+        f"status={report['status']} report={display_path(report_path)}"
     )
     if args.require_ready and report["ready_count"] == 0:
         return 1

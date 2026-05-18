@@ -121,6 +121,15 @@ def test_build_report_marks_blocked_without_compatible_candidates() -> None:
     assert report["expected"]["param_count"] == EXPECTED_PARAM_COUNT
 
 
+def test_display_path_accepts_external_report_path(tmp_path: Path) -> None:
+    external = tmp_path / "warmstart-audit.json"
+
+    assert audit.display_path(external) == str(external)
+    assert audit.display_path(ROOT / "reports" / "pusht_warmstart_hub_audit.json") == (
+        "reports/pusht_warmstart_hub_audit.json"
+    )
+
+
 def test_audit_candidates_normalizes_download_paths(tmp_path: Path, monkeypatch: object) -> None:
     checker = audit.load_warmstart_checker()
     candidate = {"path": "train/run/step_0050000.mpk", "size": 1266}

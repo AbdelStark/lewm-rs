@@ -303,6 +303,14 @@ def write_report(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
+def display_path(path: Path) -> str:
+    """Return a repo-relative path when possible, otherwise the absolute path."""
+    try:
+        return str(path.resolve().relative_to(ROOT))
+    except ValueError:
+        return str(path)
+
+
 def run_with_download_root(args: argparse.Namespace, download_root: Path) -> dict[str, Any]:
     checker = load_warmstart_checker()
     config_path = resolve_path(args.config)
@@ -346,7 +354,7 @@ def main() -> int:
     print(
         "PushT warm-start Hub audit: "
         f"candidates={report['candidate_count']} compatible={report['compatible_count']} "
-        f"status={report['status']} report={report_path.relative_to(ROOT)}"
+        f"status={report['status']} report={display_path(report_path)}"
     )
     if args.require_compatible and report["compatible_count"] == 0:
         return 1
