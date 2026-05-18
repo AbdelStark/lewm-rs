@@ -40,6 +40,7 @@ def handoff_payload() -> dict[str, object]:
                     "reports/pusht_full_safetensors_hub_audit.json",
                     "scripts/audit_pusht_full_safetensors.py",
                     "scripts/check_pusht_full_safetensors_hub_audit_report.py",
+                    "scripts/verify_runtime_image.py",
                     "reports/phase_a_approval.json",
                     "scripts/f1_export_pusht_onnx.py",
                     "scripts/check_phase_a_approval.py",
@@ -53,6 +54,12 @@ def handoff_payload() -> dict[str, object]:
                         [
                             "python3",
                             "scripts/check_pusht_full_safetensors_hub_audit_report.py",
+                        ],
+                        [
+                            "python3",
+                            "scripts/verify_runtime_image.py",
+                            "--image-tag",
+                            "REPLACE_WITH_RUNTIME_IMAGE_TAG",
                         ],
                         [
                             "python3",

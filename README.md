@@ -188,6 +188,9 @@ CEM planning success rate on the standard PushT eval is **not** measured in this
 Approval-gated full PushT production run (HF account required; cost must be approved before launch):
 
 ```bash
+python3 scripts/verify_runtime_image.py \
+  --image-tag REPLACE_WITH_RUNTIME_IMAGE_TAG
+
 scripts/launch_hf_job.py jobs/train_pusht.yaml \
   --allow-approval-required \
   --image-tag REPLACE_WITH_RUNTIME_IMAGE_TAG
@@ -195,6 +198,8 @@ scripts/launch_hf_job.py jobs/train_pusht.yaml \
 
 Replace `REPLACE_WITH_RUNTIME_IMAGE_TAG` with a concrete published GHCR image
 tag that contains the current full Burn/Jepa training and export-gate code.
+The verifier checks the tag's OCI source and revision labels before any paid
+HF Job is submitted.
 
 After that job publishes `train/pusht-full-burn-jepa-YYYYMMDDTHHMMSSZ/`, dry-run
 the F1 ONNX handoff before executing or uploading:

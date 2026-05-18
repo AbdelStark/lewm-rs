@@ -254,6 +254,7 @@ def validate_image_contract(failures: list[str]) -> None:
     dockerfile = ROOT / "Dockerfile"
     upload_script = ROOT / "python" / "upload_checkpoints.py"
     launcher_script = ROOT / "scripts" / "launch_hf_job.py"
+    runtime_image_script = ROOT / "scripts" / "verify_runtime_image.py"
 
     if not dockerfile.is_file():
         failures.append(f"{dockerfile}: missing training image Dockerfile")
@@ -278,9 +279,32 @@ def validate_image_contract(failures: list[str]) -> None:
         failures.append(f"{launcher_script}: missing HF Jobs launcher")
     else:
         launcher = launcher_script.read_text(encoding="utf-8")
-        for token in ("hf", "jobs", "run", '"--"', "shlex.split"):
+        for token in (
+            "hf",
+            "jobs",
+            "run",
+            '"--"',
+            "shlex.split",
+            "--expected-image-revision",
+            "verify_paid_runtime_image",
+        ):
             if token not in launcher:
                 failures.append(f"{launcher_script}: missing launcher contract token {token!r}")
+
+    if not runtime_image_script.is_file():
+        failures.append(f"{runtime_image_script}: missing runtime image verifier")
+    else:
+        verifier = runtime_image_script.read_text(encoding="utf-8")
+        for token in (
+            "org.opencontainers.image.revision",
+            "org.opencontainers.image.source",
+            "refusing mutable image tag 'latest'",
+            "DEFAULT_IMAGE_REPOSITORY",
+        ):
+            if token not in verifier:
+                failures.append(
+                    f"{runtime_image_script}: missing runtime verifier token {token!r}"
+                )
 
 
 def parse_env_keys(text: str) -> set[str]:

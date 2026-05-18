@@ -34,6 +34,12 @@ def approval_payload(**updates: object) -> dict[str, object]:
                 "template_resolution": (
                     "Replace REPLACE_WITH_RUNTIME_IMAGE_TAG with a concrete runtime image tag."
                 ),
+                "image_check_command": [
+                    "python3",
+                    "scripts/verify_runtime_image.py",
+                    "--image-tag",
+                    "REPLACE_WITH_RUNTIME_IMAGE_TAG",
+                ],
                 "dry_run_command": [
                     "python3",
                     "scripts/launch_hf_job.py",
@@ -56,6 +62,7 @@ def approval_payload(**updates: object) -> dict[str, object]:
                     ".ml-intern/cli_agent_config.json",
                     "reports/full_pusht_contract_smoke.json",
                     "reports/full_burn_jepa_training_gap.md",
+                    "scripts/verify_runtime_image.py",
                     "scripts/f1_export_pusht_onnx.py",
                 ],
             },

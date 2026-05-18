@@ -29,6 +29,9 @@ faithful reproduction leave them at the defaults.
 ## 3. Launch
 
 ```sh
+python3 scripts/verify_runtime_image.py \
+  --image-tag REPLACE_WITH_RUNTIME_IMAGE_TAG
+
 scripts/launch_hf_job.py jobs/train_pusht.yaml \
   --allow-approval-required \
   --image-tag REPLACE_WITH_RUNTIME_IMAGE_TAG
@@ -37,7 +40,8 @@ scripts/launch_hf_job.py jobs/train_pusht.yaml \
 Replace `REPLACE_WITH_RUNTIME_IMAGE_TAG` with a concrete published GHCR image
 tag containing the current full Burn/Jepa training and export-gate code. The
 launcher refuses approval-required PushT runs that would silently use mutable
-`latest`.
+`latest` or a GHCR tag whose OCI revision label does not match the expected
+git commit.
 
 `jobs/train_pusht.yaml` declares:
 

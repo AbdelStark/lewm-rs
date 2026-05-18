@@ -121,6 +121,9 @@ cargo run -p lewm-train -- \
     --max-steps 10 train
 
 # Cloud full run (HF Jobs)
+python3 scripts/verify_runtime_image.py \
+    --image-tag REPLACE_WITH_RUNTIME_IMAGE_TAG
+
 scripts/launch_hf_job.py jobs/train_pusht.yaml \
     --allow-approval-required \
     --image-tag REPLACE_WITH_RUNTIME_IMAGE_TAG

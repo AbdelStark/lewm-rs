@@ -18,8 +18,19 @@ Contents:
 - The `hf` CLI, `hdf5plugin`, `safetensors`, `zstd`, `tini`, and `bash`.
 
 The release workflow builds and pushes `ghcr.io/abdelstark/lewm-rs:<tag>` and
-`ghcr.io/abdelstark/lewm-rs:latest` when a `v*.*.*` tag is published. The CI
-workflow validates the code but does not publish the container.
+`ghcr.io/abdelstark/lewm-rs:latest` when a `v*.*.*` tag is published. The
+image-only `runtime-image` workflow publishes a concrete non-`latest` tag from
+the selected git ref for pre-release paid jobs such as F1. The CI workflow
+validates the code but does not publish the container.
+
+```sh
+image_tag="f1-runtime-$(git rev-parse --short HEAD)"
+gh workflow run runtime-image.yml --ref main -f image_tag="${image_tag}"
+python3 scripts/verify_runtime_image.py --image-tag "${image_tag}"
+```
+
+Run the workflow only after the selected ref points at the commit you intend to
+launch; the verifier defaults to local `HEAD`.
 
 ## 2. Building locally
 
@@ -45,6 +56,9 @@ HF Jobs spec files live under `jobs/`:
 Launch with the helper:
 
 ```sh
+python3 scripts/verify_runtime_image.py \
+  --image-tag REPLACE_WITH_RUNTIME_IMAGE_TAG
+
 scripts/launch_hf_job.py jobs/train_pusht.yaml \
   --allow-approval-required \
   --image-tag REPLACE_WITH_RUNTIME_IMAGE_TAG
@@ -60,10 +74,12 @@ The helper:
 
 1. Validates the YAML against the schema in
    `scripts/check_jobs.py`.
-2. Resolves `${HF_TOKEN}` and other env-var placeholders.
-3. Rewrites the image tag when `--image-tag` or `LEWM_IMAGE_TAG` is set.
-4. Calls `hf jobs run` to schedule the job.
-5. Returns the job ID for monitoring.
+2. Verifies approval-required PushT image tags with
+   `scripts/verify_runtime_image.py`.
+3. Resolves `${HF_TOKEN}` and other env-var placeholders.
+4. Rewrites the image tag when `--image-tag` or `LEWM_IMAGE_TAG` is set.
+5. Calls `hf jobs run` to schedule the job.
+6. Returns the job ID for monitoring.
 
 ## 4. Job lifecycle
 

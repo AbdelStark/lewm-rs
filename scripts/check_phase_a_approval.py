@@ -24,6 +24,11 @@ EXPECTED_TASKS = {
         "issue": 243,
         "job": "jobs/train_pusht.yaml",
         "dry_run_tokens": (
+            "scripts/verify_runtime_image.py",
+            "--image-tag",
+            "REPLACE_WITH_RUNTIME_IMAGE_TAG",
+        ),
+        "launcher_dry_run_tokens": (
             "scripts/launch_hf_job.py",
             "jobs/train_pusht.yaml",
             "--dry-run",
@@ -230,10 +235,25 @@ def validate_task(
         raise ApprovalError(f"{report_path}: {job_name} must not be pre-approved in leash")
 
     dry_run = require_command(task, "dry_run_command", report_path)
+    image_check = task.get("image_check_command")
     approval = require_command(task, "approval_command", report_path)
+    if "launcher_dry_run_tokens" in expected:
+        if not isinstance(image_check, list) or not image_check:
+            raise ApprovalError(f"{report_path}: {task_id}.image_check_command must be a command list")
+        if not all(isinstance(item, str) and item for item in image_check):
+            raise ApprovalError(f"{report_path}: {task_id}.image_check_command must contain strings")
+        validate_command_tokens(
+            image_check,
+            expected["dry_run_tokens"],
+            context=f"{task_id}.image_check_command",
+            report_path=report_path,
+        )
+        dry_run_tokens = expected["launcher_dry_run_tokens"]
+    else:
+        dry_run_tokens = expected["dry_run_tokens"]
     validate_command_tokens(
         dry_run,
-        expected["dry_run_tokens"],
+        dry_run_tokens,
         context=f"{task_id}.dry_run_command",
         report_path=report_path,
     )

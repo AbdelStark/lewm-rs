@@ -22,6 +22,12 @@
         "REPLACE_WITH_RUNTIME_IMAGE_TAG"
       ],
       "template_resolution": "Replace REPLACE_WITH_RUNTIME_IMAGE_TAG with a concrete GHCR image tag containing the current full Burn/Jepa training and export-gate code before running the dry-run or approval command.",
+      "image_check_command": [
+        "python3",
+        "scripts/verify_runtime_image.py",
+        "--image-tag",
+        "REPLACE_WITH_RUNTIME_IMAGE_TAG"
+      ],
       "dry_run_command": [
         "python3",
         "scripts/launch_hf_job.py",
@@ -50,6 +56,7 @@
         "reports/pusht_full_safetensors_hub_audit.json",
         "scripts/audit_pusht_full_safetensors.py",
         "scripts/check_pusht_full_safetensors_hub_audit_report.py",
+        "scripts/verify_runtime_image.py",
         "reports/full_burn_jepa_training_gap.md",
         "scripts/f1_export_pusht_onnx.py"
       ]

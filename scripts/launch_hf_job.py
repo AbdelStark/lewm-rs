@@ -58,6 +58,15 @@ def main() -> int:
         ),
     )
     parser.add_argument(
+        "--expected-image-revision",
+        default=os.environ.get("LEWM_EXPECTED_IMAGE_REVISION"),
+        help=(
+            "full git SHA expected in the GHCR image's "
+            "org.opencontainers.image.revision label. Defaults to local HEAD for "
+            "paid PushT launches."
+        ),
+    )
+    parser.add_argument(
         "--cost-cap-usd",
         type=parse_cost_cap,
         default=DEFAULT_COST_CAP_USD,
@@ -74,7 +83,14 @@ def main() -> int:
         job = parse_job(job_path)
         leash = load_leash()
         validate_job(job_path, job, leash, args.allow_approval_required)
-        validate_paid_runtime_image(job_path, job, args.image_tag, args.allow_approval_required)
+        runtime_image_ref = validate_paid_runtime_image(
+            job_path,
+            job,
+            args.image_tag,
+            args.allow_approval_required,
+        )
+        if runtime_image_ref:
+            verify_paid_runtime_image(runtime_image_ref, args.expected_image_revision)
         if args.image_tag:
             job["image"] = rewrite_image_tag(str(job["image"]), args.image_tag)
         check_cost_cap(job_path, job, args.cost_cap_usd)
@@ -125,16 +141,38 @@ def validate_paid_runtime_image(
     job: dict[str, object],
     image_tag: str | None,
     allow_approval_required: bool,
-) -> None:
+) -> str | None:
     """Require production PushT runs to pin a concrete runtime image tag."""
     if path.name != "train_pusht.yaml" or not allow_approval_required:
-        return
+        return None
     image = str(job.get("image", ""))
     if image.endswith(":latest") and not image_tag:
         raise LaunchError(
             "train_pusht.yaml requires --image-tag or LEWM_IMAGE_TAG so paid F1 "
             "runs do not use mutable ghcr.io/abdelstark/lewm-rs:latest"
         )
+    if image_tag:
+        return rewrite_image_tag(image, image_tag)
+    if image.endswith(":latest"):
+        raise LaunchError("train_pusht.yaml must not use mutable image tag 'latest'")
+    return image
+
+
+def verify_paid_runtime_image(image_ref: str, expected_revision: str | None) -> None:
+    """Verify the published runtime image before a paid PushT launch."""
+    try:
+        from verify_runtime_image import (  # type: ignore[import-not-found]
+            RuntimeImageError,
+            current_git_revision,
+            parse_image_ref,
+            verify_runtime_image,
+        )
+
+        image = parse_image_ref(image_ref)
+        revision = expected_revision or current_git_revision()
+        verify_runtime_image(image, revision)
+    except RuntimeImageError as error:
+        raise LaunchError(str(error)) from error
 
 
 def check_cost_cap(path: Path, job: dict[str, object], cap_usd: Decimal) -> None:

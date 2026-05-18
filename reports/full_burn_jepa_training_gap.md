@@ -114,11 +114,16 @@ F1 still needs a production PushT training run that produces a real trained
 50k-step `lewm_core::Jepa` checkpoint. Remaining work:
 
 1. Publish a concrete GHCR runtime image tag containing the current
-   full Burn/Jepa training and export-gate code. With human approval, run
-   `jobs/train_pusht.yaml` against the production PushT data/config long
-   enough to produce `step_0050000.safetensors`:
+   full Burn/Jepa training and export-gate code. The image-only
+   `runtime-image` workflow can publish this tag once GHCR package permissions
+   are fixed. Verify the tag, then with human approval run `jobs/train_pusht.yaml`
+   against the production PushT data/config long enough to produce
+   `step_0050000.safetensors`:
 
 ```text
+python3 scripts/verify_runtime_image.py \
+  --image-tag REPLACE_WITH_RUNTIME_IMAGE_TAG
+
 scripts/launch_hf_job.py jobs/train_pusht.yaml \
   --allow-approval-required \
   --image-tag REPLACE_WITH_RUNTIME_IMAGE_TAG
