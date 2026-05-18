@@ -20,6 +20,7 @@
         "scripts/check_pusht_full_safetensors_hub_audit_report.py",
         "scripts/verify_runtime_image.py",
         ".github/workflows/runtime-image.yml",
+        "scripts/check_runtime_image_publish_report.py",
         "scripts/f1_export_pusht_onnx.py",
         "reports/phase_a_handoff.json",
         "reports/phase_a_approval.json",
@@ -218,6 +219,7 @@
       "evidence": [
         ".github/workflows/release.yml",
         ".github/workflows/runtime-image.yml",
+        "scripts/check_runtime_image_publish_report.py",
         "reports/release_checklist.md",
         "reports/runtime_image_publish.md"
       ],

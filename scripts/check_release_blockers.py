@@ -37,6 +37,7 @@ REQUIRED_EVIDENCE_BY_ID: dict[str, tuple[str, ...]] = {
         "scripts/check_pusht_full_safetensors_hub_audit_report.py",
         "scripts/verify_runtime_image.py",
         ".github/workflows/runtime-image.yml",
+        "scripts/check_runtime_image_publish_report.py",
         "reports/phase_a_handoff.json",
         "reports/phase_a_approval.json",
         "scripts/check_phase_a_approval.py",
@@ -60,6 +61,7 @@ REQUIRED_EVIDENCE_BY_ID: dict[str, tuple[str, ...]] = {
     ),
     "F11": (
         ".github/workflows/runtime-image.yml",
+        "scripts/check_runtime_image_publish_report.py",
         "reports/runtime_image_publish.md",
     ),
 }

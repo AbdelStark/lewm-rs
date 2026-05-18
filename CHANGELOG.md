@@ -37,6 +37,10 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   check instead of relying on transitive Python package dependencies. The F1
   source-build dry-run report now pins the pushed revision with that hardening
   and its checker re-renders the stored dry-run command to detect stale evidence.
+  Runtime image and source-build fallback handoff commands now derive their
+  retry tag or source revision from current repository evidence instead of
+  hard-coding the first failed runtime-image attempt, and
+  `scripts/check_runtime_image_publish_report.py` now gates that report.
   PushT Hub audit scripts now accept absolute or out-of-repo `--report` paths
   without crashing after a successful audit.
 - **Burn 0.20.1 → 0.21.0** (per ADR 0003). Updated all seven workspace

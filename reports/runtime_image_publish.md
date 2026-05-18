@@ -35,9 +35,10 @@ F11 remains open. Grant repository `AbdelStark/lewm-rs` **Write** access to the
 After that user action, rerun:
 
 ```bash
-gh workflow run runtime-image.yml --ref main -f image_tag=f1-runtime-97880d0
+image_tag="f1-runtime-$(git rev-parse --short HEAD)"
+gh workflow run runtime-image.yml --ref main -f image_tag="${image_tag}"
 gh run watch
-python3 scripts/verify_runtime_image.py --image-tag f1-runtime-97880d0
+python3 scripts/verify_runtime_image.py --image-tag "${image_tag}"
 ```
 
 F1 must not launch `jobs/train_pusht.yaml` until the verifier passes for a
@@ -55,7 +56,8 @@ ONNX export contract before upload, and remains listed under
 Dry-run preflight:
 
 ```bash
-LEWM_SOURCE_REVISION="$(git rev-parse HEAD)" \
+source_revision="$(python3 -c 'import json; print(json.load(open("reports/f1_source_build_dry_run.json", encoding="utf-8"))["source_revision"])')"
+LEWM_SOURCE_REVISION="${source_revision}" \
   python3 scripts/launch_hf_job.py jobs/train_pusht_source.yaml \
     --dry-run \
     --allow-approval-required
