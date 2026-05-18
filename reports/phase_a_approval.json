@@ -14,7 +14,7 @@
       "title": "Export trained full PushT ONNX artifacts",
       "job": "jobs/train_pusht.yaml",
       "source_build_preflight_report": "reports/f1_source_build_dry_run.json",
-      "source_build_preflight_revision": "ced093cae02e2daf644ca4415e4c0e42e4a34ff6",
+      "source_build_preflight_revision": "4922e37497c3c42975f00d5f063be0532403ca5c",
       "hardware": "a10g-large",
       "timeout": "12h",
       "price_usd_per_hour": "1.50",
@@ -56,7 +56,7 @@
         "--allow-approval-required"
       ],
       "resolved_fallback_dry_run_command": [
-        "LEWM_SOURCE_REVISION=ced093cae02e2daf644ca4415e4c0e42e4a34ff6",
+        "LEWM_SOURCE_REVISION=4922e37497c3c42975f00d5f063be0532403ca5c",
         "python3",
         "scripts/launch_hf_job.py",
         "jobs/train_pusht_source.yaml",
@@ -70,7 +70,7 @@
         "--allow-approval-required"
       ],
       "resolved_fallback_approval_command": [
-        "LEWM_SOURCE_REVISION=ced093cae02e2daf644ca4415e4c0e42e4a34ff6",
+        "LEWM_SOURCE_REVISION=4922e37497c3c42975f00d5f063be0532403ca5c",
         "scripts/launch_hf_job.py",
         "jobs/train_pusht_source.yaml",
         "--allow-approval-required"

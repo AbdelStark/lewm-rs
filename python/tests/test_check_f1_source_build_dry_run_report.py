@@ -151,3 +151,17 @@ def test_rejects_missing_numpy_runtime_dependency(tmp_path: Path) -> None:
 
     assert result.returncode == 1
     assert "rendered_command_checks missing 'numpy==2.4.4'" in result.stderr
+
+
+def test_rejects_rendered_token_missing_from_actual_dry_run(tmp_path: Path) -> None:
+    report = tmp_path / "report.json"
+    payload = report_payload()
+    rendered = payload["rendered_command_checks"]
+    assert isinstance(rendered, list)
+    payload["rendered_command_checks"] = [*rendered, "not-present-in-dry-run"]
+    report.write_text(json.dumps(payload), encoding="utf-8")
+
+    result = run_check(report)
+
+    assert result.returncode == 1
+    assert "dry_run_command output missing rendered token 'not-present-in-dry-run'" in result.stderr

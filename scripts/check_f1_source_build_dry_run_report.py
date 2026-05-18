@@ -5,7 +5,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
+import subprocess
 import sys
 from decimal import ROUND_CEILING, Decimal
 from pathlib import Path
@@ -126,20 +128,29 @@ def validate_command(
     key: str,
 ) -> None:
     source_env = f"LEWM_SOURCE_REVISION={revision}"
-    expected_tokens = (
-        source_env,
-        "scripts/launch_hf_job.py",
-        EXPECTED_JOB,
-        "--allow-approval-required",
-    )
-    for token in expected_tokens:
-        if token not in command:
-            raise F1SourceBuildDryRunReportError(f"{path}: {key} missing {token!r}")
+    if dry_run:
+        expected_command = [
+            source_env,
+            "python3",
+            "scripts/launch_hf_job.py",
+            EXPECTED_JOB,
+            "--dry-run",
+            "--allow-approval-required",
+        ]
+    else:
+        expected_command = [
+            source_env,
+            "scripts/launch_hf_job.py",
+            EXPECTED_JOB,
+            "--allow-approval-required",
+        ]
     has_dry_run = "--dry-run" in command
     if dry_run and not has_dry_run:
         raise F1SourceBuildDryRunReportError(f"{path}: {key} must include --dry-run")
     if not dry_run and has_dry_run:
         raise F1SourceBuildDryRunReportError(f"{path}: {key} must not include --dry-run")
+    if command != expected_command:
+        raise F1SourceBuildDryRunReportError(f"{path}: {key} must match the F1 source-build template")
     for token in command:
         if "REPLACE_WITH_" in token or "<" in token or ">" in token:
             raise F1SourceBuildDryRunReportError(f"{path}: {key} contains placeholder {token!r}")
@@ -179,6 +190,48 @@ def validate_rendered_checks(payload: dict[str, Any], revision: str, path: Path)
         if "REPLACE_WITH_" in token:
             raise F1SourceBuildDryRunReportError(
                 f"{path}: rendered_command_checks contains placeholder {token!r}"
+            )
+
+
+def command_env_and_argv(command: list[str], path: Path) -> tuple[dict[str, str], list[str]]:
+    env = os.environ.copy()
+    argv_start = 0
+    for token in command:
+        if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*=.*", token) is None:
+            break
+        key, value = token.split("=", 1)
+        env[key] = value
+        argv_start += 1
+
+    argv = command[argv_start:]
+    if not argv:
+        raise F1SourceBuildDryRunReportError(f"{path}: dry_run_command has no executable")
+    if argv[0] in {"python", "python3"}:
+        argv = [sys.executable, *argv[1:]]
+    return env, argv
+
+
+def validate_dry_run_render(payload: dict[str, Any], path: Path) -> None:
+    command = require_command(payload, "dry_run_command", path)
+    rendered = require_str_list(payload, "rendered_command_checks", path)
+    env, argv = command_env_and_argv(command, path)
+    result = subprocess.run(
+        argv,
+        cwd=repo_root(),
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        detail = result.stderr.strip() or result.stdout.strip()
+        raise F1SourceBuildDryRunReportError(
+            f"{path}: dry_run_command failed while refreshing rendered evidence: {detail}"
+        )
+    for token in rendered:
+        if token not in result.stdout:
+            raise F1SourceBuildDryRunReportError(
+                f"{path}: dry_run_command output missing rendered token {token!r}"
             )
 
 
@@ -227,6 +280,7 @@ def validate_report(payload: dict[str, Any], path: Path) -> None:
     )
     validate_job_cost(payload, path)
     validate_rendered_checks(payload, revision, path)
+    validate_dry_run_render(payload, path)
     validate_blockers(payload, path)
 
 
