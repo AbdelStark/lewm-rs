@@ -18,7 +18,7 @@ A Rust/Burn implementation of **LeWorldModel** (Le-WM) trained on the [PushT exp
 
 This repository currently publishes the 50k-step PushT training logs and a
 bounded-core training checkpoint. It does **not** yet publish the full
-303-tensor Burn/Jepa checkpoint required for trained-checkpoint ONNX export,
+255-tensor Burn/Jepa mirror required for trained-checkpoint ONNX export,
 CEM planning evaluation, or the final release model card.
 
 Current release status:
@@ -135,7 +135,7 @@ Do not run the release exporter against the current
 not satisfy the full PyTorch/Burn key mapping. The release path is:
 
 ```bash
-# Export once the full 303-tensor PushT checkpoint is available.
+# Export once the full 255-tensor PushT Burn mirror is available.
 uv run --extra parity python python/export_onnx.py \
   --safetensors <full-pusht-step_0050000.safetensors> \
   --meta tests/fixtures/reference_model.meta.json \

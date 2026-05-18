@@ -40,10 +40,11 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   New `python/verify_onnx.py` verifies ONNX Runtime shape execution for both
   variants. `reports/pusht_onnx_export.md` records the F1 blocker: the current
   50k PushT artifact is a 14-tensor bounded host-core checkpoint, not the
-  303-tensor full Burn/Jepa checkpoint required for trained-checkpoint ONNX
-  export. The exporter now fails that mismatch up front with a checkpoint
-  contract diagnostic instead of surfacing a raw missing-key error, and that
-  invalid-checkpoint preflight no longer requires `torch`.
+  255-tensor full Burn/Jepa mirror required to recover the 303 PyTorch source
+  keys for trained-checkpoint ONNX export. The exporter now fails that
+  mismatch up front with a checkpoint contract diagnostic instead of surfacing
+  a raw missing-key error, and that invalid-checkpoint preflight no longer
+  requires `torch`.
 - **SO-100 warm-start wiring + preflight**: `lewm-train` now consumes
   `training.warmstart_from` for fresh SO-100 full-module training starts,
   transfers shared PushT modules through the RFC 0012 warm-start boundary,
@@ -60,7 +61,7 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   stale `schema_version = 1.0.0` / minimal records fail before paid training
   begins. Reproduction/result docs now use the checked-in `train_*.yaml` job
   names and describe the PushT 50k artifact as a bounded 14-tensor host-core
-  checkpoint rather than a trained 303-tensor Burn/Jepa checkpoint.
+  checkpoint rather than a trained 255-tensor Burn/Jepa mirror.
 - **Release blocker gate**: new `conformance/release_blockers.json` and
   `scripts/check_release_blockers.py` keep `make check` schema-validating known
   blockers while making `make accept` fail until the F1 ONNX and F3 warm-start
@@ -71,15 +72,16 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   `HF_TOKEN`.
 - **F1 root-cause report**: `reports/full_burn_jepa_training_gap.md` records
   why the current published PushT artifact cannot satisfy the required
-  303-key full Burn/Jepa ONNX export contract and lists the remaining gates
-  before ONNX export can be marked complete.
+  exact 255 Burn destination / 303 PyTorch source ONNX export contract and
+  lists the remaining gates before ONNX export can be marked complete.
 - **PushT job selection**: the approval-gated production PushT job now selects
   CPU-backed `experimental.pusht_train_mode = "full_burn_jepa"`, reports
   `--device cpu`, defaults to 50k steps, and uploads to
   `train/pusht-full-burn-jepa-*` only after `python/export_onnx.py
-  --check-contract-only` verifies the produced safetensors recovers the full
-  303-key export contract. The training image now includes `safetensors` for
-  that pre-upload gate. Bounded PushT smoke/short jobs keep
+  --check-contract-only` verifies the produced safetensors contains the exact
+  255 Burn destination tensors and recovers the 303 PyTorch source keys. The
+  training image now includes `safetensors` for that pre-upload gate. Bounded
+  PushT smoke/short jobs keep
   `pusht-bounded-module-lewm` TrackIO/upload labels, future bounded PushT
   checkpoints use bounded run IDs / record kinds / train-report modes, and
   `scripts/check_jobs.py` rejects bounded PushT jobs that publish under

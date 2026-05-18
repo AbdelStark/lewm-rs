@@ -59,7 +59,8 @@ The checkpoint writer for the bounded path is `write_pusht_full_lewm_checkpoint`
 which serializes `PushtFullLewmRecord` as JSON bytes and exports parameter
 tensors from `PushtFullLewmCore::parameter_specs()`. The current published
 50k-step PushT `.safetensors` contains 14 bounded-core tensors, while
-`python/export_onnx.py` requires the full 303-key PyTorch/Burn mapping.
+`python/export_onnx.py` requires the exact 255 Burn destination tensors that
+recover the full 303-key PyTorch source mapping.
 
 `docs/src/crates/lewm-train.md` now names both PushT modes:
 
@@ -101,7 +102,8 @@ uv run --project python --extra parity python python/verify_onnx.py \
 
 Do not mark F1 resolved until all of these are true:
 
-- The source PushT safetensors recovers all 303 expected PyTorch keys.
+- The source PushT safetensors contains the exact 255 expected Burn destination
+  tensors and recovers all 303 expected PyTorch keys.
 - Both `onnxruntime` and `tract-compat` variants are generated under
   `onnx-full/`.
 - `python/verify_onnx.py --dir <onnx-full-root>` passes.

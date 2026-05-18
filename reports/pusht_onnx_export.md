@@ -101,9 +101,31 @@ contract diagnostic:
 Loading Burn safetensors: /tmp/pusht-full-contract-check/train/pusht-full-lewm-20260515T100908Z/step_0050000.safetensors
 ERROR: checkpoint does not match the full Burn/Jepa ONNX export contract
 recovered 0 of 303 expected PyTorch keys
-source safetensors tensor count: 14
-the tensor names match the bounded PushtFullLewmCore training artifact, not the full 303-tensor lewm_core::Jepa checkpoint
-first missing keys:
+source safetensors tensor count: 14 (expected 255 Burn destination tensors)
+the tensor names match the bounded PushtFullLewmCore training artifact, not the full lewm_core::Jepa checkpoint required for ONNX export
+first missing Burn destination tensors:
+  - action_encoder.fc1.bias
+  - action_encoder.fc1.weight
+  - action_encoder.fc2.bias
+  - action_encoder.fc2.weight
+  - action_encoder.smoother.bias
+  - action_encoder.smoother.weight
+  - encoder.blocks.0.attn.proj.bias
+  - encoder.blocks.0.attn.proj.weight
+  - encoder.blocks.0.attn.qkv.bias
+  - encoder.blocks.0.attn.qkv.weight
+first unexpected Burn destination tensors:
+  - action_encoder.bias
+  - action_encoder.x.weight
+  - action_encoder.y.weight
+  - encoder.bias
+  - encoder.energy.weight
+  - encoder.pixel.weight
+  - encoder.time.weight
+  - pred_proj.bias
+  - pred_proj.weight
+  - predictor.action.weight
+first missing PyTorch source keys:
   - action_encoder.embed.0.bias
   - action_encoder.embed.0.weight
   - action_encoder.embed.2.bias
@@ -152,8 +174,8 @@ The Python edge tooling is ready for a valid full PushT checkpoint:
 - Invalid-checkpoint preflight is safetensors-only: `torch` is required only
   after the source checkpoint has passed the full-layout contract.
 - `python/export_onnx.py --check-contract-only` is available for job gates
-  that need to validate the 303-key full-checkpoint contract before upload
-  without exporting ONNX.
+  that need to validate the exact 255 Burn destination / 303 PyTorch source
+  full-checkpoint contract before upload without exporting ONNX.
 
 Focused validation:
 
@@ -198,7 +220,8 @@ the missing lewm-rs 50k PushT training checkpoint.
 F1 can be completed only after one of these is true:
 
 1. A real full Burn/Jepa PushT checkpoint is produced and uploaded with the
-   303-tensor safetensors layout expected by `python/export_onnx.py`.
+   255-tensor Burn destination safetensors layout expected by
+   `python/export_onnx.py`.
 2. The release acceptance criteria are changed to support the bounded
    `PushtFullLewmCore` checkpoint with a separate ONNX exporter and evaluator.
 

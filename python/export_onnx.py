@@ -162,28 +162,42 @@ def print_contract_summary(burn_path: Path, recovered: dict[str, np.ndarray]) ->
         f"recovered {len(recovered)} of {len(pnm.expected_source_keys())} "
         f"expected PyTorch keys from {burn_path}"
     )
+    print(f"Burn destination tensors: {len(pnm.expected_destination_keys())}")
     print(f"Safetensors SHA-256: {sha256_file(burn_path)}")
 
 
 def checkpoint_contract_error(burn_keys: set[str], recovered_keys: set[str]) -> str | None:
     """Return a human-readable contract error, or None when export can proceed."""
     expected_keys = set(pnm.expected_source_keys())
+    expected_burn_keys = set(pnm.expected_destination_keys())
     missing = expected_keys - recovered_keys
-    if not missing:
+    missing_burn = expected_burn_keys - burn_keys
+    extra_burn = burn_keys - expected_burn_keys
+    if not missing and not missing_burn and not extra_burn:
         return None
 
     lines = [
         "checkpoint does not match the full Burn/Jepa ONNX export contract",
         f"recovered {len(recovered_keys)} of {len(expected_keys)} expected PyTorch keys",
-        f"source safetensors tensor count: {len(burn_keys)}",
+        (
+            "source safetensors tensor count: "
+            f"{len(burn_keys)} (expected {len(expected_burn_keys)} Burn destination tensors)"
+        ),
     ]
     if BOUNDED_CORE_KEY_HINTS.issubset(burn_keys):
         lines.append(
             "the tensor names match the bounded PushtFullLewmCore training artifact, "
-            "not the full 303-tensor lewm_core::Jepa checkpoint"
+            "not the full lewm_core::Jepa checkpoint required for ONNX export"
         )
-    lines.append("first missing keys:")
-    lines.extend(f"  - {key}" for key in sorted(missing)[:10])
+    if missing_burn:
+        lines.append("first missing Burn destination tensors:")
+        lines.extend(f"  - {key}" for key in sorted(missing_burn)[:10])
+    if extra_burn:
+        lines.append("first unexpected Burn destination tensors:")
+        lines.extend(f"  - {key}" for key in sorted(extra_burn)[:10])
+    if missing:
+        lines.append("first missing PyTorch source keys:")
+        lines.extend(f"  - {key}" for key in sorted(missing)[:10])
     lines.append(
         "provide a full Burn/Jepa safetensors checkpoint or use a separate exporter "
         "for the bounded-core artifact"

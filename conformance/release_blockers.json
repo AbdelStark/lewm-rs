@@ -15,7 +15,7 @@
         "reports/release_checklist.md"
       ],
       "required_resolution": [
-        "Produce and upload a PushT checkpoint with the full Burn/Jepa safetensors layout expected by python/export_onnx.py, or formally change the release acceptance criteria.",
+        "Produce and upload a PushT checkpoint with the exact 255-tensor Burn/Jepa safetensors layout expected by python/export_onnx.py, or formally change the release acceptance criteria.",
         "Export both onnxruntime and tract-compat variants under onnx-full/.",
         "Verify the exported graphs with python/verify_onnx.py.",
         "Upload the verified variants to abdelstark/lewm-rs-pusht."

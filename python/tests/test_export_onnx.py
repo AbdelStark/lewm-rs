@@ -68,8 +68,21 @@ def test_metadata_records_variant_layout_and_core_contract(tmp_path: Path) -> No
 
 def test_checkpoint_contract_accepts_complete_recovered_key_set() -> None:
     expected = set(export.pnm.expected_source_keys())
+    burn_keys = set(export.pnm.expected_destination_keys())
 
-    assert export.checkpoint_contract_error(set(), expected) is None
+    assert export.checkpoint_contract_error(burn_keys, expected) is None
+
+
+def test_checkpoint_contract_rejects_extra_burn_destination_tensor() -> None:
+    expected = set(export.pnm.expected_source_keys())
+    burn_keys = set(export.pnm.expected_destination_keys())
+    burn_keys.add("sigreg.consts.t_grid")
+
+    message = export.checkpoint_contract_error(burn_keys, expected)
+
+    assert message is not None
+    assert "unexpected Burn destination tensors" in message
+    assert "sigreg.consts.t_grid" in message
 
 
 def test_checkpoint_contract_reports_bounded_core_artifact() -> None:
@@ -95,7 +108,7 @@ def test_checkpoint_contract_reports_bounded_core_artifact() -> None:
     assert message is not None
     assert "recovered 0 of" in message
     assert "bounded PushtFullLewmCore training artifact" in message
-    assert "full 303-tensor lewm_core::Jepa checkpoint" in message
+    assert "full lewm_core::Jepa checkpoint required for ONNX export" in message
 
 
 def test_recover_pytorch_numpy_reports_bounded_core_before_torch(tmp_path: Path) -> None:
@@ -128,7 +141,7 @@ def test_recover_pytorch_numpy_reports_bounded_core_before_torch(tmp_path: Path)
         export.recover_pytorch_numpy_from_burn(checkpoint)
 
     message = str(exc_info.value)
-    assert "source safetensors tensor count: 14" in message
+    assert "source safetensors tensor count: 14 (expected 255 Burn destination tensors)" in message
     assert "bounded PushtFullLewmCore training artifact" in message
 
 
@@ -158,6 +171,7 @@ def test_check_contract_only_accepts_full_layout_without_torch(
     assert result == 0
     captured = capsys.readouterr()
     assert "Checkpoint contract ok: recovered 303 of 303 expected PyTorch keys" in captured.out
+    assert "Burn destination tensors: 255" in captured.out
     assert "Safetensors SHA-256:" in captured.out
 
 

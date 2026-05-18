@@ -90,8 +90,8 @@ The existing root and `tract-compat/` ONNX artifacts in
 not from the 50k-step bounded host-core checkpoint above.
 
 The F1 export attempt on 2026-05-18 showed that
-`step_0050000.safetensors` contains 14 bounded-core tensors, not the 303-tensor
-full Burn/Jepa layout expected by `python/export_onnx.py`. See
+`step_0050000.safetensors` contains 14 bounded-core tensors, not the 255-tensor
+full Burn/Jepa mirror expected by `python/export_onnx.py`. See
 `reports/pusht_onnx_export.md` for the command log and blocker evidence.
 
 The exporter is ready for a compatible full checkpoint:
