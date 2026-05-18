@@ -39,6 +39,7 @@ FROM debian:bookworm-slim AS runtime
 
 ARG HF_CLI_VERSION=1.8.0
 ARG HDF5PLUGIN_VERSION=6.0.0
+ARG NUMPY_VERSION=2.4.4
 ARG BUILD_REVISION="unknown"
 ARG BUILD_DATE="unknown"
 ARG SOURCE_VERSION="unknown"
@@ -75,6 +76,7 @@ RUN apt-get update \
     && python3 -m pip install --break-system-packages --no-cache-dir \
         "huggingface_hub==${HF_CLI_VERSION}" \
         "hdf5plugin==${HDF5PLUGIN_VERSION}" \
+        "numpy==${NUMPY_VERSION}" \
         "safetensors==0.5.3" \
     && ln -sf /usr/bin/python3 /usr/local/bin/python \
     && rm -rf /var/lib/apt/lists/*
@@ -96,7 +98,7 @@ USER lewm
 # Python edge layer is importable. Cheap (<200 ms) and idempotent.
 HEALTHCHECK --interval=60s --timeout=10s --start-period=15s --retries=2 \
     CMD lewm-train --version >/dev/null \
-        && python -c "import huggingface_hub, hdf5plugin" >/dev/null \
+        && python -c "import huggingface_hub, hdf5plugin, numpy" >/dev/null \
         || exit 1
 
 # `tini` reaps zombies and forwards SIGTERM during graceful shutdown. The image

@@ -6,7 +6,7 @@
   "status": "preflight_passed_pending_human_approval",
   "job": "jobs/train_pusht_source.yaml",
   "source_revision": "ced093cae02e2daf644ca4415e4c0e42e4a34ff6",
-  "source_revision_note": "This was the pushed main commit used for the no-GHCR source-build dry run. Later report-only commits do not change the training job source selected here.",
+  "source_revision_note": "This is the pushed main commit fetched inside the no-GHCR source-build job. Later job-wrapper or report commits may update the HF Job shell, but this field remains the training source selected for the paid run.",
   "dry_run_command": [
     "LEWM_SOURCE_REVISION=ced093cae02e2daf644ca4415e4c0e42e4a34ff6",
     "python3",
@@ -34,6 +34,7 @@
     "--env LEWM_SOURCE_REVISION=ced093cae02e2daf644ca4415e4c0e42e4a34ff6",
     "rust:1.95.0-bookworm",
     "TRACKIO_RUN=pusht-full-burn-jepa-source",
+    "numpy==2.4.4",
     "experimental.pusht_train_mode=\"full_burn_jepa\"",
     "python/export_onnx.py",
     "--check-contract-only",

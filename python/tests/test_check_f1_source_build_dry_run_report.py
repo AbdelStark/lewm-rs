@@ -47,6 +47,7 @@ def report_payload(**updates: object) -> dict[str, object]:
             f"--env LEWM_SOURCE_REVISION={REVISION}",
             "rust:1.95.0-bookworm",
             "TRACKIO_RUN=pusht-full-burn-jepa-source",
+            "numpy==2.4.4",
             'experimental.pusht_train_mode="full_burn_jepa"',
             "python/export_onnx.py",
             "--check-contract-only",
@@ -136,3 +137,17 @@ def test_rejects_wrong_cost(tmp_path: Path) -> None:
     assert "worst_case_usd must match jobs/train_pusht_source.yaml cost 18.00" in (
         result.stderr
     )
+
+
+def test_rejects_missing_numpy_runtime_dependency(tmp_path: Path) -> None:
+    report = tmp_path / "report.json"
+    payload = report_payload()
+    rendered = payload["rendered_command_checks"]
+    assert isinstance(rendered, list)
+    payload["rendered_command_checks"] = [item for item in rendered if item != "numpy==2.4.4"]
+    report.write_text(json.dumps(payload), encoding="utf-8")
+
+    result = run_check(report)
+
+    assert result.returncode == 1
+    assert "rendered_command_checks missing 'numpy==2.4.4'" in result.stderr

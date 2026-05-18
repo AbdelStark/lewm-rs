@@ -26,6 +26,7 @@ EXPECTED_RENDERED_TOKENS = (
     "--timeout 12h",
     "rust:1.95.0-bookworm",
     "TRACKIO_RUN=pusht-full-burn-jepa-source",
+    "numpy==2.4.4",
     'experimental.pusht_train_mode="full_burn_jepa"',
     "python/export_onnx.py",
     "--check-contract-only",

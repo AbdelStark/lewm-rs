@@ -32,7 +32,9 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   The concrete F1 source-build dry-run evidence is now machine-checked by
   `scripts/check_f1_source_build_dry_run_report.py`, and the Phase A approval
   packet validator cross-checks its resolved source-build commands against
-  that dry-run report.
+  that dry-run report. The GHCR runtime image and no-GHCR source-build
+  fallback now explicitly install NumPy for the safetensors-only ONNX contract
+  check instead of relying on transitive Python package dependencies.
   PushT Hub audit scripts now accept absolute or out-of-repo `--report` paths
   without crashing after a successful audit.
 - **Burn 0.20.1 → 0.21.0** (per ADR 0003). Updated all seven workspace
