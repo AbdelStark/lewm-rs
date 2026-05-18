@@ -34,10 +34,14 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   50k PushT artifact is a 14-tensor bounded host-core checkpoint, not the
   303-tensor full Burn/Jepa checkpoint required for trained-checkpoint ONNX
   export.
-- **SO-100 warm-start preflight**: `reports/so100_warmstart.md` records why F3
-  cannot be launched yet: the referenced HF Job YAML is absent, the job is not
-  listed in the agent leash, `training.warmstart_from` is parsed but not wired
-  into the trainer, and the configured PushT source checkpoint is stale.
+- **SO-100 warm-start wiring + preflight**: `lewm-train` now consumes
+  `training.warmstart_from` for fresh SO-100 full-module training starts,
+  transfers shared PushT modules through the RFC 0012 warm-start boundary,
+  preserves the fresh SO-100 action encoder, resets AdamW state, and records
+  warm-start provenance in reports/checkpoints. `reports/so100_warmstart.md`
+  still blocks F3 launch because the compatible PushT source checkpoint and
+  `jobs/train_so100_warmstart.yaml` are absent, and paid launch requires a
+  safety-leash update plus human approval.
 - **`lewm-train` eval adapter**: new `lewm_train::eval` module provides
   `JepaCemCostModel<B>`, a `lewm_plan::CemCostModel` adapter that
   tensorises CEM batches and forwards to the parity-verified

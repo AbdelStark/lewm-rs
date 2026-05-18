@@ -24,6 +24,9 @@ use crate::step::{
     DEFAULT_MAX_GRAD_NORM, NanGuard, NanGuardDecision, StepError, accumulate_scaled_gradients,
     clip_global_norm, grad_explosion_artifact, scale_loss_for_accumulation,
 };
+use crate::warmstart::{
+    TrainError as WarmstartError, TrainStateRecord, WarmstartProvenance, load_warmstart,
+};
 use lewm_core::{
     CEM_STREAM, DATA_SHUFFLE_STREAM, DROPOUT_STREAM, MODEL_INIT_STREAM, SIGREG_SKETCH_STREAM,
     substream_rng,
@@ -92,6 +95,11 @@ pub enum TrainerError {
     Data {
         /// Original data error.
         source: DataError,
+    },
+    /// SO-100 warm-start transfer failed.
+    Warmstart {
+        /// Original warm-start error.
+        source: WarmstartError,
     },
     /// State transition is not allowed by RFC 0005.
     InvalidTransition {
@@ -209,6 +217,9 @@ impl fmt::Display for TrainerError {
             Self::Core { source } => write!(formatter, "trainer core error: {source}"),
             Self::Step { source } => write!(formatter, "trainer step error: {source}"),
             Self::Data { source } => write!(formatter, "trainer data error: {source}"),
+            Self::Warmstart { source } => {
+                write!(formatter, "trainer SO-100 warm-start error: {source}")
+            },
             Self::InvalidTransition { from, to } => {
                 write!(formatter, "invalid trainer transition: {from:?} -> {to:?}")
             },
@@ -302,6 +313,7 @@ impl std::error::Error for TrainerError {
             Self::Core { source } => Some(source),
             Self::Step { source } => Some(source),
             Self::Data { source } => Some(source),
+            Self::Warmstart { source } => Some(source),
             Self::InvalidTransition { .. }
             | Self::EmptyTransitionId
             | Self::InsufficientSmokePoints { .. }
@@ -357,6 +369,12 @@ impl From<StepError> for TrainerError {
 impl From<DataError> for TrainerError {
     fn from(source: DataError) -> Self {
         Self::Data { source }
+    }
+}
+
+impl From<WarmstartError> for TrainerError {
+    fn from(source: WarmstartError) -> Self {
+        Self::Warmstart { source }
     }
 }
 
@@ -602,6 +620,21 @@ pub struct TrainLossPoint {
     pub samples_seen: u64,
 }
 
+/// Provenance for a SO-100 warm-start transfer.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct WarmstartReport {
+    /// Source checkpoint path used for the warm-start.
+    pub source_path: String,
+    /// SHA-256 digest of the source checkpoint bytes as lowercase hex.
+    pub source_sha256: String,
+    /// Model parameters copied verbatim from the `PushT` checkpoint.
+    pub transferred_parameters: Vec<String>,
+    /// SO-100 action-encoder parameters intentionally kept from fresh init.
+    pub preserved_action_encoder_parameters: Vec<String>,
+    /// Optimizer-state entries discarded during transfer.
+    pub dropped_optimizer_state_entries: usize,
+}
+
 /// Report written by the bounded `PushT` train command.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct TrainRunReport {
@@ -645,6 +678,9 @@ pub struct TrainRunReport {
     pub grad_explosion_events: u64,
     /// Explicitly scopes the bounded training implementation.
     pub mode: String,
+    /// Optional SO-100 warm-start provenance.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub warmstart: Option<WarmstartReport>,
     /// Deterministic loss observations.
     pub losses: Vec<TrainLossPoint>,
 }
@@ -1249,6 +1285,7 @@ fn write_pusht_train_artifacts(
             start.batch_size,
             start.grad_explosion_events,
             "pusht-full-module-lewm",
+            start.warmstart,
         );
     }
 
@@ -1271,6 +1308,7 @@ fn write_pusht_train_artifacts(
         outcome.batch_size,
         outcome.grad_explosion_events,
         "pusht-full-module-lewm",
+        outcome.warmstart,
     )
 }
 
@@ -1289,7 +1327,7 @@ fn write_so100_train_artifacts(
     let start = match startup {
         StartupMode::Fresh => {
             write_train_run_id(output_dir, SO100_FULL_LEWM_RUN_ID)?;
-            PushtFullLewmTrainingStart::fresh(request.root, request.seed)?
+            fresh_so100_full_lewm_start(request.root, request.seed)?
         },
         StartupMode::Resume(plan) => {
             previous_losses = read_train_losses(output_dir)?;
@@ -1316,6 +1354,7 @@ fn write_so100_train_artifacts(
             start.batch_size,
             start.grad_explosion_events,
             "so100-full-module-lewm",
+            start.warmstart,
         );
     }
 
@@ -1338,6 +1377,7 @@ fn write_so100_train_artifacts(
         outcome.batch_size,
         outcome.grad_explosion_events,
         "so100-full-module-lewm",
+        outcome.warmstart,
     )
 }
 
@@ -1352,6 +1392,7 @@ fn write_train_report(
     batch_size: usize,
     grad_explosion_events: u64,
     mode: &str,
+    warmstart: Option<WarmstartReport>,
 ) -> Result<TrainRunReport, TrainerError> {
     let checkpoint_step = paths
         .sidecar
@@ -1380,6 +1421,7 @@ fn write_train_report(
         checkpoint_files: checkpoint_file_names(paths),
         grad_explosion_events,
         mode: mode.to_owned(),
+        warmstart,
         losses,
     };
 
@@ -1521,6 +1563,7 @@ struct PushtFullLewmOutcome {
     model: PushtFullLewmCore,
     optimizer: PushtFullLewmAdamWState,
     rng_streams: RestoredRngStreams,
+    warmstart: Option<WarmstartReport>,
     step: u64,
     batch_size: usize,
     samples_seen: u64,
@@ -1539,6 +1582,8 @@ struct PushtFullLewmRecord {
     samples_seen: u64,
     #[serde(default)]
     scheduler_total_steps: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    warmstart: Option<WarmstartReport>,
 }
 
 #[derive(Debug)]
@@ -1546,6 +1591,7 @@ struct PushtFullLewmTrainingStart {
     model: PushtFullLewmCore,
     optimizer: PushtFullLewmAdamWState,
     rng_streams: RestoredRngStreams,
+    warmstart: Option<WarmstartReport>,
     start_step: u32,
     batch_size: usize,
     samples_seen: u64,
@@ -1559,6 +1605,7 @@ impl PushtFullLewmTrainingStart {
             optimizer: PushtFullLewmAdamWState::new(model.parameter_count()),
             rng_streams: fresh_pusht_full_lewm_rng_streams(seed)?,
             model,
+            warmstart: None,
             start_step: 0,
             batch_size: train_batch_size(root)?,
             samples_seen: 0,
@@ -1661,6 +1708,149 @@ fn read_train_losses(output_dir: &Path) -> Result<Vec<TrainLossPoint>, TrainerEr
         .collect()
 }
 
+fn fresh_so100_full_lewm_start(
+    root: &RootConfig,
+    seed: u64,
+) -> Result<PushtFullLewmTrainingStart, TrainerError> {
+    let mut start = PushtFullLewmTrainingStart::fresh(root, seed)?;
+    if let Some(source_path) = root.training.warmstart_from.as_deref() {
+        let warmstart = apply_so100_warmstart(&mut start.model, root, seed, source_path)?;
+        start.optimizer = PushtFullLewmAdamWState::new(start.model.parameter_count());
+        start.warmstart = Some(warmstart);
+    }
+    Ok(start)
+}
+
+fn apply_so100_warmstart(
+    target_model: &mut PushtFullLewmCore,
+    root: &RootConfig,
+    seed: u64,
+    source_path: &Path,
+) -> Result<WarmstartReport, TrainerError> {
+    let source_bytes = fs::read(source_path).map_err(|source| io_error(source_path, source))?;
+    let source_record: PushtFullLewmRecord = serde_json::from_slice(&source_bytes)?;
+    let mut source_config = root.model.clone();
+    source_config.action_encoder.input_dim = root.model.action_encoder.smoothed_dim;
+    let mut source_model = PushtFullLewmCore::new(&source_config, seed).map_err(full_lewm_error)?;
+    validate_warmstart_source_record(&source_record, &source_model)?;
+    restore_pusht_full_lewm_model_params(&mut source_model, &source_record.params)?;
+
+    let initialized_so100 = full_lewm_train_state(target_model)?;
+    let pusht_checkpoint = full_lewm_train_state(&source_model)?;
+    let loaded = load_warmstart(
+        &root.model,
+        initialized_so100,
+        &pusht_checkpoint,
+        source_path,
+    )?;
+    apply_full_lewm_train_state(target_model, &loaded.state)?;
+    Ok(WarmstartReport::from(loaded.provenance))
+}
+
+fn validate_warmstart_source_record(
+    record: &PushtFullLewmRecord,
+    source_model: &PushtFullLewmCore,
+) -> Result<(), TrainerError> {
+    if record.kind != "lewm-rs-pusht-full-module-lewm-record" {
+        return Err(TrainerError::ResumeCheckpointInvalid {
+            reason: format!(
+                "warm-start source has unexpected record kind {:?}",
+                record.kind
+            ),
+        });
+    }
+    if record.schema_version != "1.1.0" {
+        return Err(TrainerError::ResumeCheckpointInvalid {
+            reason: format!(
+                "warm-start source schema_version {:?} is not supported; expected \"1.1.0\"",
+                record.schema_version
+            ),
+        });
+    }
+    if record.params.len() != source_model.parameter_count() {
+        return Err(TrainerError::ResumeCheckpointInvalid {
+            reason: format!(
+                "warm-start source record has {} model parameters, expected {}",
+                record.params.len(),
+                source_model.parameter_count()
+            ),
+        });
+    }
+    if record.params.iter().any(|value| !value.is_finite()) {
+        return Err(TrainerError::ResumeCheckpointInvalid {
+            reason: "warm-start source contains non-finite model parameters".to_owned(),
+        });
+    }
+    Ok(())
+}
+
+fn full_lewm_train_state(model: &PushtFullLewmCore) -> Result<TrainStateRecord, TrainerError> {
+    let mut state = TrainStateRecord::default();
+    for spec in model.parameter_specs() {
+        let values = model
+            .parameter_values(spec)
+            .iter()
+            .copied()
+            .map(f32_from_f64)
+            .collect();
+        state.insert_model_param(
+            spec.name.clone(),
+            crate::warmstart::TensorRecord::new(spec.shape.clone(), values)?,
+        );
+    }
+    Ok(state)
+}
+
+fn apply_full_lewm_train_state(
+    model: &mut PushtFullLewmCore,
+    state: &TrainStateRecord,
+) -> Result<(), TrainerError> {
+    let specs = model.parameter_specs().to_vec();
+    let mut flat_index = 0;
+    for spec in specs {
+        let tensor =
+            state
+                .model
+                .get(&spec.name)
+                .ok_or_else(|| TrainerError::ResumeCheckpointInvalid {
+                    reason: format!("warm-start output is missing {}", spec.name),
+                })?;
+        if tensor.shape != spec.shape {
+            return Err(TrainerError::ResumeCheckpointInvalid {
+                reason: format!(
+                    "warm-start output for {} has shape {:?}, expected {:?}",
+                    spec.name, tensor.shape, spec.shape
+                ),
+            });
+        }
+        for value in &tensor.values {
+            model.set_parameter(flat_index, f64::from(*value));
+            flat_index += 1;
+        }
+    }
+    if flat_index != model.parameter_count() {
+        return Err(TrainerError::ResumeCheckpointInvalid {
+            reason: format!(
+                "warm-start output populated {flat_index} parameters, expected {}",
+                model.parameter_count()
+            ),
+        });
+    }
+    Ok(())
+}
+
+impl From<WarmstartProvenance> for WarmstartReport {
+    fn from(provenance: WarmstartProvenance) -> Self {
+        Self {
+            source_path: provenance.source_path.display().to_string(),
+            source_sha256: provenance.source_sha256,
+            transferred_parameters: provenance.transferred_parameters,
+            preserved_action_encoder_parameters: provenance.preserved_action_encoder_parameters,
+            dropped_optimizer_state_entries: provenance.dropped_optimizer_state_entries,
+        }
+    }
+}
+
 fn restore_pusht_full_lewm_start(
     plan: &crate::resume::ResumePlan,
     root: &RootConfig,
@@ -1739,6 +1929,7 @@ fn restore_pusht_full_lewm_start(
             params: record.adamw_params,
         },
         rng_streams,
+        warmstart: record.warmstart.clone(),
         start_step: train_steps_as_u32(sidecar.step)?,
         batch_size: train_batch_size(root)?,
         samples_seen: record.samples_seen,
@@ -1827,6 +2018,7 @@ fn restore_so100_full_lewm_start(
             params: record.adamw_params,
         },
         rng_streams,
+        warmstart: record.warmstart.clone(),
         start_step: train_steps_as_u32(sidecar.step)?,
         batch_size: train_batch_size(root)?,
         samples_seen: record.samples_seen,
@@ -2216,6 +2408,7 @@ where
         model,
         optimizer,
         rng_streams,
+        warmstart: start.warmstart,
         step: max_steps,
         batch_size,
         samples_seen,
@@ -2639,6 +2832,7 @@ fn write_full_lewm_checkpoint(
         adamw_params: outcome.optimizer.params.clone(),
         samples_seen: outcome.samples_seen,
         scheduler_total_steps,
+        warmstart: outcome.warmstart.clone(),
     };
     let burn_record = serde_json::to_vec(&record)?;
     let request = CheckpointWriteRequest {
@@ -3094,6 +3288,50 @@ mod tests {
     }
 
     #[test]
+    fn so100_warmstart_transfers_shared_modules_and_preserves_action_encoder()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let dir = TestDir::new("so100-warmstart-start")?;
+        let source_path = dir.path().join("pusht_source.mpk");
+        let mut root = so100_root_with_data_path(dir.path().join("missing-so100.h5"));
+        root.training.warmstart_from = Some(source_path.clone());
+
+        let mut source_config = root.model.clone();
+        source_config.action_encoder.input_dim = root.model.action_encoder.smoothed_dim;
+        let mut source_model = PushtFullLewmCore::new(&source_config, 7)?;
+        for index in 0..source_model.parameter_count() {
+            source_model.set_parameter(index, f64::from(u32::try_from(index)?) + 100.0);
+        }
+        write_pusht_warmstart_source(&source_path, &source_model)?;
+
+        let fresh_target = PushtFullLewmCore::new(&root.model, 7)?;
+        let start = fresh_so100_full_lewm_start(&root, 7)?;
+        let warmstart = start
+            .warmstart
+            .as_ref()
+            .ok_or("expected warm-start provenance")?;
+
+        assert_eq!(start.start_step, 0);
+        assert_eq!(start.optimizer.step, 0);
+        assert_eq!(warmstart.source_path, source_path.display().to_string());
+        assert!(
+            warmstart
+                .transferred_parameters
+                .iter()
+                .any(|name| name.starts_with("encoder."))
+        );
+        assert!(
+            warmstart
+                .preserved_action_encoder_parameters
+                .iter()
+                .all(|name| name.starts_with("action_encoder."))
+        );
+
+        assert_shared_params_match_source(&start.model, &source_model)?;
+        assert_action_encoder_matches_fresh(&start.model, &fresh_target)?;
+        Ok(())
+    }
+
+    #[test]
     fn pusht_train_resume_restores_checkpoint_and_continues()
     -> Result<(), Box<dyn std::error::Error>> {
         let dir = TestDir::new("pusht-train-resume")?;
@@ -3134,6 +3372,96 @@ mod tests {
         let record: PushtFullLewmRecord = serde_json::from_slice(&loaded.burn_record)?;
         assert_eq!(record.adamw_step, 6);
         assert_eq!(record.adamw_params.len(), record.params.len());
+        Ok(())
+    }
+
+    fn so100_root_with_data_path(path: PathBuf) -> crate::config::RootConfig {
+        crate::config::RootConfig {
+            dataset: crate::config::DatasetConfig::So100(crate::config::So100DatasetConfig {
+                hdf5_path: path,
+                ..crate::config::So100DatasetConfig::default()
+            }),
+            model: lewm_core::JepaConfig {
+                action_encoder: lewm_core::EmbedderConfig {
+                    input_dim: crate::config::SO100_ACTION_DIM,
+                    ..lewm_core::EmbedderConfig::default()
+                },
+                ..lewm_core::JepaConfig::default()
+            },
+            ..crate::config::RootConfig::default()
+        }
+    }
+
+    fn write_pusht_warmstart_source(
+        path: &Path,
+        model: &PushtFullLewmCore,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let record = PushtFullLewmRecord {
+            schema_version: "1.1.0".to_owned(),
+            kind: "lewm-rs-pusht-full-module-lewm-record".to_owned(),
+            step: 42,
+            params: model.flat_parameters().to_vec(),
+            adamw_step: 42,
+            adamw_params: vec![ScalarAdamWParamState::default(); model.parameter_count()],
+            samples_seen: 2688,
+            scheduler_total_steps: 42,
+            warmstart: None,
+        };
+        fs::write(path, serde_json::to_vec(&record)?)?;
+        Ok(())
+    }
+
+    fn assert_shared_params_match_source(
+        warm_model: &PushtFullLewmCore,
+        source_model: &PushtFullLewmCore,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        for warm_spec in warm_model.parameter_specs().iter().filter(|spec| {
+            ["encoder.", "predictor.", "projector.", "pred_proj."]
+                .iter()
+                .any(|prefix| spec.name.starts_with(prefix))
+        }) {
+            let source_spec = source_model
+                .parameter_specs()
+                .iter()
+                .find(|source_spec| source_spec.name == warm_spec.name)
+                .ok_or_else(|| format!("missing source spec {}", warm_spec.name))?;
+            let warm_values = warm_model.parameter_values(warm_spec);
+            let source_values = source_model.parameter_values(source_spec);
+            assert_eq!(warm_values.len(), source_values.len());
+            for (warm, source) in warm_values.iter().zip(source_values) {
+                assert_eq!(
+                    f32_from_f64(*warm).to_bits(),
+                    f32_from_f64(*source).to_bits()
+                );
+            }
+        }
+        Ok(())
+    }
+
+    fn assert_action_encoder_matches_fresh(
+        warm_model: &PushtFullLewmCore,
+        fresh_model: &PushtFullLewmCore,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        for warm_spec in warm_model
+            .parameter_specs()
+            .iter()
+            .filter(|spec| spec.name.starts_with("action_encoder."))
+        {
+            let fresh_spec = fresh_model
+                .parameter_specs()
+                .iter()
+                .find(|fresh_spec| fresh_spec.name == warm_spec.name)
+                .ok_or_else(|| format!("missing fresh spec {}", warm_spec.name))?;
+            let warm_values = warm_model.parameter_values(warm_spec);
+            let fresh_values = fresh_model.parameter_values(fresh_spec);
+            assert_eq!(warm_values.len(), fresh_values.len());
+            for (warm, fresh) in warm_values.iter().zip(fresh_values) {
+                assert_eq!(
+                    f32_from_f64(*warm).to_bits(),
+                    f32_from_f64(*fresh).to_bits()
+                );
+            }
+        }
         Ok(())
     }
 

@@ -2,7 +2,7 @@
 
 **Date:** 2026-05-18
 **Issue:** F3 / #245
-**Status:** Blocked before launch
+**Status:** Trainer wiring complete; launch still blocked
 
 ## Objective
 
@@ -33,16 +33,29 @@ configs/so100_warmstart.toml
 training.warmstart_from = "/checkpoints/lewm-rs-pusht/step_0014400.mpk"
 ```
 
-However, `training.warmstart_from` is currently parsed only in
-`crates/lewm-train/src/config.rs`; it is not consumed by the training loop.
-An HF job using this config would therefore not perform a real warm-start
-without additional trainer integration.
+Before the 2026-05-18 release pass, `training.warmstart_from` was parsed in
+`crates/lewm-train/src/config.rs` but not consumed by the training loop.
+
+The trainer now applies `training.warmstart_from` for fresh SO-100 full-module
+training starts. The transfer copies only `encoder.*`, `predictor.*`,
+`projector.*`, and `pred_proj.*` from a PushT full-module record, preserves the
+fresh SO-100 `action_encoder.*` parameters, resets AdamW state, and records
+source path, source SHA-256, copied parameter names, preserved action-encoder
+names, and dropped optimizer-state count in the train report/checkpoint record.
 
 The configured source checkpoint is also stale. No
 `step_0014400.mpk` artifact exists in `abdelstark/lewm-rs-pusht`, and the
 current 50k PushT checkpoint is the older 4-dimensional
 `pusht-minimal-lewm` bounded-core artifact, not the current 192-dimensional
 SO-100 bounded-core layout.
+
+Focused validation:
+
+```text
+cargo test -p lewm-train so100_warmstart -- --nocapture
+```
+
+Result: 2 passed.
 
 ## Required Resolution
 
@@ -51,8 +64,9 @@ F3 can be launched only after all of the following are true:
 1. A valid warm-start source checkpoint exists and is compatible with the
    current SO-100 training layout.
 2. `lewm-train` applies `training.warmstart_from` before SO-100 training starts
-   and records warm-start provenance in the run report.
-3. `jobs/train_so100_warmstart.yaml` is added and validated.
+   and records warm-start provenance in the run report. **Done locally.**
+3. `jobs/train_so100_warmstart.yaml` is added and validated against the real
+   source checkpoint path.
 4. The safety leash is updated by a human to list the job under
    `jobs_human_approval_required`.
 5. A human explicitly approves the paid HF Job launch.
