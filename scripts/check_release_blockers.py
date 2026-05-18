@@ -24,6 +24,23 @@ RELEASE_DEPENDENCIES: dict[str, tuple[str, ...]] = {
     "F10": ("F7", "F8"),
     "F13": tuple(f"F{index}" for index in range(1, 13)),
 }
+REQUIRED_EVIDENCE_BY_ID: dict[str, tuple[str, ...]] = {
+    "F1": (
+        "reports/full_burn_jepa_training_gap.md",
+        "reports/full_pusht_contract_smoke.json",
+        "scripts/f1_export_pusht_onnx.py",
+    ),
+    "F3": (
+        "jobs/train_so100_warmstart.yaml",
+        ".ml-intern/cli_agent_config.json",
+        "reports/pusht_warmstart_source_smoke.json",
+        "scripts/pusht_warmstart_source_smoke.py",
+        "scripts/check_pusht_warmstart_source_smoke_report.py",
+    ),
+    "F13": (
+        "conformance/release_blockers.json",
+    ),
+}
 
 
 class BlockerError(RuntimeError):
@@ -130,6 +147,20 @@ def validate_dependency_order(blockers: list[dict[str, Any]], path: Path) -> Non
                 )
 
 
+def validate_required_evidence(blockers: list[dict[str, Any]], path: Path) -> None:
+    """Require release-critical blockers to retain their current gate evidence."""
+    evidence_by_id = {entry["id"]: set(entry["evidence"]) for entry in blockers}
+    for blocker_id, required_paths in REQUIRED_EVIDENCE_BY_ID.items():
+        evidence = evidence_by_id.get(blocker_id)
+        if evidence is None:
+            raise BlockerError(f"{path}: missing blocker {blocker_id}")
+        missing = [required for required in required_paths if required not in evidence]
+        if missing:
+            raise BlockerError(
+                f"{path}: {blocker_id} evidence missing required path(s): {', '.join(missing)}"
+            )
+
+
 def load_blockers(path: Path) -> list[dict[str, Any]]:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
@@ -152,6 +183,7 @@ def load_blockers(path: Path) -> list[dict[str, Any]]:
     validate_backlog_contract(blockers, path)
     validate_dependency_order(blockers, path)
     validate_evidence_paths(blockers, path)
+    validate_required_evidence(blockers, path)
     return blockers
 
 

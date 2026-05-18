@@ -7,11 +7,29 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts" / "check_release_blockers.py"
+REQUIRED_EVIDENCE_BY_ID = {
+    "F1": [
+        "reports/full_burn_jepa_training_gap.md",
+        "reports/full_pusht_contract_smoke.json",
+        "scripts/f1_export_pusht_onnx.py",
+    ],
+    "F3": [
+        "jobs/train_so100_warmstart.yaml",
+        ".ml-intern/cli_agent_config.json",
+        "reports/pusht_warmstart_source_smoke.json",
+        "scripts/pusht_warmstart_source_smoke.py",
+        "scripts/check_pusht_warmstart_source_smoke_report.py",
+    ],
+    "F13": [
+        "conformance/release_blockers.json",
+    ],
+}
 
 
 def blocker_manifest(
     evidence: str = "README.md",
     statuses: dict[str, str] | None = None,
+    include_required_evidence: bool = True,
 ) -> dict[str, object]:
     statuses = statuses or {}
     return {
@@ -24,7 +42,14 @@ def blocker_manifest(
                 "phase": "test",
                 "title": f"Blocker {index}",
                 "status": statuses.get(f"F{index}", "blocked"),
-                "evidence": [evidence],
+                "evidence": [
+                    evidence,
+                    *(
+                        REQUIRED_EVIDENCE_BY_ID.get(f"F{index}", [])
+                        if include_required_evidence
+                        else []
+                    ),
+                ],
                 "required_resolution": ["resolve"],
             }
             for index in range(1, 14)
@@ -108,3 +133,17 @@ def test_release_blocker_manifest_rejects_release_tag_before_prior_blockers(
 
     assert result.returncode == 1
     assert "F13 cannot be resolved while F12 is pending" in result.stderr
+
+
+def test_release_blocker_manifest_requires_phase_a_gate_evidence(tmp_path: Path) -> None:
+    manifest = tmp_path / "release_blockers.json"
+    manifest.write_text(
+        json.dumps(blocker_manifest(include_required_evidence=False)),
+        encoding="utf-8",
+    )
+
+    result = run_check(manifest)
+
+    assert result.returncode == 1
+    assert "F1 evidence missing required path(s)" in result.stderr
+    assert "scripts/f1_export_pusht_onnx.py" in result.stderr
