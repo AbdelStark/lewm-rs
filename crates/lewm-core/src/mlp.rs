@@ -1,6 +1,6 @@
 //! Burn-backed projector and prediction-projector MLP heads from RFC 0002.
 
-use burn::module::{Ignored, Initializer, Param, ParamId, RunningState};
+use burn::module::{Initializer, Param, ParamId, RunningState};
 use burn::nn::{Linear, LinearConfig};
 use burn::tensor::activation::gelu;
 use burn::tensor::{Int, Tensor, backend::Backend};
@@ -88,7 +88,8 @@ struct NormBlock<B: Backend> {
     running_mean: RunningState<Tensor<B, 1>>,
     running_var: RunningState<Tensor<B, 1>>,
     num_batches_tracked: Param<Tensor<B, 1, Int>>,
-    variant: Ignored<NormVariant>,
+    #[module(skip)]
+    variant: NormVariant,
     momentum: f64,
     epsilon: f64,
 }
@@ -101,14 +102,14 @@ impl<B: Backend> NormBlock<B> {
             running_mean: RunningState::new(Tensor::zeros([config.hidden_dim], device)),
             running_var: RunningState::new(Tensor::ones([config.hidden_dim], device)),
             num_batches_tracked: zero_int_param(device),
-            variant: Ignored(config.norm),
+            variant: config.norm,
             momentum: DEFAULT_BATCH_NORM_MOMENTUM,
             epsilon: DEFAULT_NORM_EPSILON,
         })
     }
 
     fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2> {
-        match self.variant.0 {
+        match self.variant {
             NormVariant::BatchNorm1d => self.forward_batch_norm(input),
             NormVariant::LayerNorm => self.forward_layer_norm(input),
             NormVariant::None => input,
@@ -116,7 +117,8 @@ impl<B: Backend> NormBlock<B> {
     }
 
     fn forward_batch_norm(&self, input: Tensor<B, 2>) -> Tensor<B, 2> {
-        if B::ad_enabled() {
+        let device = input.device();
+        if B::ad_enabled(&device) {
             self.forward_batch_norm_train(input)
         } else {
             self.forward_batch_norm_inference(input)

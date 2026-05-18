@@ -7,6 +7,22 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+### Changed
+
+- **Burn 0.20.1 → 0.21.0** (per ADR 0003). Updated all seven workspace
+  Burn dependencies (`burn`, `burn-core`, `burn-cuda`, `burn-ndarray`,
+  `burn-autodiff`, `burn-import`, `burn-train`). Migrated five
+  deprecated `Ignored<T>` field wrappers in `lewm-core` (`vit`, `mlp`,
+  `jepa`, `predictor`, `losses/sigreg`) to the recommended
+  `#[module(skip)]` attribute, updated `B::ad_enabled()` callers to
+  the new `(&device)` signature, switched `Shape::dims` (now private)
+  to `Shape::as_slice()` at two call sites, and refreshed
+  `<B as Backend>::Device` to the `Device<B>` type alias.
+  Tract remains pinned at `=0.22.1` (latest stable; `0.23.0` is still
+  only a `-dev` pre-release). MSRV documentation aligned to the
+  already-pinned `1.95.0` toolchain. Workspace tests, clippy, layer /
+  spec / jobs / nondet validators, and Python validators all pass.
+
 ### Added
 
 - **`lewm-train` eval adapter**: new `lewm_train::eval` module provides

@@ -1,6 +1,5 @@
 //! Top-level JEPA wrapper from RFC 0002.
 
-use burn::module::Ignored;
 use burn::tensor::{Tensor, backend::Backend};
 use rand_chacha::ChaCha20Rng;
 
@@ -34,7 +33,8 @@ pub struct Jepa<B: Backend> {
     projector: Mlp<B>,
     pred_proj: Mlp<B>,
     sigreg: SigReg<B>,
-    config: Ignored<JepaConfig>,
+    #[module(skip)]
+    config: JepaConfig,
 }
 
 impl<B: Backend> Jepa<B> {
@@ -82,14 +82,14 @@ impl<B: Backend> Jepa<B> {
             projector: Mlp::init_with_rng(&config.projector, rng, device)?,
             pred_proj: Mlp::init_with_rng(&config.pred_proj, rng, device)?,
             sigreg: SigReg::init(device)?,
-            config: Ignored(config),
+            config,
         })
     }
 
     /// Return the immutable model config.
     #[must_use]
     pub fn config(&self) -> &JepaConfig {
-        &self.config.0
+        &self.config
     }
 
     /// Encode a windowed image tensor to projected CLS embeddings.
@@ -107,7 +107,7 @@ impl<B: Backend> Jepa<B> {
         let [batch_size, steps, channels, height, width] = pixels.dims();
         self.validate_pixels(batch_size, steps, channels, height, width)?;
         let flat_batch = checked_mul(batch_size, steps, "JEPA encode batch*time overflowed usize")?;
-        let hidden_dim = self.config.0.projector.output_dim;
+        let hidden_dim = self.config.projector.output_dim;
 
         let encoder_output = self
             .encoder
@@ -217,14 +217,14 @@ impl<B: Backend> Jepa<B> {
         }
 
         let [batch_size, steps, channels, height, width] = pixels.dims();
-        if steps != self.config.0.horizon {
+        if steps != self.config.horizon {
             return Err(LewmCoreError::InvalidShape {
-                expected: vec![batch_size, self.config.0.horizon, channels, height, width],
+                expected: vec![batch_size, self.config.horizon, channels, height, width],
                 found: vec![batch_size, steps, channels, height, width],
             });
         }
 
-        let history_size = self.config.0.history_size;
+        let history_size = self.config.history_size;
         let embeddings = self.encode(pixels)?;
         let hidden_dim = embeddings.dims()[2];
         let start_embeds =
@@ -282,7 +282,7 @@ impl<B: Backend> Jepa<B> {
         let z_final = z_full
             .slice([
                 0..batch_size,
-                self.config.0.horizon - 1..self.config.0.horizon,
+                self.config.horizon - 1..self.config.horizon,
                 0..hidden_dim,
             ])
             .squeeze_dim::<2>(1);
@@ -296,12 +296,12 @@ impl<B: Backend> Jepa<B> {
         batch_size: usize,
     ) -> Result<Tensor<B, 3>, LewmCoreError> {
         let [action_batch, action_steps, action_dim] = actions.dims();
-        let history_size = self.config.0.history_size;
-        let horizon = self.config.0.horizon;
+        let history_size = self.config.history_size;
+        let horizon = self.config.horizon;
         let tail_steps = self.tail_steps()?;
-        if action_batch != batch_size || action_dim != self.config.0.action_encoder.input_dim {
+        if action_batch != batch_size || action_dim != self.config.action_encoder.input_dim {
             return Err(LewmCoreError::InvalidShape {
-                expected: vec![batch_size, horizon, self.config.0.action_encoder.input_dim],
+                expected: vec![batch_size, horizon, self.config.action_encoder.input_dim],
                 found: vec![action_batch, action_steps, action_dim],
             });
         }
@@ -312,11 +312,7 @@ impl<B: Backend> Jepa<B> {
             Ok(actions)
         } else {
             Err(LewmCoreError::InvalidShape {
-                expected: vec![
-                    batch_size,
-                    tail_steps,
-                    self.config.0.action_encoder.input_dim,
-                ],
+                expected: vec![batch_size, tail_steps, self.config.action_encoder.input_dim],
                 found: vec![action_batch, action_steps, action_dim],
             })
         }
@@ -330,7 +326,7 @@ impl<B: Backend> Jepa<B> {
         height: usize,
         width: usize,
     ) -> Result<(), LewmCoreError> {
-        let config = &self.config.0.encoder;
+        let config = &self.config.encoder;
         if batch_size == 0
             || steps == 0
             || channels != config.num_channels
@@ -359,12 +355,12 @@ impl<B: Backend> Jepa<B> {
     ) -> Result<(), LewmCoreError> {
         let [batch_size, steps, hidden_dim] = context.dims();
         let [action_batch, action_steps, action_dim] = actions.dims();
-        if batch_size == 0 || steps == 0 || hidden_dim != self.config.0.predictor.input_dim {
+        if batch_size == 0 || steps == 0 || hidden_dim != self.config.predictor.input_dim {
             return Err(LewmCoreError::InvalidShape {
                 expected: vec![
                     batch_size.max(1),
                     steps.max(1),
-                    self.config.0.predictor.input_dim,
+                    self.config.predictor.input_dim,
                 ],
                 found: vec![batch_size, steps, hidden_dim],
             });
@@ -372,10 +368,10 @@ impl<B: Backend> Jepa<B> {
 
         if action_batch != batch_size
             || action_steps != steps
-            || action_dim != self.config.0.action_encoder.input_dim
+            || action_dim != self.config.action_encoder.input_dim
         {
             return Err(LewmCoreError::InvalidShape {
-                expected: vec![batch_size, steps, self.config.0.action_encoder.input_dim],
+                expected: vec![batch_size, steps, self.config.action_encoder.input_dim],
                 found: vec![action_batch, action_steps, action_dim],
             });
         }
@@ -393,14 +389,14 @@ impl<B: Backend> Jepa<B> {
         let expected_tail = self.tail_steps()?;
 
         if batch_size == 0
-            || history_size != self.config.0.history_size
-            || hidden_dim != self.config.0.predictor.input_dim
+            || history_size != self.config.history_size
+            || hidden_dim != self.config.predictor.input_dim
         {
             return Err(LewmCoreError::InvalidShape {
                 expected: vec![
                     batch_size.max(1),
-                    self.config.0.history_size,
-                    self.config.0.predictor.input_dim,
+                    self.config.history_size,
+                    self.config.predictor.input_dim,
                 ],
                 found: vec![batch_size, history_size, hidden_dim],
             });
@@ -408,13 +404,13 @@ impl<B: Backend> Jepa<B> {
 
         if action_batch != batch_size
             || action_steps != expected_tail
-            || action_dim != self.config.0.action_encoder.input_dim
+            || action_dim != self.config.action_encoder.input_dim
         {
             return Err(LewmCoreError::InvalidShape {
                 expected: vec![
                     batch_size,
                     expected_tail,
-                    self.config.0.action_encoder.input_dim,
+                    self.config.action_encoder.input_dim,
                 ],
                 found: vec![action_batch, action_steps, action_dim],
             });
@@ -425,9 +421,8 @@ impl<B: Backend> Jepa<B> {
 
     fn tail_steps(&self) -> Result<usize, LewmCoreError> {
         self.config
-            .0
             .horizon
-            .checked_sub(self.config.0.history_size)
+            .checked_sub(self.config.history_size)
             .filter(|steps| *steps > 0)
             .ok_or_else(|| LewmCoreError::InvalidTensorOp {
                 reason: "horizon must be greater than history_size".to_owned(),
@@ -451,7 +446,7 @@ impl<B: Backend> Jepa<B> {
             steps,
             "JEPA encode_cls_raw batch*time overflowed",
         )?;
-        let hidden_size = self.config.0.encoder.hidden_size;
+        let hidden_size = self.config.encoder.hidden_size;
         let encoder_output = self
             .encoder
             .forward(pixels.reshape([flat_batch, channels, height, width]));

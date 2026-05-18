@@ -59,7 +59,8 @@ project intentionally moves to a newer Burn/Rust pair.
 ### Neutral or to revisit
 
 - The bincode advisory remains an upstream Burn dependency concern until the
-  waiver is removed or Burn is upgraded.
+  waiver is removed or Burn is upgraded. ADR 0003 confirms the advisory still
+  applies after the Burn `0.21.0` upgrade and re-uses this waiver.
 
 ## Implementation
 

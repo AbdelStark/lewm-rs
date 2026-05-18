@@ -125,8 +125,8 @@ def _validate_job(job: dict[str, object]) -> None:
     _require(job["timeout"] == "6h", "train_so100.yaml must use timeout 6h")
     _require(job["namespace"] == "abdelstark", "train_so100.yaml namespace must be abdelstark")
     _require(
-        job["image"] == "rust:1.89.0-bookworm",
-        "train_so100.yaml image must be rust:1.89.0-bookworm (builds from source)",
+        job["image"] == "rust:1.95.0-bookworm",
+        "train_so100.yaml image must be rust:1.95.0-bookworm (builds from source)",
     )
 
     env = job["env"]

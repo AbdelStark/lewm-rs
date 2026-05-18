@@ -1,6 +1,6 @@
 //! `SIGReg` loss from RFC 0003.
 
-use burn::module::{Ignored, RunningState};
+use burn::module::RunningState;
 use burn::tensor::{DType, Tensor, TensorData, backend::Backend};
 use rand_chacha::ChaCha20Rng;
 use rand_distr::{Distribution, Normal};
@@ -31,9 +31,12 @@ pub struct SigRegConsts<B: Backend> {
     phi: RunningState<Tensor<B, 1>>,
     window: RunningState<Tensor<B, 1>>,
     trap: RunningState<Tensor<B, 1>>,
-    num_proj: Ignored<usize>,
-    knots: Ignored<usize>,
-    t_max: Ignored<f32>,
+    #[module(skip)]
+    num_proj: usize,
+    #[module(skip)]
+    knots: usize,
+    #[module(skip)]
+    t_max: f32,
 }
 
 impl<B: Backend> SigReg<B> {
@@ -87,7 +90,7 @@ impl<B: Backend> SigReg<B> {
         rng: &mut ChaCha20Rng,
         device: &B::Device,
     ) -> Result<Tensor<B, 2>, LewmCoreError> {
-        sample_sigreg_projection(*self.consts.num_proj, dim, rng, device)
+        sample_sigreg_projection(self.consts.num_proj, dim, rng, device)
     }
 
     /// Compute `L_sigreg(z)` using a newly sampled projection sketch.
@@ -124,7 +127,7 @@ impl<B: Backend> SigReg<B> {
         projection: Tensor<B, 2>,
     ) -> Result<Tensor<B, 1>, LewmCoreError> {
         let [batch, steps, dim] = validate_sigreg_input(&embeddings)?;
-        validate_projection_shape(&projection, *self.consts.num_proj, dim)?;
+        validate_projection_shape(&projection, self.consts.num_proj, dim)?;
 
         let flattened_count =
             batch
@@ -137,17 +140,17 @@ impl<B: Backend> SigReg<B> {
         let projection = projection.cast(DType::F32);
         let projected = embeddings.matmul(projection.transpose()); // (N, K)
 
-        let frequencies = self.consts.t_grid().reshape([*self.consts.knots, 1, 1]);
+        let frequencies = self.consts.t_grid().reshape([self.consts.knots, 1, 1]);
         let arg = frequencies * projected.transpose().unsqueeze_dim::<3>(0); // (J, K, N)
         let cos_stats = arg.clone().cos().mean_dim(2); // (J, K, 1)
         let sin_stats = arg.sin().mean_dim(2); // (J, K, 1)
 
-        let phi = self.consts.phi().reshape([*self.consts.knots, 1, 1]);
+        let phi = self.consts.phi().reshape([self.consts.knots, 1, 1]);
         let real_residual = cos_stats - phi;
         let residual = real_residual.clone() * real_residual + sin_stats.clone() * sin_stats; // (J, K, 1)
 
         let weights =
-            (self.consts.window() * self.consts.trap()).reshape([*self.consts.knots, 1, 1]);
+            (self.consts.window() * self.consts.trap()).reshape([self.consts.knots, 1, 1]);
         Ok((residual * weights).sum_dim(0).mean())
     }
 }
@@ -176,28 +179,28 @@ impl<B: Backend> SigRegConsts<B> {
             phi: RunningState::new(tensor_from_values(phi.clone(), [knots], device)),
             window: RunningState::new(tensor_from_values(phi, [knots], device)),
             trap: RunningState::new(tensor_from_values(trap, [knots], device)),
-            num_proj: Ignored(num_proj),
-            knots: Ignored(knots),
-            t_max: Ignored(t_max),
+            num_proj,
+            knots,
+            t_max,
         })
     }
 
     /// Return the number of projection directions.
     #[must_use]
     pub fn num_proj(&self) -> usize {
-        *self.num_proj
+        self.num_proj
     }
 
     /// Return the number of frequency knots.
     #[must_use]
     pub fn knots(&self) -> usize {
-        *self.knots
+        self.knots
     }
 
     /// Return the maximum frequency.
     #[must_use]
     pub fn t_max(&self) -> f32 {
-        *self.t_max
+        self.t_max
     }
 
     /// Return the RFC 0003 frequency grid tensor.

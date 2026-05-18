@@ -1,6 +1,6 @@
 //! Burn-backed autoregressive predictor from RFC 0002.
 
-use burn::module::{Ignored, Initializer, Param};
+use burn::module::{Initializer, Param};
 use burn::nn::{Dropout, DropoutConfig, LayerNorm, LayerNormConfig, Linear, LinearConfig};
 use burn::tensor::activation::{gelu, softmax};
 use burn::tensor::{Tensor, TensorData, backend::Backend};
@@ -17,9 +17,11 @@ const AFFINE_FREE_LAYER_NORM_EPSILON: f64 = 1.0e-6;
 /// Pre-norm transformer block with AdaLN-zero action conditioning.
 #[derive(burn::module::Module, Debug)]
 pub struct ConditionalBlock<B: Backend> {
-    norm1: Ignored<AffineFreeLayerNorm>,
+    #[module(skip)]
+    norm1: AffineFreeLayerNorm,
     attn: CausalSelfAttention<B>,
-    norm2: Ignored<AffineFreeLayerNorm>,
+    #[module(skip)]
+    norm2: AffineFreeLayerNorm,
     mlp: PredictorMlpBlock<B>,
     adaln: AdaLNZero<B>,
 }
@@ -38,9 +40,9 @@ impl<B: Backend> ConditionalBlock<B> {
         device: &B::Device,
     ) -> Result<Self, LewmCoreError> {
         Ok(Self {
-            norm1: Ignored(AffineFreeLayerNorm::new(config.hidden_dim)),
+            norm1: AffineFreeLayerNorm::new(config.hidden_dim),
             attn: CausalSelfAttention::init(config, rng, device)?,
-            norm2: Ignored(AffineFreeLayerNorm::new(config.hidden_dim)),
+            norm2: AffineFreeLayerNorm::new(config.hidden_dim),
             mlp: PredictorMlpBlock::init(config, rng, device)?,
             adaln: AdaLNZero::init(config.hidden_dim, config.action_emb_dim, device)?,
         })
@@ -60,14 +62,14 @@ impl<B: Backend> ConditionalBlock<B> {
         let mods = self.adaln.forward(conditioning);
 
         let attn_input = modulate(
-            self.norm1.0.forward(tokens.clone()),
+            self.norm1.forward(tokens.clone()),
             mods.shift_msa,
             mods.scale_msa,
         );
         let tokens = tokens + mods.gate_msa * self.attn.forward(attn_input)?;
 
         let mlp_input = modulate(
-            self.norm2.0.forward(tokens.clone()),
+            self.norm2.forward(tokens.clone()),
             mods.shift_mlp,
             mods.scale_mlp,
         );
@@ -83,7 +85,8 @@ pub struct ArPredictor<B: Backend> {
     dropout: Dropout,
     blocks: Vec<ConditionalBlock<B>>,
     norm: LayerNorm<B>,
-    config: Ignored<PredictorConfig>,
+    #[module(skip)]
+    config: PredictorConfig,
 }
 
 impl<B: Backend> ArPredictor<B> {
@@ -145,7 +148,7 @@ impl<B: Backend> ArPredictor<B> {
             dropout,
             blocks,
             norm,
-            config: Ignored(config),
+            config,
         })
     }
 
@@ -187,7 +190,7 @@ impl<B: Backend> ArPredictor<B> {
 
     /// Return the configured maximum sequence length.
     pub fn num_frames(&self) -> usize {
-        self.config.0.num_frames
+        self.config.num_frames
     }
 
     fn validate_forward_shapes(
@@ -197,7 +200,7 @@ impl<B: Backend> ArPredictor<B> {
     ) -> Result<(), LewmCoreError> {
         let [batch_size, seq_len, hidden_dim] = tokens.dims();
         let [action_batch, action_seq_len, action_dim] = actions.dims();
-        let config = &self.config.0;
+        let config = &self.config;
 
         if seq_len == 0 {
             return Err(LewmCoreError::InvalidShape {

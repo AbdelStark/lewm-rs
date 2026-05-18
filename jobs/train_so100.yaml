@@ -2,7 +2,7 @@ name: so100-full-train
 hardware: a10g-large
 timeout: 6h
 namespace: abdelstark
-image: rust:1.89.0-bookworm
+image: rust:1.95.0-bookworm
 env:
   CARGO_INCREMENTAL: "0"
   DEBIAN_FRONTEND: noninteractive

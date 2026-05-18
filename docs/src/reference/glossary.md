@@ -52,7 +52,7 @@ Parquet for tabular fields, MP4 / AV1 per episode for video.
 
 ## Framework terms
 
-**Burn** — The Rust deep learning framework. Pinned at `= 0.20.1`.
+**Burn** — The Rust deep learning framework. Pinned at `= 0.21.0`.
 
 **Backend** — Burn type parameter `B: Backend`. Common impls used
 by `lewm-rs`: `burn_cuda::Cuda<f32>`, `burn_ndarray::NdArray<f32>`,

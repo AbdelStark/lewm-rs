@@ -187,7 +187,8 @@ cargo audit --deny warnings
 - An ADR documents the waiver with a date by which the advisory will be resolved.
 
 Current audit ignores must remain ADR-backed and scoped in CI. ADR 0002 covers
-the Burn `0.20.1` transitive `RUSTSEC-2025-0141` waiver through 2026-06-30.
+the Burn transitive `RUSTSEC-2025-0141` waiver through 2026-06-30; ADR 0003
+confirms it still applies after the Burn `0.21.0` upgrade.
 
 ### 4.3 SBOM
 

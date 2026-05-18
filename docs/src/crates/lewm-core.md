@@ -82,7 +82,7 @@ Gated behind feature `parity-fixtures` plus env vars
 
 ## Dependencies
 
-- `burn` (= 0.20.1)
+- `burn` (= 0.21.0)
 - `burn-ndarray` (CPU backend, for tests)
 - `safetensors`
 - `thiserror`
