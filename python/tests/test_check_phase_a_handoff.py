@@ -201,6 +201,50 @@ def test_rejects_f3_without_warmstart_env(tmp_path: Path) -> None:
     assert "F3.source_env must be 'LEWM_PUSHT_WARMSTART_MPK'" in result.stderr
 
 
+def test_rejects_f1_upload_in_preflight(tmp_path: Path) -> None:
+    handoff = tmp_path / "phase_a_handoff.json"
+    payload = handoff_payload()
+    tasks = payload["tasks"]
+    assert isinstance(tasks, list)
+    f1 = tasks[0]
+    assert isinstance(f1, dict)
+    commands = f1["commands"]
+    assert isinstance(commands, dict)
+    preflight = commands["preflight"]
+    assert isinstance(preflight, list)
+    launch = preflight[1]
+    assert isinstance(launch, list)
+    launch.append("--upload")
+    handoff.write_text(json.dumps(payload), encoding="utf-8")
+
+    result = run_check(handoff)
+
+    assert result.returncode == 1
+    assert "F1.preflight must not contain '--upload'" in result.stderr
+
+
+def test_rejects_f3_dry_run_after_human_approval(tmp_path: Path) -> None:
+    handoff = tmp_path / "phase_a_handoff.json"
+    payload = handoff_payload()
+    tasks = payload["tasks"]
+    assert isinstance(tasks, list)
+    f3 = tasks[1]
+    assert isinstance(f3, dict)
+    commands = f3["commands"]
+    assert isinstance(commands, dict)
+    approval = commands["after_human_approval"]
+    assert isinstance(approval, list)
+    launch = approval[0]
+    assert isinstance(launch, list)
+    launch.append("--dry-run")
+    handoff.write_text(json.dumps(payload), encoding="utf-8")
+
+    result = run_check(handoff)
+
+    assert result.returncode == 1
+    assert "F3.after_human_approval must not contain '--dry-run'" in result.stderr
+
+
 def test_rejects_resolved_phase_a_blocker(tmp_path: Path) -> None:
     handoff = tmp_path / "phase_a_handoff.json"
     blockers = tmp_path / "release_blockers.json"

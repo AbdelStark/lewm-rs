@@ -84,7 +84,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   commands, human-approval gates, accepted/rejected PushT source prefixes, and
   warm-start source requirements in one machine-checked artifact. The handoff
   validator also cross-checks `conformance/release_blockers.json` so F1/F3
-  cannot drift away from their blocked Phase A release status.
+  cannot drift away from their blocked Phase A release status, and enforces
+  that dry-run, execute, and upload commands stay in their intended stages.
 - **Model-card accuracy**: local PushT and SO-100 Hub cards now label the
   current uploads as bounded trainer artifacts instead of full release
   checkpoints, and `scripts/upload_model_cards.py --dry-run` no longer requires

@@ -121,6 +121,132 @@ def flatten_commands(commands: dict[str, list[list[str]]]) -> list[str]:
     return [token for group in commands.values() for command in group for token in command]
 
 
+def require_command_group(
+    commands: dict[str, list[list[str]]],
+    name: str,
+    task_id: str,
+    path: Path,
+) -> list[list[str]]:
+    group = commands.get(name)
+    if group is None:
+        raise HandoffError(f"{path}: {task_id}.commands missing {name!r}")
+    return group
+
+
+def command_has(command: list[str], *tokens: str) -> bool:
+    return all(token in command for token in tokens)
+
+
+def require_no_token(
+    commands: list[list[str]],
+    token: str,
+    context: str,
+    path: Path,
+) -> None:
+    for command in commands:
+        if token in command:
+            raise HandoffError(f"{path}: {context} must not contain {token!r}")
+
+
+def require_any_command(
+    commands: list[list[str]],
+    context: str,
+    path: Path,
+    *tokens: str,
+) -> None:
+    if not any(command_has(command, *tokens) for command in commands):
+        joined = ", ".join(repr(token) for token in tokens)
+        raise HandoffError(f"{path}: {context} must include a command with {joined}")
+
+
+def validate_f1_command_stages(commands: dict[str, list[list[str]]], path: Path) -> None:
+    preflight = require_command_group(commands, "preflight", "F1", path)
+    require_no_token(preflight, "--execute", "F1.preflight", path)
+    require_no_token(preflight, "--upload", "F1.preflight", path)
+    require_any_command(preflight, "F1.preflight", path, "scripts/check_full_pusht_contract_smoke_report.py")
+    require_any_command(
+        preflight,
+        "F1.preflight",
+        path,
+        "scripts/launch_hf_job.py",
+        "jobs/train_pusht.yaml",
+        "--dry-run",
+        "--allow-approval-required",
+    )
+
+    approval = require_command_group(commands, "after_human_approval", "F1", path)
+    require_no_token(approval, "--dry-run", "F1.after_human_approval", path)
+    require_any_command(
+        approval,
+        "F1.after_human_approval",
+        path,
+        "scripts/launch_hf_job.py",
+        "jobs/train_pusht.yaml",
+        "--allow-approval-required",
+    )
+
+    export = require_command_group(commands, "after_full_checkpoint_exists", "F1", path)
+    if len(export) != 3:
+        raise HandoffError(f"{path}: F1.after_full_checkpoint_exists must have 3 commands")
+    for index, command in enumerate(export):
+        if not command_has(
+            command,
+            "scripts/f1_export_pusht_onnx.py",
+            "--run-prefix",
+            "train/pusht-full-burn-jepa-<UTC timestamp>",
+        ):
+            raise HandoffError(f"{path}: F1.after_full_checkpoint_exists[{index}] is malformed")
+    if "--execute" in export[0] or "--upload" in export[0]:
+        raise HandoffError(f"{path}: F1 export dry-run command must not execute or upload")
+    if "--execute" not in export[1] or "--upload" in export[1]:
+        raise HandoffError(f"{path}: F1 export execute command must execute without upload")
+    if "--execute" not in export[2] or "--upload" not in export[2]:
+        raise HandoffError(f"{path}: F1 final upload command must include --execute and --upload")
+
+
+def validate_f3_command_stages(commands: dict[str, list[list[str]]], path: Path) -> None:
+    preflight = require_command_group(commands, "preflight", "F3", path)
+    require_any_command(
+        preflight,
+        "F3.preflight",
+        path,
+        "scripts/check_pusht_warmstart_source_smoke_report.py",
+    )
+    require_any_command(
+        preflight,
+        "F3.preflight",
+        path,
+        "LEWM_PUSHT_WARMSTART_MPK=train/<compatible-bounded-run>/step_0050000.mpk",
+        "scripts/launch_hf_job.py",
+        "jobs/train_so100_warmstart.yaml",
+        "--dry-run",
+        "--allow-approval-required",
+    )
+
+    approval = require_command_group(commands, "after_human_approval", "F3", path)
+    require_no_token(approval, "--dry-run", "F3.after_human_approval", path)
+    require_any_command(
+        approval,
+        "F3.after_human_approval",
+        path,
+        "LEWM_PUSHT_WARMSTART_MPK=train/<compatible-bounded-run>/step_0050000.mpk",
+        "scripts/launch_hf_job.py",
+        "jobs/train_so100_warmstart.yaml",
+        "--allow-approval-required",
+    )
+
+
+def validate_command_stages(
+    task_id: str,
+    commands: dict[str, list[list[str]]],
+    path: Path,
+) -> None:
+    if task_id == "F1":
+        validate_f1_command_stages(commands, path)
+    elif task_id == "F3":
+        validate_f3_command_stages(commands, path)
+
+
 def validate_evidence_paths(paths: list[str], context: str, handoff_path: Path) -> None:
     root = repo_root()
     for evidence in paths:
@@ -158,7 +284,9 @@ def validate_task(task: Any, expected: dict[str, Any], handoff_path: Path) -> No
     validate_evidence_paths(require_str_list(task, "evidence", handoff_path), task_id, handoff_path)
     require_str_list(task, "blocked_on", handoff_path)
     require_str_list(task, "acceptance", handoff_path)
-    tokens = flatten_commands(require_commands(task, handoff_path))
+    commands = require_commands(task, handoff_path)
+    validate_command_stages(task_id, commands, handoff_path)
+    tokens = flatten_commands(commands)
 
     for token in expected["required_tokens"]:
         if token not in tokens:
