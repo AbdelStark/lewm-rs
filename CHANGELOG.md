@@ -9,6 +9,10 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Changed
 
+- Docker / HF Jobs reproduction docs now match the checked-in Dockerfile and
+  release workflow: the runtime image ships `lewm-train` under `/workspace`,
+  GHCR publication happens from the release workflow, and production HF Jobs
+  should pin an image tag through `scripts/launch_hf_job.py --image-tag`.
 - **Burn 0.20.1 → 0.21.0** (per ADR 0003). Updated all seven workspace
   Burn dependencies (`burn`, `burn-core`, `burn-cuda`, `burn-ndarray`,
   `burn-autodiff`, `burn-import`, `burn-train`). Migrated five

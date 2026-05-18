@@ -4,19 +4,22 @@
 
 `ghcr.io/abdelstark/lewm-rs:latest`. Built from the checked-in
 [`Dockerfile`](https://github.com/AbdelStark/lewm-rs/blob/main/Dockerfile).
+For release or production reruns, pin the image at launch time with
+`scripts/launch_hf_job.py --image-tag <tag>` or `LEWM_IMAGE_TAG=<tag>`.
 
 Contents:
 
-- `lewm-train`, `lewm-eval`, `lewm-infer` (release binaries).
-- All configs under `/app/configs/`.
-- The HF Jobs spec files under `/app/jobs/`.
-- Python helpers in `/app/python/`: `convert_reference.py`,
+- `lewm-train` (release binary) on `PATH`.
+- All configs under `/workspace/configs/`.
+- The HF Jobs spec files under `/workspace/jobs/`.
+- Python helpers in `/workspace/python/`: `convert_reference.py`,
   `decode_so100_to_h5.py`, `compute_so100_stats.py`,
   `export_onnx.py`, `upload_checkpoints.py`.
-- The `hf` CLI, `zstd`, and `bash`.
+- The `hf` CLI, `hdf5plugin`, `safetensors`, `zstd`, `tini`, and `bash`.
 
-The image is rebuilt on every push to `main` by
-`.github/workflows/ci.yml` and pushed to GHCR.
+The release workflow builds and pushes `ghcr.io/abdelstark/lewm-rs:<tag>` and
+`ghcr.io/abdelstark/lewm-rs:latest` when a `v*.*.*` tag is published. The CI
+workflow validates the code but does not publish the container.
 
 ## 2. Building locally
 
@@ -24,8 +27,8 @@ The image is rebuilt on every push to `main` by
 docker build -t lewm-rs:dev .
 ```
 
-The Dockerfile uses a multi-stage build: a Rust + CUDA toolchain stage
-for compilation, a slim stage for runtime.
+The Dockerfile uses a multi-stage build: a Rust 1.95 builder stage for
+`lewm-train`, then a slim Debian runtime stage for HF Jobs.
 
 ## 3. Launching HF Jobs
 
@@ -45,6 +48,12 @@ Launch with the helper:
 scripts/launch_hf_job.py jobs/train_pusht.yaml --allow-approval-required
 ```
 
+For a release-pinned job:
+
+```sh
+scripts/launch_hf_job.py jobs/train_pusht.yaml --allow-approval-required --image-tag vX.Y.Z
+```
+
 The helper:
 
 1. Validates the YAML against the schema in
@@ -58,8 +67,8 @@ The helper:
 - The job pulls the image, mounts a scratch disk, exports `HF_TOKEN`,
   and runs the command from the spec.
 - Logs (stdout) are tailed to the HF Jobs UI live.
-- Checkpoints are pushed to the Hub repo via the trainer's UPLOAD
-  state.
+- Checkpoints are pushed to the Hub repo by `python/upload_checkpoints.py`
+  after the job command's local validation steps pass.
 - On crash, re-launching the same training job preserves the trainer's
   `--resume-if-present` behavior when the job spec includes it.
 

@@ -7,8 +7,9 @@
 # codecs (zstd / blosc / lz4 for PushT episodes), and the binary, executed as a
 # non-root user under `tini` for clean signal handling.
 #
-# Image is published at `ghcr.io/abdelstark/lewm-rs`. HF Jobs pin to the
-# release tag (see `jobs/*.yaml` `image:` lines) so reruns are reproducible.
+# Image is published at `ghcr.io/abdelstark/lewm-rs`. HF Jobs default to
+# `latest` for development; `scripts/launch_hf_job.py --image-tag` can pin a
+# release tag at submission time without editing the YAML.
 
 FROM rust:1.95.0-bookworm AS builder
 
