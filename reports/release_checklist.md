@@ -87,7 +87,17 @@ This document tracks all items needed before tagging a public release.
 2. **Fix GHCR permissions**: Visit
    https://github.com/users/abdelstark/packages/container/lewm-rs/settings
    and add repository `AbdelStark/lewm-rs` with Write role. This unblocks
-   the `container` job in the release workflow.
+   the F1 pre-release `runtime-image.yml` workflow and the final `container`
+   job in the release workflow. Verify F1 image publication with:
+
+   ```bash
+   image_tag="f1-runtime-$(git rev-parse --short HEAD)"
+   gh workflow run runtime-image.yml --ref main -f image_tag="${image_tag}"
+   python3 scripts/verify_runtime_image.py --image-tag "${image_tag}"
+   ```
+
+   `release.yml` should be verified from the final `vX.Y.Z` tag, not from
+   `main`, because its tag-format gate rejects non-release refs.
 
 3. **Run gitleaks scan**: `pip install gitleaks` then
    `python3 scripts/check_secrets.py` to get a clean report before tagging.
