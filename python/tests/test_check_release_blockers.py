@@ -57,10 +57,61 @@ REQUIRED_RESOLUTION_BY_ID = {
         "Produce and upload a PushT checkpoint with the exact 255-tensor Burn/Jepa safetensors layout expected by python/export_onnx.py.",
         "Export both onnxruntime and tract-compat variants under onnx-full/.",
     ],
+    "F2": [
+        "Run 50 scored PushT CEM evaluation episodes against the F1 full-training ONNX artifacts.",
+        "Document success rate, p50/p95 latency, and per-episode results in reports/pusht_eval.md.",
+        "Use the measured results to unblock F4 and F7.",
+    ],
+    "F3": [
+        "Provide a compatible current bounded-core PushT .mpk source checkpoint.",
+        "Keep train_so100_warmstart.yaml listed under jobs_human_approval_required.",
+        "Obtain explicit human approval before launch.",
+        "Upload the resulting SO-100 warm-start artifacts and compute the warm-start delta.",
+    ],
+    "F4": [
+        "Update the live model card with CEM success rate, p50/p95 latency, ONNX artifact links, and metrics from reports/pusht_eval.md.",
+        "Update CHANGELOG.md for the finalized PushT model card.",
+        "Cross-link the finalized card from README.md and paper/lewm-rs.md.",
+    ],
+    "F5": [
+        "Update the live card with from-scratch vs warm-start training comparison.",
+        "Document the Spearman correlation delta and warm-start loss delta in reports/so100_warmstart.md.",
+        "Update CHANGELOG.md and cross-link the finalized card from README.md and paper/lewm-rs.md.",
+    ],
+    "F6": [
+        "Verify https://huggingface.co/spaces/abdelstark/lewm-rs-demo is green.",
+        "Run one CEM planning demo episode end-to-end.",
+        "Point the Space at the F1 full-training ONNX artifacts.",
+        "Update the Space description with the F2 success-rate result.",
+    ],
+    "F7": [
+        "Replace the paper section 6.2 TBD with measured PushT success rate and CEM latency from reports/pusht_eval.md.",
+        "Generate and commit paper/figures/pusht_eval.pdf.",
+    ],
+    "F8": [
+        "Replace the paper section 7.3 TBD with measured warm-start Spearman delta, warm-start loss delta, and training comparison.",
+        "Generate and commit paper/figures/so100_warmstart.pdf.",
+    ],
+    "F9": [
+        "Publish the HF Hub blog post and record the live URL.",
+        "Cross-link the post from README.md, finalized PushT and SO-100 model cards, and the demo Space.",
+        "Update CHANGELOG.md with the blog link.",
+    ],
+    "F10": [
+        "Render the final PDF after F7 and F8 remove all TBD result sections.",
+        "Submit the paper to arXiv and record the identifier.",
+        "Update README.md, CITATION.cff, and CHANGELOG.md with the arXiv link.",
+    ],
     "F11": [
         "Grant write access to the ghcr.io/abdelstark/lewm-rs package settings.",
         "Trigger release.yml and verify the container job passes.",
         "Verify the latest GHCR image is published and signed.",
+    ],
+    "F13": [
+        "Resolve F1 through F12 and complete reports/release_checklist.md.",
+        "Run CARGO_INCREMENTAL=0 make accept on main.",
+        "Move CHANGELOG.md Unreleased content to a dated 1.0.0 release section.",
+        "Create and push the signed v1.0.0 tag, then verify release.yml and the GitHub Release artifacts pass.",
     ],
 }
 
@@ -208,3 +259,23 @@ def test_release_blocker_manifest_requires_f1_runtime_image_resolution(
     assert result.returncode == 1
     assert "F1 required_resolution missing required text" in result.stderr
     assert "scripts/verify_runtime_image.py" in result.stderr
+
+
+def test_release_blocker_manifest_requires_downstream_metric_criteria(
+    tmp_path: Path,
+) -> None:
+    manifest = tmp_path / "release_blockers.json"
+    payload = blocker_manifest()
+    blockers = payload["blockers"]
+    assert isinstance(blockers, list)
+    f7 = blockers[6]
+    assert isinstance(f7, dict)
+    f7["required_resolution"] = ["resolve paper after evaluation"]
+    manifest.write_text(json.dumps(payload), encoding="utf-8")
+
+    result = run_check(manifest)
+
+    assert result.returncode == 1
+    assert "F7 required_resolution missing required text" in result.stderr
+    assert "reports/pusht_eval.md" in result.stderr
+    assert "paper/figures/pusht_eval.pdf" in result.stderr

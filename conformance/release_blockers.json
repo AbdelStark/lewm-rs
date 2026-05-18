@@ -100,7 +100,7 @@
         "CHANGELOG.md"
       ],
       "required_resolution": [
-        "Update the live abdelstark/lewm-rs-pusht model card with training metrics, CEM success rate, p50/p95 latency, ONNX artifact links, reproduce commands, and citations.",
+        "Update the live abdelstark/lewm-rs-pusht model card with training metrics from reports/pusht_eval.md, CEM success rate, p50/p95 latency, ONNX artifact links, reproduce commands, and citations.",
         "Update CHANGELOG.md for the finalized PushT model card.",
         "Cross-link the finalized card from README.md and paper/lewm-rs.md."
       ]
@@ -119,7 +119,7 @@
       ],
       "required_resolution": [
         "Update the live abdelstark/lewm-rs-so100 model card with from-scratch vs warm-start training comparison.",
-        "Document the Spearman correlation delta and warm-start loss delta.",
+        "Document the Spearman correlation delta and warm-start loss delta in reports/so100_warmstart.md.",
         "Update CHANGELOG.md and cross-link the finalized card from README.md and paper/lewm-rs.md."
       ]
     },
@@ -171,7 +171,7 @@
         "reports/release_checklist.md"
       ],
       "required_resolution": [
-        "Replace the paper section 7.3 TBD with measured warm-start Spearman delta and training comparison.",
+        "Replace the paper section 7.3 TBD with measured warm-start Spearman delta, warm-start loss delta, and training comparison.",
         "Generate and commit paper/figures/so100_warmstart.pdf.",
         "Verify the paper or docsite build succeeds without errors."
       ]
@@ -190,7 +190,7 @@
       ],
       "required_resolution": [
         "Publish the HF Hub blog post and record the live URL.",
-        "Cross-link the post from README.md, model cards, and the demo Space.",
+        "Cross-link the post from README.md, finalized PushT and SO-100 model cards, and the demo Space.",
         "Update CHANGELOG.md with the blog link."
       ]
     },

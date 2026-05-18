@@ -41,6 +41,9 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   retry tag or source revision from current repository evidence instead of
   hard-coding the first failed runtime-image attempt, and
   `scripts/check_runtime_image_publish_report.py` now gates that report.
+  The release blocker gate now also preserves downstream F2-F10/F13 resolution
+  criteria so PushT eval, model cards, paper sections, blog, arXiv, and the
+  final tag cannot be weakened while F1/F3 evidence remains absent.
   Result, roadmap, status, paper, and cost docs now label the historical PushT
   spend as bounded-core training and record the F1/F3 worst-case approval
   envelopes instead of treating the missing full Burn/Jepa release checkpoint
