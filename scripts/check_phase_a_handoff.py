@@ -38,6 +38,9 @@ EXPECTED_TASKS = (
             "REPLACE_WITH_SOURCE_REVISION",
             "REPLACE_WITH_UTC_TIMESTAMP",
         ),
+        "required_evidence": (
+            "scripts/check_pusht_onnx_export_metadata.py",
+        ),
     },
     {
         "id": "F3",
@@ -386,6 +389,12 @@ def validate_task(task: Any, expected: dict[str, Any], handoff_path: Path) -> No
         raise HandoffError(f"{handoff_path}: {task_id} must require human approval")
 
     validate_evidence_paths(require_str_list(task, "evidence", handoff_path), task_id, handoff_path)
+    evidence = task["evidence"]
+    for required in expected.get("required_evidence", ()):
+        if required not in evidence:
+            raise HandoffError(
+                f"{handoff_path}: {task_id}.evidence missing required path {required!r}"
+            )
     require_str_list(task, "blocked_on", handoff_path)
     require_str_list(task, "acceptance", handoff_path)
     commands = require_commands(task, handoff_path)

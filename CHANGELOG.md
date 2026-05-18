@@ -46,7 +46,9 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   final tag cannot be weakened while F1/F3 evidence remains absent.
   The F1 ONNX handoff now runs a metadata gate before upload so `onnx-full/`
   must carry the required PushT step count, action dimension, source
-  safetensors SHA, timestamp, and both ONNX variant sidecars.
+  safetensors SHA, timestamp, and both ONNX variant sidecars. The Phase A
+  handoff now also requires that metadata gate as F1 evidence and acceptance
+  criteria before final Hub upload approval.
   Result, roadmap, status, paper, and cost docs now label the historical PushT
   spend as bounded-core training and record the F1/F3 worst-case approval
   envelopes instead of treating the missing full Burn/Jepa release checkpoint

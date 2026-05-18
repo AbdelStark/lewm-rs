@@ -33,6 +33,7 @@
         "scripts/verify_runtime_image.py",
         "reports/phase_a_approval.json",
         "scripts/f1_export_pusht_onnx.py",
+        "scripts/check_pusht_onnx_export_metadata.py",
         "scripts/check_phase_a_approval.py",
         "jobs/train_pusht.yaml",
         "jobs/train_pusht_source.yaml",
@@ -42,7 +43,7 @@
         "Primary path: a concrete GHCR runtime image tag containing the current full Burn/Jepa training and export-gate code, passed with --image-tag or LEWM_IMAGE_TAG.",
         "Fallback path: explicit human approval for the paid jobs/train_pusht_source.yaml production run using the source revision preflighted in reports/f1_source_build_dry_run.json.",
         "Human-approved jobs/train_pusht.yaml or jobs/train_pusht_source.yaml production run that uploads train/pusht-full-burn-jepa-YYYYMMDDTHHMMSSZ/step_0050000.safetensors.",
-        "Release owner approval for final onnx-full/ Hub upload after python/verify_onnx.py passes."
+        "Release owner approval for final onnx-full/ Hub upload after python/verify_onnx.py and scripts/check_pusht_onnx_export_metadata.py pass."
       ],
       "commands": {
         "preflight": [
@@ -122,6 +123,7 @@
         "Source PushT safetensors has the exact 255 Burn destination tensors and recovers all 303 expected PyTorch keys.",
         "Both onnxruntime and tract-compat variants are generated under onnx-full/.",
         "python/verify_onnx.py --dir <onnx-full-root> passes.",
+        "scripts/check_pusht_onnx_export_metadata.py --dir <onnx-full-root> passes.",
         "Verified ONNX variants are uploaded to abdelstark/lewm-rs-pusht under onnx-full/."
       ]
     },

@@ -47,6 +47,7 @@ def handoff_payload() -> dict[str, object]:
                     "scripts/verify_runtime_image.py",
                     "reports/phase_a_approval.json",
                     "scripts/f1_export_pusht_onnx.py",
+                    "scripts/check_pusht_onnx_export_metadata.py",
                     "scripts/check_phase_a_approval.py",
                     "jobs/train_pusht.yaml",
                     "jobs/train_pusht_source.yaml",
@@ -323,6 +324,25 @@ def test_rejects_f1_without_source_build_fallback(tmp_path: Path) -> None:
 
     assert result.returncode == 1
     assert "jobs/train_pusht_source.yaml" in result.stderr
+
+
+def test_rejects_f1_without_onnx_metadata_checker_evidence(tmp_path: Path) -> None:
+    handoff = tmp_path / "phase_a_handoff.json"
+    payload = handoff_payload()
+    tasks = payload["tasks"]
+    assert isinstance(tasks, list)
+    f1 = tasks[0]
+    assert isinstance(f1, dict)
+    evidence = f1["evidence"]
+    assert isinstance(evidence, list)
+    evidence.remove("scripts/check_pusht_onnx_export_metadata.py")
+    handoff.write_text(json.dumps(payload), encoding="utf-8")
+
+    result = run_check(handoff)
+
+    assert result.returncode == 1
+    assert "F1.evidence missing required path" in result.stderr
+    assert "scripts/check_pusht_onnx_export_metadata.py" in result.stderr
 
 
 def test_rejects_f3_dry_run_after_human_approval(tmp_path: Path) -> None:
