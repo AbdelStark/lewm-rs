@@ -66,3 +66,14 @@ def test_rejects_wrong_parameter_count(tmp_path: Path) -> None:
 
     assert result.returncode == 1
     assert "does not match expected bounded-core parameter count" in result.stderr
+
+
+def test_rejects_full_burn_jepa_binary_record_with_clear_boundary(tmp_path: Path) -> None:
+    source = tmp_path / "step_0050000.mpk"
+    source.write_bytes(b"\x82\xa6record\xa1x\xa4step\xcd\xc3P")
+
+    result = run_check(source)
+
+    assert result.returncode == 1
+    assert "full Burn/Jepa NamedMpk records are not supported" in result.stderr
+    assert "current bounded-core SO-100 warm-start path" in result.stderr

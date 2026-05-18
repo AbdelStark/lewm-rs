@@ -52,7 +52,7 @@
         "reports/release_checklist.md"
       ],
       "required_resolution": [
-        "Provide a compatible PushT .mpk source checkpoint for LEWM_PUSHT_WARMSTART_MPK.",
+        "Provide a compatible current bounded-core PushT .mpk source checkpoint for LEWM_PUSHT_WARMSTART_MPK, or migrate the SO-100 warm-start path to full Burn/Jepa with a contract update.",
         "Update the agent safety leash so train_so100_warmstart.yaml is listed under jobs_human_approval_required.",
         "Obtain explicit human approval for the paid HF Job launch.",
         "Upload the resulting SO-100 warm-start artifacts and compute the warm-start delta."

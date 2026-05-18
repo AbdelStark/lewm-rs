@@ -109,7 +109,8 @@ Training:  SIGReg + prediction MSE loss (λ=1.0, knots=17, proj=1024)
 
 Pending. The release ablation compares SO-100 from-scratch training against
 SO-100 training warm-started from PushT. Launch is blocked until a compatible
-PushT `.mpk` source exists and the approval-gated HF Job is explicitly allowed.
+current bounded-core PushT `.mpk` source exists and the approval-gated HF Job
+is explicitly allowed.
 
 ## Repository
 

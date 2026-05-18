@@ -59,8 +59,10 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   `train/so100-warmstart-*`. The job now runs
   `scripts/check_warmstart_source.py` after downloading the PushT `.mpk`, so
   stale `schema_version = 1.0.0` / minimal records fail before paid training
-  begins. Reproduction/result docs now use the checked-in `train_*.yaml` job
-  names and describe the PushT 50k artifact as a bounded 14-tensor host-core
+  begins. The checker now makes the current boundary explicit: full Burn/Jepa
+  `NamedMpk` records are not accepted by the bounded-core SO-100 warm-start
+  path. Reproduction/result docs now use the checked-in `train_*.yaml` job names
+  and describe the PushT 50k artifact as a bounded 14-tensor host-core
   checkpoint rather than a trained 255-tensor Burn/Jepa mirror.
 - **Release blocker gate**: new `conformance/release_blockers.json` and
   `scripts/check_release_blockers.py` keep `make check` schema-validating known

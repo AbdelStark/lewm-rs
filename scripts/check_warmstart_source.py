@@ -52,11 +52,14 @@ def load_json(path: Path) -> dict[str, Any]:
         raise WarmstartSourceError(f"{path}: warm-start source does not exist") from exc
     except UnicodeDecodeError as exc:
         raise WarmstartSourceError(
-            f"{path}: expected bounded-core JSON .mpk; binary Burn records are not supported by "
-            "the current SO-100 warm-start path"
+            f"{path}: expected current bounded-core JSON .mpk; full Burn/Jepa NamedMpk "
+            "records are not supported by the current bounded-core SO-100 warm-start path"
         ) from exc
     except json.JSONDecodeError as exc:
-        raise WarmstartSourceError(f"{path}: invalid bounded-core JSON .mpk: {exc}") from exc
+        raise WarmstartSourceError(
+            f"{path}: invalid bounded-core JSON .mpk: {exc}; full Burn/Jepa NamedMpk records "
+            "are not supported by the current bounded-core SO-100 warm-start path"
+        ) from exc
     if not isinstance(payload, dict):
         raise WarmstartSourceError(f"{path}: record root must be a JSON object")
     return payload

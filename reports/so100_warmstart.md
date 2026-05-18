@@ -47,8 +47,12 @@ python3 scripts/check_warmstart_source.py \
 That verifier requires the current bounded PushT warm-start record contract:
 `schema_version == "1.1.0"`, `kind ==
 "lewm-rs-pusht-bounded-module-lewm-record"`, and the `41,856`-parameter layout
-derived from `configs/pusht.toml`. The currently published 50k PushT `.mpk`
-is rejected immediately:
+derived from `configs/pusht.toml`. This is intentionally the bounded-core
+SO-100 trainer boundary. A full Burn/Jepa `NamedMpk` source from the F1 path is
+not accepted by this job unless SO-100 warm-start is migrated to the full
+Burn/Jepa trainer path with a separate contract update.
+
+The currently published 50k PushT `.mpk` is rejected immediately:
 
 ```text
 hf download abdelstark/lewm-rs-pusht \
@@ -103,14 +107,15 @@ Result: `check_jobs: HF Jobs specs ok`.
 uv run --project python pytest python/tests/test_check_warmstart_source.py
 ```
 
-Result: 3 passed.
+Result: 4 passed.
 
 ## Required Resolution
 
 F3 can be launched only after all of the following are true:
 
-1. A valid warm-start source checkpoint exists and is compatible with the
-   current SO-100 training layout.
+1. A valid bounded-core warm-start source checkpoint exists and is compatible
+   with the current SO-100 training layout, or the SO-100 warm-start path is
+   migrated to full Burn/Jepa with an explicit contract update.
 2. `lewm-train` applies `training.warmstart_from` before SO-100 training starts
    and records warm-start provenance in the run report. **Done locally.**
 3. `jobs/train_so100_warmstart.yaml` is added and validated against the real

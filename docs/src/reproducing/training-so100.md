@@ -56,10 +56,12 @@ scripts/launch_hf_job.py jobs/train_so100_warmstart.yaml --allow-approval-requir
 ```
 
 This job fails closed unless `LEWM_PUSHT_WARMSTART_MPK` points at a
-compatible PushT `.mpk` source checkpoint. It loads shared PushT
-modules into the encoder, projector, predictor, and pred-proj before
-training, then trains for 5 000 steps on SO-100. The action encoder is
-freshly initialised because SO-100 has a different action input count.
+compatible current bounded-core PushT `.mpk` source checkpoint. Full
+Burn/Jepa `NamedMpk` records are not accepted by this bounded-core
+SO-100 warm-start path. The job loads shared PushT modules into the
+encoder, projector, predictor, and pred-proj before training, then
+trains for 5 000 steps on SO-100. The action encoder is freshly
+initialised because SO-100 has a different action input count.
 
 The two runs (from-scratch and warm-start) can be compared via the
 SO-100 eval CLI. See [Warm-start ablation](../planning/warm-start.md).
