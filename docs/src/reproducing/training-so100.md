@@ -63,6 +63,18 @@ encoder, projector, predictor, and pred-proj before training, then
 trains for 5 000 steps on SO-100. The action encoder is freshly
 initialised because SO-100 has a different action input count.
 
+Before launching the paid warm-start job, run the local bounded-source smoke:
+
+```sh
+scripts/pusht_warmstart_source_smoke.py \
+    --report reports/pusht_warmstart_source_smoke.json
+```
+
+This proves the current PushT bounded writer emits a `schema_version = 1.1.0`
+source record accepted by `scripts/check_warmstart_source.py`. It uses the
+local PushT fixture and is not a replacement for the trained source checkpoint
+named by `LEWM_PUSHT_WARMSTART_MPK`.
+
 The two runs (from-scratch and warm-start) can be compared via the
 SO-100 eval CLI. See [Warm-start ablation](../planning/warm-start.md).
 

@@ -1,0 +1,55 @@
+{
+  "checkpoint": "/var/folders/7_/2x53c05j5_998t02j0ftc0lr0000gn/T/lewm-pusht-warmstart-source-l9wkx7nv/step_0000001.mpk",
+  "checkpoint_sha256": "4f1d7400ca305734fa1ef957790b09ef96aa3a5d844e9b1c960f070ed82799b6",
+  "checkpoint_size_bytes": 4181822,
+  "config": "configs/pusht.toml",
+  "generated_at": "2026-05-18T11:35:33+00:00",
+  "output_dir": "/var/folders/7_/2x53c05j5_998t02j0ftc0lr0000gn/T/lewm-pusht-warmstart-source-l9wkx7nv",
+  "record": {
+    "adamw_params": 41856,
+    "kind": "lewm-rs-pusht-bounded-module-lewm-record",
+    "params": 41856,
+    "schema_version": "1.1.0",
+    "step": 1
+  },
+  "schema_version": "1.0.0",
+  "source_check": {
+    "params": 41856,
+    "path": "/var/folders/7_/2x53c05j5_998t02j0ftc0lr0000gn/T/lewm-pusht-warmstart-source-l9wkx7nv/step_0000001.mpk",
+    "step": 1
+  },
+  "source_check_command": [
+    "python3",
+    "scripts/check_warmstart_source.py",
+    "--path",
+    "/var/folders/7_/2x53c05j5_998t02j0ftc0lr0000gn/T/lewm-pusht-warmstart-source-l9wkx7nv/step_0000001.mpk",
+    "--config",
+    "configs/pusht.toml"
+  ],
+  "steps": 1,
+  "train": {
+    "checkpoint_complete": true,
+    "checkpoint_step": 1,
+    "data_source": "pusht-compatible-fixture:128-samples:16x16",
+    "final_loss": 0.49996439,
+    "mode": "pusht-bounded-module-lewm"
+  },
+  "train_command": [
+    "cargo",
+    "run",
+    "-p",
+    "lewm-train",
+    "--bin",
+    "lewm-train",
+    "--",
+    "--config",
+    "configs/pusht.toml",
+    "--device",
+    "cpu",
+    "--output-dir",
+    "/var/folders/7_/2x53c05j5_998t02j0ftc0lr0000gn/T/lewm-pusht-warmstart-source-l9wkx7nv",
+    "--max-steps",
+    "1",
+    "train"
+  ]
+}

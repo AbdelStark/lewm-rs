@@ -61,6 +61,24 @@ SO-100 trainer boundary. A full Burn/Jepa `NamedMpk` source from the F1 path is
 not accepted by this job unless SO-100 warm-start is migrated to the full
 Burn/Jepa trainer path with a separate contract update.
 
+The current bounded PushT writer can produce that source contract locally. This
+operator smoke uses the built-in PushT fixture, runs one bounded training step,
+and checks the produced `.mpk` with the same launch verifier:
+
+```text
+scripts/pusht_warmstart_source_smoke.py \
+  --report reports/pusht_warmstart_source_smoke.json
+
+warm-start source ok: path=.../step_0000001.mpk step=1 params=41856
+PushT warm-start source smoke ok: output_dir=...
+```
+
+The committed report records `schema_version = 1.1.0`, kind
+`lewm-rs-pusht-bounded-module-lewm-record`, 41,856 model params, 41,856 AdamW
+params, and the source-checker result. This proves the current writer/checker
+contract locally; it does **not** replace the missing trained PushT source
+artifact needed for the release warm-start ablation.
+
 The currently published 50k PushT `.mpk` is rejected immediately:
 
 ```text
@@ -124,13 +142,21 @@ uv run --project python --frozen pytest python/tests/test_launch_hf_job.py
 
 Result: 20 passed, including the SO-100 warm-start approval-required gate.
 
+```text
+python3 scripts/check_pusht_warmstart_source_smoke_report.py
+```
+
+Result: `PushT warm-start source smoke report ok: params=41856
+mode=pusht-bounded-module-lewm`.
+
 ## Required Resolution
 
 F3 can be launched only after all of the following are true:
 
 1. A valid bounded-core warm-start source checkpoint exists and is compatible
    with the current SO-100 training layout, or the SO-100 warm-start path is
-   migrated to full Burn/Jepa with an explicit contract update.
+   migrated to full Burn/Jepa with an explicit contract update. **Local writer
+   contract proven; release source artifact still pending.**
 2. `lewm-train` applies `training.warmstart_from` before SO-100 training starts
    and records warm-start provenance in the run report. **Done locally.**
 3. `jobs/train_so100_warmstart.yaml` is added and validated against the real

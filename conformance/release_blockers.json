@@ -51,6 +51,7 @@
         "reports/so100_warmstart.md",
         "jobs/train_so100_warmstart.yaml",
         ".ml-intern/cli_agent_config.json",
+        "reports/pusht_warmstart_source_smoke.json",
         "reports/release_checklist.md"
       ],
       "required_resolution": [
