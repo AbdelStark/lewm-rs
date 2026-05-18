@@ -72,9 +72,10 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   `reports/pusht_warmstart_source_smoke.json` prove the current bounded PushT
   writer can emit a launch-compatible `schema_version = 1.1.0` source record
   with the expected 41,856-parameter layout. Reproduction/result docs now use
-  the checked-in `train_*.yaml` job names and describe the PushT 50k artifact
-  as a bounded 14-tensor host-core checkpoint rather than a trained 255-tensor
-  Burn/Jepa mirror.
+  the checked-in `train_*.yaml` job names, describe the PushT 50k artifact as
+  a bounded 14-tensor host-core checkpoint rather than a trained 255-tensor
+  Burn/Jepa mirror, and no longer present the legacy 2026-05-15 step-50000
+  `.mpk` as a valid SO-100 warm-start source.
 - **Release blocker gate**: new `conformance/release_blockers.json` and
   `scripts/check_release_blockers.py` keep `make check` schema-validating known
   blockers while making `make accept` fail until the F1 ONNX and F3 warm-start

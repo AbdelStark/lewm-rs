@@ -16,7 +16,7 @@ Two SO-100 training runs are compared:
 | Run | Initialisation |
 |-----|----------------|
 | **From scratch** | Truncated-normal init, `σ = 0.02`, for every parameter. |
-| **From PushT** | Load the PushT step-50000 checkpoint's `vit`, `projector`, `predictor`, `pred_proj`; randomly init `action_enc` (its `smoother.weight` has a different input-channel dim: PushT uses pre-packed 10-D actions while SO-100 uses raw 6-D actions, so the parameter shape differs and the tensor must be re-init). |
+| **From PushT** | Load a compatible current bounded-core PushT `.mpk` source into the shared `encoder`, `projector`, `predictor`, and `pred_proj` modules; randomly initialise the SO-100 `action_encoder` because its input dimension differs. The legacy 2026-05-15 PushT step-50000 source is not launch-compatible. |
 
 Both runs use the same SO-100 config (`configs/so100.toml`), same seed
 (0), same 5 000-step budget, and the same dataset split. The only
@@ -52,27 +52,29 @@ contract is the weaker non-regression form (`≤` not `<`).
 ## 4. The training launcher
 
 The warm-start path is in `crates/lewm-train/src/warmstart.rs`. The
-config:
+config field:
 
 ```toml
 # configs/so100_warmstart.toml
-[init]
-mode = "warm_start"
-warm_start_checkpoint = "abdelstark/lewm-rs-pusht/.../step_0050000.safetensors"
-warm_start_components = ["vit", "projector", "predictor", "pred_proj"]
-warm_start_strict = true
+[training]
+warmstart_from = "/checkpoints/lewm-rs-pusht/step_0014400.mpk"
 ```
 
-`warm_start_strict = true` makes the loader assert that every requested
-component's weights are present in the source checkpoint. Missing
-parameters trigger an error rather than a silent random-init fallback
-— this is critical for reproducibility.
+The checked-in value is a placeholder from the RFC-era config. The
+approval-gated `jobs/train_so100_warmstart.yaml` launcher overrides it from
+`LEWM_PUSHT_WARMSTART_MPK` after downloading and validating the source with
+`scripts/check_warmstart_source.py`.
 
-The action encoder is *not* in `warm_start_components` because its
-`smoother.weight` has a different shape between the two tasks:
-`(10, 6, 1)` for SO-100 (raw 6-DOF input) vs `(10, 10, 1)` for PushT
-(pre-packed 2-DOF × frameskip = 10-D input). It is randomly initialised,
-like every other component would be in a from-scratch run.
+The source checker requires the bounded PushT warm-start record contract
+(`schema_version = 1.1.0`, bounded record kind, and the current parameter
+layout). Full Burn/Jepa `NamedMpk` records and the older 2026-05-15
+`schema_version = 1.0.0` PushT source are rejected by the current
+bounded-core SO-100 warm-start path.
+
+The action encoder is not copied because its input shape differs between the
+two tasks: SO-100 uses raw 6-DOF inputs while PushT uses pre-packed 10-D
+actions. It is randomly initialised, like every other component would be in a
+from-scratch run.
 
 ## 5. Status
 
