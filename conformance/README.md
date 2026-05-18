@@ -41,7 +41,10 @@ Release blocker shape:
 ```
 
 Use `status: "resolved"` only after the linked evidence proves the blocker is
-actually complete.
+actually complete. Resolved statuses must also respect the phase dependency
+order: downstream blockers such as model cards, paper results, and the final
+v1.0.0 tag cannot resolve before their required upstream training, evaluation,
+Hub, and infrastructure blockers are resolved.
 
 Manifest shape:
 

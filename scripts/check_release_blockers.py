@@ -13,6 +13,17 @@ DEFAULT_BLOCKERS = Path("conformance/release_blockers.json")
 OPEN_STATUSES = {"blocked", "pending", "open"}
 RESOLVED_STATUS = "resolved"
 EXPECTED_BACKLOG_ISSUES = {f"F{index}": 242 + index for index in range(1, 14)}
+RELEASE_DEPENDENCIES: dict[str, tuple[str, ...]] = {
+    "F2": ("F1", "F3"),
+    "F4": ("F2",),
+    "F5": ("F3",),
+    "F6": ("F1", "F3"),
+    "F7": ("F2",),
+    "F8": ("F3",),
+    "F9": ("F7", "F8"),
+    "F10": ("F7", "F8"),
+    "F13": tuple(f"F{index}" for index in range(1, 13)),
+}
 
 
 class BlockerError(RuntimeError):
@@ -102,6 +113,23 @@ def validate_evidence_paths(blockers: list[dict[str, Any]], path: Path) -> None:
                 raise BlockerError(f"{path}: {context} does not exist")
 
 
+def validate_dependency_order(blockers: list[dict[str, Any]], path: Path) -> None:
+    """Require resolved blockers to have resolved release prerequisites."""
+    status_by_id = {entry["id"]: entry["status"] for entry in blockers}
+    for entry in blockers:
+        if entry["status"] != RESOLVED_STATUS:
+            continue
+        for dependency in RELEASE_DEPENDENCIES.get(entry["id"], ()):
+            dependency_status = status_by_id.get(dependency)
+            if dependency_status is None:
+                raise BlockerError(f"{path}: {entry['id']} depends on missing blocker {dependency}")
+            if dependency_status != RESOLVED_STATUS:
+                raise BlockerError(
+                    f"{path}: {entry['id']} cannot be resolved while "
+                    f"{dependency} is {dependency_status}"
+                )
+
+
 def load_blockers(path: Path) -> list[dict[str, Any]]:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
@@ -122,6 +150,7 @@ def load_blockers(path: Path) -> list[dict[str, Any]]:
 
     blockers = [validate_blocker(entry, index) for index, entry in enumerate(raw_blockers)]
     validate_backlog_contract(blockers, path)
+    validate_dependency_order(blockers, path)
     validate_evidence_paths(blockers, path)
     return blockers
 
