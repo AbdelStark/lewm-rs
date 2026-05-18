@@ -40,6 +40,8 @@ def handoff_payload() -> dict[str, object]:
                     "reports/full_burn_jepa_training_gap.md",
                     "reports/full_pusht_contract_smoke.json",
                     "reports/pusht_full_safetensors_hub_audit.json",
+                    "reports/f1_source_build_dry_run.json",
+                    "scripts/check_f1_source_build_dry_run_report.py",
                     "scripts/audit_pusht_full_safetensors.py",
                     "scripts/check_pusht_full_safetensors_hub_audit_report.py",
                     "scripts/verify_runtime_image.py",
@@ -57,6 +59,10 @@ def handoff_payload() -> dict[str, object]:
                         [
                             "python3",
                             "scripts/check_pusht_full_safetensors_hub_audit_report.py",
+                        ],
+                        [
+                            "python3",
+                            "scripts/check_f1_source_build_dry_run_report.py",
                         ],
                         [
                             "python3",

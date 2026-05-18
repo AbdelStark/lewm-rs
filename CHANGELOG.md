@@ -29,6 +29,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   source-build fallback without treating them as separate paid runs. Public
   docs now distinguish the historical bounded-core PushT result from the
   still-blocked F1 full Burn/Jepa release checkpoint and `onnx-full/` artifacts.
+  The concrete F1 source-build dry-run evidence is now machine-checked by
+  `scripts/check_f1_source_build_dry_run_report.py`.
 - **Burn 0.20.1 → 0.21.0** (per ADR 0003). Updated all seven workspace
   Burn dependencies (`burn`, `burn-core`, `burn-cuda`, `burn-ndarray`,
   `burn-autodiff`, `burn-import`, `burn-train`). Migrated five

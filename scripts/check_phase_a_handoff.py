@@ -23,6 +23,7 @@ EXPECTED_TASKS = (
             "--allow-approval-required",
             "--image-tag",
             "REPLACE_WITH_RUNTIME_IMAGE_TAG",
+            "scripts/check_f1_source_build_dry_run_report.py",
             "LEWM_SOURCE_REVISION=REPLACE_WITH_SOURCE_REVISION",
             "scripts/verify_runtime_image.py",
             "scripts/check_pusht_full_safetensors_hub_audit_report.py",
@@ -187,6 +188,12 @@ def validate_f1_command_stages(commands: dict[str, list[list[str]]], path: Path)
         "F1.preflight",
         path,
         "scripts/check_pusht_full_safetensors_hub_audit_report.py",
+    )
+    require_any_command(
+        preflight,
+        "F1.preflight",
+        path,
+        "scripts/check_f1_source_build_dry_run_report.py",
     )
     require_any_command(
         preflight,

@@ -14,6 +14,7 @@
         "reports/full_pusht_contract_smoke.json",
         "reports/pusht_full_safetensors_hub_audit.json",
         "reports/f1_source_build_dry_run.json",
+        "scripts/check_f1_source_build_dry_run_report.py",
         "jobs/train_pusht_source.yaml",
         "scripts/audit_pusht_full_safetensors.py",
         "scripts/check_pusht_full_safetensors_hub_audit_report.py",
