@@ -3054,7 +3054,7 @@ dependencies = [
  "image",
  "insta",
  "lewm-core",
- "ndarray 0.16.1",
+ "ndarray 0.17.2",
  "parking_lot",
  "proptest",
  "rand 0.10.1",
