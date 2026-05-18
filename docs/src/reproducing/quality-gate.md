@@ -71,6 +71,8 @@ make accept
 - `make docs` (`cargo doc --workspace --no-deps` with
   `RUSTDOCFLAGS=-D warnings`).
 - `python/Makefile` Python gate.
+- `scripts/check_release_blockers.py` without `--allow-open`; this fails while
+  any release blocker in `conformance/release_blockers.json` is still open.
 - Future hooks for hub-artifact verification and release inventory.
 
 This is the gate the maintainer runs before tagging a release. See
