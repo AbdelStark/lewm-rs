@@ -60,6 +60,10 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   current uploads as bounded trainer artifacts instead of full release
   checkpoints, and `scripts/upload_model_cards.py --dry-run` no longer requires
   `HF_TOKEN`.
+- **F1 root-cause report**: `reports/full_burn_jepa_training_gap.md` records
+  why rerunning `jobs/train_pusht.yaml` still cannot produce the required
+  303-key full Burn/Jepa checkpoint and lists the implementation gates needed
+  before ONNX export can be marked complete.
 - **`lewm-train` eval adapter**: new `lewm_train::eval` module provides
   `JepaCemCostModel<B>`, a `lewm_plan::CemCostModel` adapter that
   tensorises CEM batches and forwards to the parity-verified

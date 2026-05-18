@@ -32,7 +32,7 @@ This document tracks all items needed before tagging a public release.
 | Item | Status | Notes |
 |------|--------|-------|
 | PushT training artifacts on Hub | ⚠️ Bounded-core only | Job `6a06f0c43308d79117b90276` completed (50k steps, 318 min), but the uploaded checkpoint is the 14-tensor `pusht-minimal-lewm` / `PushtFullLewmCore` bounded host path, not a 303-tensor full Burn/Jepa checkpoint |
-| PushT CEM planning eval | 🚫 Blocked | F1 export failed because no trained full Burn/Jepa safetensors exists under `abdelstark/lewm-rs-pusht`; see `reports/pusht_onnx_export.md` |
+| PushT CEM planning eval | 🚫 Blocked | F1 export failed because no trained full Burn/Jepa safetensors exists under `abdelstark/lewm-rs-pusht`; see `reports/pusht_onnx_export.md` and `reports/full_burn_jepa_training_gap.md` |
 | PushT model card with metrics | ⏳ Pending | Needs eval results |
 | SO-100 training artifacts on Hub | ⚠️ Bounded-core run complete | `abdelstark/lewm-rs-so100/train/so100-full-20260515T122820Z/`; see `reports/so100_training.md` for the current bounded trainer scope |
 | SO-100 warm-start ablation | 🚫 Launch blocked | `lewm-train` now consumes `training.warmstart_from` and `jobs/train_so100_warmstart.yaml` exists with a fail-closed source-checkpoint env gate, but no compatible PushT source checkpoint exists and paid launch requires safety-leash update + human approval; see `reports/so100_warmstart.md` |

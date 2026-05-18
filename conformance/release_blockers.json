@@ -10,6 +10,7 @@
       "status": "blocked",
       "evidence": [
         "reports/pusht_onnx_export.md",
+        "reports/full_burn_jepa_training_gap.md",
         "reports/pusht_training.md",
         "reports/release_checklist.md"
       ],
