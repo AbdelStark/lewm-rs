@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import math
 import sys
 import tempfile
 import urllib.parse
@@ -133,13 +134,99 @@ def expected_param_count(checker: Any, config_path: Path) -> int:
     return int(checker.expected_bounded_param_count(checker.load_config(config_path)))
 
 
-def validate_candidate(checker: Any, local_path: Path, expected_params: int) -> dict[str, str]:
+def observed_record(payload: dict[str, Any]) -> dict[str, Any]:
+    """Return compact record metadata useful for diagnosing rejected sources."""
+    params = payload.get("params")
+    adamw_params = payload.get("adamw_params")
+    return {
+        "format": "json",
+        "schema_version": payload.get("schema_version"),
+        "kind": payload.get("kind"),
+        "step": payload.get("step"),
+        "param_count": len(params) if isinstance(params, list) else None,
+        "adamw_param_count": len(adamw_params) if isinstance(adamw_params, list) else None,
+    }
+
+
+def record_violations(checker: Any, payload: dict[str, Any], expected_params: int) -> list[str]:
+    """Collect all warm-start source contract failures instead of the first one."""
+    violations: list[str] = []
+    schema_version = payload.get("schema_version")
+    if schema_version != checker.EXPECTED_SCHEMA_VERSION:
+        violations.append(
+            f"schema_version must be {checker.EXPECTED_SCHEMA_VERSION!r}, got {schema_version!r}"
+        )
+
+    kind = payload.get("kind")
+    if kind != checker.EXPECTED_KIND:
+        violations.append(f"kind must be {checker.EXPECTED_KIND!r}, got {kind!r}")
+
+    step = payload.get("step")
+    if not isinstance(step, int) or step <= 0:
+        violations.append("step must be a positive integer")
+
+    params = payload.get("params")
+    if not isinstance(params, list):
+        violations.append("params must be a list")
+    elif len(params) != expected_params:
+        violations.append(
+            f"params length {len(params)} does not match expected bounded-core "
+            f"parameter count {expected_params}"
+        )
+    elif any(not isinstance(value, int | float) or not math.isfinite(float(value)) for value in params):
+        violations.append("params must contain only finite numbers")
+
+    adamw_params = payload.get("adamw_params", [])
+    if not isinstance(adamw_params, list):
+        violations.append("adamw_params must be a list when present")
+    elif adamw_params and len(adamw_params) != expected_params:
+        violations.append(
+            f"adamw_params length {len(adamw_params)} does not match expected bounded-core "
+            f"parameter count {expected_params}"
+        )
+
+    return violations
+
+
+def rejected_result(local_path: Path, observed: dict[str, Any], violations: list[str]) -> dict[str, Any]:
+    return {
+        "status": "rejected",
+        "reason": f"{local_path}: {'; '.join(violations)}",
+        "observed": observed,
+        "violations": violations,
+    }
+
+
+def validate_candidate(checker: Any, local_path: Path, expected_params: int) -> dict[str, Any]:
     try:
         payload = checker.load_json(local_path)
+    except checker.WarmstartSourceError as exc:
+        reason = str(exc)
+        return {
+            "status": "rejected",
+            "reason": reason,
+            "observed": {
+                "format": "unsupported",
+                "error": reason.replace(f"{local_path}: ", ""),
+            },
+            "violations": [reason],
+        }
+
+    observed = observed_record(payload)
+    violations = record_violations(checker, payload, expected_params)
+    if violations:
+        return rejected_result(local_path, observed, violations)
+
+    try:
         checker.validate_record(local_path, payload, expected_params)
     except checker.WarmstartSourceError as exc:
-        return {"status": "rejected", "reason": str(exc)}
-    return {"status": "compatible", "reason": "accepted by scripts/check_warmstart_source.py"}
+        return rejected_result(local_path, observed, [str(exc).replace(f"{local_path}: ", "")])
+    return {
+        "status": "compatible",
+        "reason": "accepted by scripts/check_warmstart_source.py",
+        "observed": observed,
+        "violations": [],
+    }
 
 
 def audit_candidates(
@@ -159,6 +246,15 @@ def audit_candidates(
         result = validate_candidate(checker, local_path, expected_params)
         if "reason" in result:
             result["reason"] = result["reason"].replace(str(local_path), path)
+        violations = result.get("violations")
+        if isinstance(violations, list):
+            result["violations"] = [
+                violation.replace(str(local_path), path) if isinstance(violation, str) else violation
+                for violation in violations
+            ]
+        observed = result.get("observed")
+        if isinstance(observed, dict) and isinstance(observed.get("error"), str):
+            observed["error"] = observed["error"].replace(str(local_path), path)
         audited.append(
             {
                 "path": path,

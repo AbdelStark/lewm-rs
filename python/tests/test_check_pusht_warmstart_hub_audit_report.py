@@ -33,6 +33,15 @@ def report_payload(**updates: object) -> dict[str, object]:
                 "download_url": "https://huggingface.co/example/resolve/main/train/run/step_0050000.mpk",
                 "status": "rejected",
                 "reason": "train/run/step_0050000.mpk: schema_version must be '1.1.0'",
+                "observed": {
+                    "format": "json",
+                    "schema_version": "1.0.0",
+                    "kind": "lewm-rs-pusht-minimal-lewm-record",
+                    "step": 50_000,
+                    "param_count": 56,
+                    "adamw_param_count": None,
+                },
+                "violations": ["schema_version must be '1.1.0', got '1.0.0'"],
             }
         ],
     }
@@ -79,6 +88,7 @@ def test_rejects_blocked_status_with_compatible_candidate(tmp_path: Path) -> Non
     assert isinstance(candidate, dict)
     candidate["status"] = "compatible"
     candidate["reason"] = "accepted by scripts/check_warmstart_source.py"
+    candidate["violations"] = []
     path.write_text(json.dumps(payload), encoding="utf-8")
 
     result = run_check(path)
@@ -101,3 +111,19 @@ def test_rejects_rejection_reason_without_path(tmp_path: Path) -> None:
 
     assert result.returncode == 1
     assert "reason must name the rejected path" in result.stderr
+
+
+def test_rejects_rejected_candidate_without_violations(tmp_path: Path) -> None:
+    path = tmp_path / "audit.json"
+    payload = report_payload()
+    candidates = payload["candidates"]
+    assert isinstance(candidates, list)
+    candidate = candidates[0]
+    assert isinstance(candidate, dict)
+    candidate["violations"] = []
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    result = run_check(path)
+
+    assert result.returncode == 1
+    assert "violations must explain rejected sources" in result.stderr

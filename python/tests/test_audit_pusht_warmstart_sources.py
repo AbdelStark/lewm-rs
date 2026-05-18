@@ -48,10 +48,11 @@ def test_validate_candidate_accepts_current_record(tmp_path: Path) -> None:
 
     result = audit.validate_candidate(checker, source, EXPECTED_PARAM_COUNT)
 
-    assert result == {
-        "status": "compatible",
-        "reason": "accepted by scripts/check_warmstart_source.py",
-    }
+    assert result["status"] == "compatible"
+    assert result["reason"] == "accepted by scripts/check_warmstart_source.py"
+    assert result["observed"]["kind"] == "lewm-rs-pusht-bounded-module-lewm-record"
+    assert result["observed"]["param_count"] == EXPECTED_PARAM_COUNT
+    assert result["violations"] == []
 
 
 def test_validate_candidate_records_rejection_reason(tmp_path: Path) -> None:
@@ -63,6 +64,30 @@ def test_validate_candidate_records_rejection_reason(tmp_path: Path) -> None:
 
     assert result["status"] == "rejected"
     assert "schema_version must be '1.1.0'" in result["reason"]
+    assert result["observed"]["schema_version"] == "1.0.0"
+    assert result["violations"] == ["schema_version must be '1.1.0', got '1.0.0'"]
+
+
+def test_validate_candidate_records_all_legacy_shape_failures(tmp_path: Path) -> None:
+    checker = audit.load_warmstart_checker()
+    source = tmp_path / "step_0050000.mpk"
+    write_record(
+        source,
+        schema_version="1.0.0",
+        kind="lewm-rs-pusht-minimal-lewm-record",
+        params=[0.0] * 56,
+    )
+
+    result = audit.validate_candidate(checker, source, EXPECTED_PARAM_COUNT)
+
+    assert result["status"] == "rejected"
+    assert result["observed"]["kind"] == "lewm-rs-pusht-minimal-lewm-record"
+    assert result["observed"]["param_count"] == 56
+    assert "schema_version must be '1.1.0'" in result["reason"]
+    assert "kind must be 'lewm-rs-pusht-bounded-module-lewm-record'" in result["reason"]
+    assert "params length 56 does not match expected bounded-core parameter count 41856" in result[
+        "reason"
+    ]
 
 
 def test_build_report_marks_blocked_without_compatible_candidates() -> None:
@@ -77,6 +102,15 @@ def test_build_report_marks_blocked_without_compatible_candidates() -> None:
                 "download_url": "https://example.invalid/step_0050000.mpk",
                 "status": "rejected",
                 "reason": "schema_version must be '1.1.0'",
+                "observed": {
+                    "format": "json",
+                    "schema_version": "1.0.0",
+                    "kind": "lewm-rs-pusht-minimal-lewm-record",
+                    "step": 50_000,
+                    "param_count": 56,
+                    "adamw_param_count": None,
+                },
+                "violations": ["schema_version must be '1.1.0', got '1.0.0'"],
             }
         ],
     )
@@ -120,3 +154,5 @@ def test_audit_candidates_normalizes_download_paths(tmp_path: Path, monkeypatch:
     assert results[0]["status"] == "rejected"
     assert str(tmp_path) not in results[0]["reason"]
     assert "train/run/step_0050000.mpk: schema_version must be '1.1.0'" in results[0]["reason"]
+    assert results[0]["observed"]["schema_version"] == "1.0.0"
+    assert all(str(tmp_path) not in violation for violation in results[0]["violations"])

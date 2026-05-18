@@ -110,9 +110,12 @@ PushT warm-start Hub audit: candidates=6 compatible=0 status=blocked
 ```
 
 `reports/pusht_warmstart_hub_audit.json` records all six public candidates and
-their verifier failures. Each current candidate declares `schema_version =
-1.0.0`, so none satisfy the `schema_version = 1.1.0` source contract required
-by `scripts/check_warmstart_source.py`.
+their verifier failures. The current 50k `train/pusht-full-lewm-*` candidate is
+a `lewm-rs-pusht-minimal-lewm-record` with 56 params, not the bounded-module
+record with 41,856 params. Other public candidates are scalar-smoke,
+action-probe, or tiny-JEPA records. None satisfy the `schema_version = 1.1.0`,
+bounded record kind, and 41,856-param source contract required by
+`scripts/check_warmstart_source.py`.
 
 The config exists:
 

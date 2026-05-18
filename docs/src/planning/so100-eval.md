@@ -63,7 +63,8 @@ The SO-100 training pipeline supports two initialisation modes:
 - **From PushT**: load a compatible current bounded-core PushT `.mpk`
   source into the shared encoder, projector, predictor, and pred-proj
   modules before training begins. The legacy 2026-05-15 PushT
-  step-50000 source is not accepted by the warm-start launch checker.
+  step-50000 source is a minimal 56-param record and is not accepted by
+  the warm-start launch checker.
 
 The ablation compares the latent-rollout MSE of the two checkpoints
 after the SO-100 training budget (5 000 steps). The contract pinned by

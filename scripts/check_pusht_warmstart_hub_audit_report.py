@@ -56,6 +56,45 @@ def require_int(payload: dict[str, Any], key: str, path: Path) -> int:
     return value
 
 
+def require_optional_int(payload: dict[str, Any], key: str, path: Path, context: str) -> None:
+    value = payload.get(key)
+    if value is not None and (not isinstance(value, int) or value < 0):
+        raise HubAuditReportError(f"{path}: {context}.{key} must be a non-negative integer or null")
+
+
+def validate_observed(observed: Any, path: Path, index: int) -> None:
+    if not isinstance(observed, dict):
+        raise HubAuditReportError(f"{path}: candidates[{index}].observed must be an object")
+    observed_format = require_str(observed, "format", path)
+    if observed_format == "json":
+        require_optional_int(observed, "param_count", path, f"candidates[{index}].observed")
+        require_optional_int(observed, "adamw_param_count", path, f"candidates[{index}].observed")
+        return
+    if observed_format == "unsupported":
+        require_str(observed, "error", path)
+        return
+    raise HubAuditReportError(
+        f"{path}: candidates[{index}].observed.format must be json or unsupported"
+    )
+
+
+def validate_violations(violations: Any, path: Path, index: int, status: str) -> None:
+    if not isinstance(violations, list):
+        raise HubAuditReportError(f"{path}: candidates[{index}].violations must be a list")
+    if not all(isinstance(item, str) and item for item in violations):
+        raise HubAuditReportError(
+            f"{path}: candidates[{index}].violations must contain non-empty strings"
+        )
+    if status == "compatible" and violations:
+        raise HubAuditReportError(
+            f"{path}: candidates[{index}].violations must be empty for compatible sources"
+        )
+    if status == "rejected" and not violations:
+        raise HubAuditReportError(
+            f"{path}: candidates[{index}].violations must explain rejected sources"
+        )
+
+
 def validate_candidate(candidate: Any, path: Path, index: int) -> str:
     if not isinstance(candidate, dict):
         raise HubAuditReportError(f"{path}: candidates[{index}] must be an object")
@@ -78,6 +117,8 @@ def validate_candidate(candidate: Any, path: Path, index: int) -> str:
         raise HubAuditReportError(
             f"{path}: candidates[{index}].reason must name the rejected path"
         )
+    validate_observed(candidate.get("observed"), path, index)
+    validate_violations(candidate.get("violations"), path, index, status)
     return status
 
 

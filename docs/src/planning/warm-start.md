@@ -66,10 +66,11 @@ approval-gated `jobs/train_so100_warmstart.yaml` launcher overrides it from
 `scripts/check_warmstart_source.py`.
 
 The source checker requires the bounded PushT warm-start record contract
-(`schema_version = 1.1.0`, bounded record kind, and the current parameter
-layout). Full Burn/Jepa `NamedMpk` records and the older 2026-05-15
-`schema_version = 1.0.0` PushT source are rejected by the current
-bounded-core SO-100 warm-start path.
+(`schema_version = 1.1.0`, bounded record kind, and the current 41,856-param
+layout). Full Burn/Jepa `NamedMpk` records and the older 2026-05-15 PushT
+source are rejected by the current bounded-core SO-100 warm-start path; the
+public 50k `pusht-full-lewm-*` `.mpk` is a minimal 56-param record, not a
+migratable bounded-module source.
 
 The action encoder is not copied because its input shape differs between the
 two tasks: SO-100 uses raw 6-DOF inputs while PushT uses pre-packed 10-D

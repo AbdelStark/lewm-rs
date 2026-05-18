@@ -79,7 +79,10 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   `scripts/audit_pusht_warmstart_sources.py` and
   `reports/pusht_warmstart_hub_audit.json` now audit every public PushT `.mpk`
   candidate and show that all six current Hub candidates are rejected by the
-  warm-start verifier because they still declare `schema_version = 1.0.0`.
+  warm-start verifier. The audit now records observed record kind and parameter
+  counts too, showing the 50k `pusht-full-lewm-*` `.mpk` is a 56-param
+  `minimal-lewm` record rather than a migratable 41,856-param bounded-module
+  source.
 - **Release blocker gate**: new `conformance/release_blockers.json` and
   `scripts/check_release_blockers.py` keep `make check` schema-validating known
   blockers while making `make accept` fail until the F1 ONNX and F3 warm-start
