@@ -48,6 +48,22 @@ except ImportError:
 # Inverse-transform helpers
 # ---------------------------------------------------------------------------
 
+BOUNDED_CORE_KEY_HINTS = frozenset(
+    {
+        "action_encoder.x.weight",
+        "action_encoder.y.weight",
+        "encoder.pixel.weight",
+        "predictor.latent.weight",
+        "projector.weight",
+        "pred_proj.weight",
+    }
+)
+
+
+class CheckpointContractError(RuntimeError):
+    """Raised when a checkpoint cannot satisfy the full ONNX export contract."""
+
+
 def _invert_identity(burn_value: np.ndarray) -> np.ndarray:
     return burn_value
 
@@ -113,13 +129,37 @@ def burn_safetensors_to_state_dict(
         recovered = invert_rule(rule, burn_dict)
         pt_numpy.update(recovered)
 
-    missing = set(pnm.expected_source_keys()) - set(pt_numpy)
-    if missing:
-        print(f"WARNING: {len(missing)} PyTorch keys not recovered from Burn checkpoint.", file=sys.stderr)
-        for k in sorted(missing)[:10]:
-            print(f"  missing: {k}", file=sys.stderr)
+    contract_error = checkpoint_contract_error(set(burn_dict), set(pt_numpy))
+    if contract_error is not None:
+        raise CheckpointContractError(contract_error)
 
     return {k: torch.from_numpy(v.astype(np.float32)) for k, v in pt_numpy.items()}
+
+
+def checkpoint_contract_error(burn_keys: set[str], recovered_keys: set[str]) -> str | None:
+    """Return a human-readable contract error, or None when export can proceed."""
+    expected_keys = set(pnm.expected_source_keys())
+    missing = expected_keys - recovered_keys
+    if not missing:
+        return None
+
+    lines = [
+        "checkpoint does not match the full Burn/Jepa ONNX export contract",
+        f"recovered {len(recovered_keys)} of {len(expected_keys)} expected PyTorch keys",
+        f"source safetensors tensor count: {len(burn_keys)}",
+    ]
+    if BOUNDED_CORE_KEY_HINTS.issubset(burn_keys):
+        lines.append(
+            "the tensor names match the bounded PushtFullLewmCore training artifact, "
+            "not the full 303-tensor lewm_core::Jepa checkpoint"
+        )
+    lines.append("first missing keys:")
+    lines.extend(f"  - {key}" for key in sorted(missing)[:10])
+    lines.append(
+        "provide a full Burn/Jepa safetensors checkpoint or use a separate exporter "
+        "for the bounded-core artifact"
+    )
+    return "\n".join(lines)
 
 
 # ---------------------------------------------------------------------------
@@ -619,8 +659,12 @@ def main(argv: list[str] | None = None) -> int:
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
-    print(f"Loading Burn safetensors: {args.safetensors}")
-    state = burn_safetensors_to_state_dict(args.safetensors)
+    print(f"Loading Burn safetensors: {args.safetensors}", flush=True)
+    try:
+        state = burn_safetensors_to_state_dict(args.safetensors)
+    except CheckpointContractError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
     print(f"Recovered {len(state)} PyTorch keys from Burn checkpoint.")
 
     arch = load_arch_from_meta(meta_path)

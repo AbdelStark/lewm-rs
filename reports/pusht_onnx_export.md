@@ -73,12 +73,27 @@ current PushT 50k-step result was produced by the 14-parameter
 `PushtFullLewmCore` bounded host path. That path is not the full Burn/Jepa
 model expected by the ONNX exporter.
 
-Export failed before graph generation:
+The exporter now fails before graph generation with an explicit checkpoint
+contract diagnostic:
 
 ```text
-WARNING: 303 PyTorch keys not recovered from Burn checkpoint.
-Recovered 0 PyTorch keys from Burn checkpoint.
-KeyError: 'encoder.embeddings.patch_embeddings.projection.weight'
+Loading Burn safetensors: /tmp/pusht-full-contract-check/train/pusht-full-lewm-20260515T100908Z/step_0050000.safetensors
+ERROR: checkpoint does not match the full Burn/Jepa ONNX export contract
+recovered 0 of 303 expected PyTorch keys
+source safetensors tensor count: 14
+the tensor names match the bounded PushtFullLewmCore training artifact, not the full 303-tensor lewm_core::Jepa checkpoint
+first missing keys:
+  - action_encoder.embed.0.bias
+  - action_encoder.embed.0.weight
+  - action_encoder.embed.2.bias
+  - action_encoder.embed.2.weight
+  - action_encoder.patch_embed.bias
+  - action_encoder.patch_embed.weight
+  - encoder.embeddings.cls_token
+  - encoder.embeddings.patch_embeddings.projection.bias
+  - encoder.embeddings.patch_embeddings.projection.weight
+  - encoder.embeddings.position_embeddings
+provide a full Burn/Jepa safetensors checkpoint or use a separate exporter for the bounded-core artifact
 ```
 
 No `onnx-full/` upload was performed because the source artifact does not
@@ -97,12 +112,15 @@ The Python edge tooling is ready for a valid full PushT checkpoint:
   source SHA-256, variant options, and export timestamp.
 - `python/verify_onnx.py` verifies ONNX Runtime shape execution for both
   variants and checks dynamic batch behavior for the `onnxruntime` variant.
+- `python/export_onnx.py` now validates the checkpoint contract up front and
+  refuses bounded-core artifacts with an actionable F1 diagnostic instead of
+  falling through to a raw missing-key error.
 
 Focused validation:
 
 ```text
 uv run --project python pytest python/tests/test_export_onnx.py python/tests/test_verify_conversion.py
-5 passed
+7 passed
 
 uv run --project python ruff check python/export_onnx.py python/verify_onnx.py python/tests/test_export_onnx.py python/pyproject.toml
 All checks passed

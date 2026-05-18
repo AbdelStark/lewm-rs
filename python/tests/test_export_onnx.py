@@ -51,3 +51,35 @@ def test_metadata_records_variant_layout_and_core_contract(tmp_path: Path) -> No
         "encoder": "tract-compat/encoder.onnx",
         "predictor": "tract-compat/predictor.onnx",
     }
+
+
+def test_checkpoint_contract_accepts_complete_recovered_key_set() -> None:
+    expected = set(export.pnm.expected_source_keys())
+
+    assert export.checkpoint_contract_error(set(), expected) is None
+
+
+def test_checkpoint_contract_reports_bounded_core_artifact() -> None:
+    burn_keys = {
+        "action_encoder.bias",
+        "action_encoder.x.weight",
+        "action_encoder.y.weight",
+        "encoder.bias",
+        "encoder.energy.weight",
+        "encoder.pixel.weight",
+        "encoder.time.weight",
+        "pred_proj.bias",
+        "pred_proj.weight",
+        "predictor.action.weight",
+        "predictor.bias",
+        "predictor.latent.weight",
+        "projector.bias",
+        "projector.weight",
+    }
+
+    message = export.checkpoint_contract_error(burn_keys, set())
+
+    assert message is not None
+    assert "recovered 0 of" in message
+    assert "bounded PushtFullLewmCore training artifact" in message
+    assert "full 303-tensor lewm_core::Jepa checkpoint" in message
