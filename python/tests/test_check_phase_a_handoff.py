@@ -101,7 +101,7 @@ def handoff_payload() -> dict[str, object]:
                         ["python3", "scripts/check_pusht_warmstart_source_smoke_report.py"],
                         ["python3", "scripts/check_pusht_warmstart_hub_audit_report.py"],
                         [
-                            "LEWM_PUSHT_WARMSTART_MPK=train/<compatible-bounded-run>/step_0050000.mpk",
+                            "LEWM_PUSHT_WARMSTART_MPK=train/REPLACE_WITH_COMPATIBLE_BOUNDED_RUN/step_0050000.mpk",
                             "python3",
                             "scripts/launch_hf_job.py",
                             "jobs/train_so100_warmstart.yaml",
@@ -111,7 +111,7 @@ def handoff_payload() -> dict[str, object]:
                     ],
                     "after_human_approval": [
                         [
-                            "LEWM_PUSHT_WARMSTART_MPK=train/<compatible-bounded-run>/step_0050000.mpk",
+                            "LEWM_PUSHT_WARMSTART_MPK=train/REPLACE_WITH_COMPATIBLE_BOUNDED_RUN/step_0050000.mpk",
                             "scripts/launch_hf_job.py",
                             "jobs/train_so100_warmstart.yaml",
                             "--allow-approval-required",
