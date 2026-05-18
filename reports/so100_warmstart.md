@@ -25,25 +25,31 @@ jobs/train_so100_warmstart.yaml
 The agent safety leash now lists `train_so100_warmstart.yaml` under
 `jobs_human_approval_required`, not `jobs_allowed`. `scripts/launch_hf_job.py`
 therefore rejects the job unless the operator passes the explicit
-approval-required flag:
+approval-required flag and provides a source `.mpk` path:
 
 ```text
 python3 scripts/launch_hf_job.py jobs/train_so100_warmstart.yaml --dry-run
 launch_hf_job.py: train_so100_warmstart.yaml requires --allow-approval-required
+
+python3 scripts/launch_hf_job.py jobs/train_so100_warmstart.yaml --dry-run --allow-approval-required
+launch_hf_job.py: train_so100_warmstart.yaml requires LEWM_PUSHT_WARMSTART_MPK to name a compatible PushT .mpk source path
 ```
 
-With the explicit approval-required flag, the launcher dry-run renders the
-`hf jobs run` command for `a10g-large` and `6h` without submitting the job:
+With both the explicit approval-required flag and a relative `.mpk` source
+path, the launcher dry-run renders the `hf jobs run` command for `a10g-large`
+and `6h` without submitting the job:
 
 ```text
-python3 scripts/launch_hf_job.py jobs/train_so100_warmstart.yaml --dry-run --allow-approval-required
+LEWM_PUSHT_WARMSTART_MPK=train/pusht-bounded-module-lewm-source/step_0050000.mpk \
+  python3 scripts/launch_hf_job.py jobs/train_so100_warmstart.yaml --dry-run --allow-approval-required
 hf jobs run --namespace abdelstark --flavor a10g-large --timeout 6h ...
 ```
 
 The job spec also fails closed inside the shell command unless
 `LEWM_PUSHT_WARMSTART_MPK` points at a compatible PushT `.mpk` path in the
-source model repo. This prevents accidentally launching against the stale
-`configs/so100_warmstart.toml` default.
+source model repo. The launcher now catches an empty, absolute, parent-traversal,
+or non-`.mpk` source path before even rendering the HF command. This prevents
+accidentally launching against the stale `configs/so100_warmstart.toml` default.
 
 The job now runs a local source-check before training:
 
@@ -140,7 +146,8 @@ Result: 4 passed.
 uv run --project python --frozen pytest python/tests/test_launch_hf_job.py
 ```
 
-Result: 20 passed, including the SO-100 warm-start approval-required gate.
+Result: 23 passed, including the SO-100 warm-start approval-required and
+source-path gates.
 
 ```text
 python3 scripts/check_pusht_warmstart_source_smoke_report.py

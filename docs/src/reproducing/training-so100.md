@@ -61,7 +61,9 @@ Burn/Jepa `NamedMpk` records are not accepted by this bounded-core
 SO-100 warm-start path. The job loads shared PushT modules into the
 encoder, projector, predictor, and pred-proj before training, then
 trains for 5 000 steps on SO-100. The action encoder is freshly
-initialised because SO-100 has a different action input count.
+initialised because SO-100 has a different action input count. The launcher
+refuses the job before dry-run or submit if `LEWM_PUSHT_WARMSTART_MPK` is empty,
+absolute, contains parent traversal, or does not end in `.mpk`.
 
 Before launching the paid warm-start job, run the local bounded-source smoke:
 

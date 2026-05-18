@@ -52,8 +52,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   transfers shared PushT modules through the RFC 0012 warm-start boundary,
   preserves the fresh SO-100 action encoder, resets AdamW state, and records
   warm-start provenance in reports/checkpoints. `reports/so100_warmstart.md`
-  still blocks F3 launch because the compatible PushT source checkpoint is
-  absent and paid launch requires a safety-leash update plus human approval.
+  still blocks F3 launch because the compatible trained PushT source checkpoint
+  is absent and paid launch requires human approval.
   Added `jobs/train_so100_warmstart.yaml` as a fail-closed HF Job spec: it
   refuses to run unless `LEWM_PUSHT_WARMSTART_MPK` names a compatible PushT
   `.mpk` source, downloads SO-100 data, runs the warm-start config with an
@@ -63,7 +63,9 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   stale `schema_version = 1.0.0` / minimal records fail before paid training
   begins. The checker now makes the current boundary explicit: full Burn/Jepa
   `NamedMpk` records are not accepted by the bounded-core SO-100 warm-start
-  path. `scripts/pusht_warmstart_source_smoke.py` and
+  path. `scripts/launch_hf_job.py` also refuses the warm-start job before
+  dry-run or submit unless `LEWM_PUSHT_WARMSTART_MPK` is set to a relative
+  `.mpk` source path. `scripts/pusht_warmstart_source_smoke.py` and
   `reports/pusht_warmstart_source_smoke.json` prove the current bounded PushT
   writer can emit a launch-compatible `schema_version = 1.1.0` source record
   with the expected 41,856-parameter layout. Reproduction/result docs now use

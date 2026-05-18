@@ -169,9 +169,50 @@ class TestValidateJob:
     def _leash(self) -> dict[str, object]:
         return json.loads(self.LEASH_PATH.read_text(encoding="utf-8"))
 
-    def test_warmstart_requires_explicit_approval_flag(self) -> None:
+    def test_warmstart_requires_explicit_approval_flag(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv(
+            "LEWM_PUSHT_WARMSTART_MPK",
+            "train/pusht-bounded-module-lewm-source/step_0050000.mpk",
+        )
         with pytest.raises(launch_hf_job.LaunchError, match="requires --allow"):
             launch_hf_job.validate_job(self.JOB_PATH, self._job(), self._leash(), False)
 
-    def test_warmstart_passes_with_explicit_approval_flag(self) -> None:
+    def test_warmstart_requires_source_env_even_with_approval(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.delenv("LEWM_PUSHT_WARMSTART_MPK", raising=False)
+        with pytest.raises(
+            launch_hf_job.LaunchError,
+            match="requires LEWM_PUSHT_WARMSTART_MPK",
+        ):
+            launch_hf_job.validate_job(self.JOB_PATH, self._job(), self._leash(), True)
+
+    def test_warmstart_rejects_non_mpk_source_env(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("LEWM_PUSHT_WARMSTART_MPK", "train/source/step_0050000.safetensors")
+        with pytest.raises(launch_hf_job.LaunchError, match=r"must end in \.mpk"):
+            launch_hf_job.validate_job(self.JOB_PATH, self._job(), self._leash(), True)
+
+    def test_warmstart_rejects_absolute_source_env(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("LEWM_PUSHT_WARMSTART_MPK", "/tmp/step_0050000.mpk")
+        with pytest.raises(launch_hf_job.LaunchError, match="repo-relative Hub path"):
+            launch_hf_job.validate_job(self.JOB_PATH, self._job(), self._leash(), True)
+
+    def test_warmstart_passes_with_explicit_approval_flag(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv(
+            "LEWM_PUSHT_WARMSTART_MPK",
+            "train/pusht-bounded-module-lewm-source/step_0050000.mpk",
+        )
         launch_hf_job.validate_job(self.JOB_PATH, self._job(), self._leash(), True)

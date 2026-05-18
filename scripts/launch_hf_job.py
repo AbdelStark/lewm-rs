@@ -283,6 +283,37 @@ def validate_job(
     except ValueError as error:
         raise LaunchError(f"{path.relative_to(ROOT)} command is not shell-parseable: {error}") from error
 
+    validate_job_env_contract(path, job)
+
+
+def validate_job_env_contract(path: Path, job: dict[str, object]) -> None:
+    """Validate job-specific environment values that must be known before launch."""
+    if path.name != "train_so100_warmstart.yaml":
+        return
+
+    env = job.get("env", {})
+    if not isinstance(env, dict):
+        raise LaunchError(f"{path.relative_to(ROOT)} env must be a mapping")
+
+    raw_source = env.get("LEWM_PUSHT_WARMSTART_MPK")
+    if raw_source is None:
+        raise LaunchError(
+            f"{path.relative_to(ROOT)} must define LEWM_PUSHT_WARMSTART_MPK in env"
+        )
+    source = resolve_env_value(str(raw_source))
+    if not source:
+        raise LaunchError(
+            "train_so100_warmstart.yaml requires LEWM_PUSHT_WARMSTART_MPK to name a "
+            "compatible PushT .mpk source path"
+        )
+    if Path(source).is_absolute() or ".." in Path(source).parts:
+        raise LaunchError(
+            "LEWM_PUSHT_WARMSTART_MPK must be a repo-relative Hub path, not an absolute "
+            "path or parent traversal"
+        )
+    if not source.endswith(".mpk"):
+        raise LaunchError("LEWM_PUSHT_WARMSTART_MPK must end in .mpk")
+
 
 def render_command(job: dict[str, object], *, detach: bool) -> list[str]:
     command = [
