@@ -13,15 +13,15 @@ the next vertical slices needed to finish the project.
 | Area | Status | Evidence |
 |------|--------|----------|
 | Specs and workspace | Implemented enough for current local gates | `CARGO_INCREMENTAL=0 make check` passed during this refresh |
-| GHCR training image | Published | `ghcr.io/abdelstark/lewm-rs:latest@sha256:831f685a733a801620bbfa3f7ea649a4795ed731934bcb230896d3a47428d3e9` |
+| GHCR training image | Legacy image published; F1-verified tag blocked | `ghcr.io/abdelstark/lewm-rs:latest@sha256:831f685a733a801620bbfa3f7ea649a4795ed731934bcb230896d3a47428d3e9` exists, but F1 requires a concrete non-`latest` tag that passes `scripts/verify_runtime_image.py`; GHCR write permission is tracked in #253 |
 | HF Jobs short PushT run | Completed | `https://huggingface.co/jobs/abdelstark/6a05cf0ee48bea4538b9ccd6` |
 | HF artifact upload | Completed for earlier minimal short run | `abdelstark/lewm-rs-pusht/train/pusht-minimal-lewm-short-20260514T133423Z/` |
-| Full PushT training job | Completed | `https://huggingface.co/jobs/abdelstark/6a06f0c43308d79117b90276`; 50k steps on A10G-large; loss 0.4912→3.17e-06; wall 318 min; artifacts at `abdelstark/lewm-rs-pusht/train/pusht-full-lewm-20260515T100908Z/` |
+| Historical bounded-core PushT job | Completed | `https://huggingface.co/jobs/abdelstark/6a06f0c43308d79117b90276`; 50k steps on A10G-large; loss 0.4912→3.17e-06; wall 318 min; artifacts at `abdelstark/lewm-rs-pusht/train/pusht-full-lewm-20260515T100908Z/`; not a valid F1 full Burn/Jepa checkpoint |
 | SO-100 training job | Completed | v11a `6a070e02e48bea4538b9e2a5`: 864s, 5000 steps, loss 0.5002→9.56e-05; artifacts at `abdelstark/lewm-rs-so100/train/so100-full-20260515T122820Z/` |
 | Demo Space | Created | `https://huggingface.co/spaces/abdelstark/lewm-rs-demo`; Gradio app with CEM planning via ONNX; loads model from Hub when available |
 | SO-100 processed dataset | Uploaded | `abdelstark/so100-pickplace-lewm-ready`; 1.9 GB HDF5 + stats.safetensors; 6,559 timesteps, 50 episodes at 10 fps |
 | SO-100 training support | Implemented | `lewm-train` trainer dispatches on `DatasetConfig::So100`; `run_so100_full_lewm_training`; 6-DOF action packing; commit `6add7fd` |
-| ONNX export pipeline | Implemented and validated | `python/export_onnx.py` exports encoder + predictor to opset 18 (onnxruntime) and opset 17 (Tract-compat); both uploaded to `abdelstark/lewm-rs-pusht`; `action_dim=10` bug fixed |
+| ONNX export pipeline | Implemented and validated on full-layout/reference checkpoints | `python/export_onnx.py` exports encoder + predictor to opset 18 (onnxruntime) and opset 17 (Tract-compat); current Hub root ONNX files are reference exports, while F1 `onnx-full/` trained-checkpoint artifacts remain blocked |
 | PushT train command | Bounded full-module host path exists | `lewm-train --config configs/pusht.toml --device cpu --output-dir /tmp/lewm-train-pusht --max-steps 10 train` |
 | PushT reference architecture | Locked | `tests/fixtures/reference_model.meta.json`; [#190](https://github.com/AbdelStark/lewm-rs/issues/190) |
 | Burn ViT encoder | Implemented | `lewm_core::vit`; RFC 0002 shape coverage; PR [#201](https://github.com/AbdelStark/lewm-rs/pull/201) |

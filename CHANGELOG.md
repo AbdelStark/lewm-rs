@@ -44,7 +44,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   Result, roadmap, status, paper, and cost docs now label the historical PushT
   spend as bounded-core training and record the F1/F3 worst-case approval
   envelopes instead of treating the missing full Burn/Jepa release checkpoint
-  as already spent.
+  as already spent. `scripts/check_pusht_release_wording.py` now gates those
+  release-facing surfaces against reintroducing the stale full-checkpoint claim.
   PushT Hub audit scripts now accept absolute or out-of-repo `--report` paths
   without crashing after a successful audit.
 - **Burn 0.20.1 → 0.21.0** (per ADR 0003). Updated all seven workspace

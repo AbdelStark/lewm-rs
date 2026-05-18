@@ -58,11 +58,12 @@ check: fmt lint py-lint
 	$(PYTHON) scripts/check_phase_a_approval.py
 	$(PYTHON) scripts/check_f1_source_build_dry_run_report.py
 	$(PYTHON) scripts/check_runtime_image_publish_report.py
+	$(PYTHON) scripts/check_pusht_release_wording.py
 	$(PYTHON) scripts/check_full_pusht_contract_smoke_report.py
 	$(PYTHON) scripts/check_pusht_full_safetensors_hub_audit_report.py
 	$(PYTHON) scripts/check_pusht_warmstart_source_smoke_report.py
 	$(PYTHON) scripts/check_pusht_warmstart_hub_audit_report.py
-	$(PYTHON) -m py_compile python/hf_pricing.py python/cost_ledger.py python/upload_checkpoints.py python/param_name_map.py python/convert_reference.py python/verify_conversion.py scripts/launch_hf_job.py scripts/check_release_blockers.py scripts/check_phase_a_handoff.py scripts/check_phase_a_approval.py scripts/upload_model_cards.py scripts/check_warmstart_source.py scripts/full_pusht_contract_smoke.py scripts/check_full_pusht_contract_smoke_report.py scripts/check_f1_source_build_dry_run_report.py scripts/check_runtime_image_publish_report.py scripts/f1_export_pusht_onnx.py scripts/audit_pusht_full_safetensors.py scripts/check_pusht_full_safetensors_hub_audit_report.py scripts/pusht_warmstart_source_smoke.py scripts/check_pusht_warmstart_source_smoke_report.py scripts/audit_pusht_warmstart_sources.py scripts/check_pusht_warmstart_hub_audit_report.py
+	$(PYTHON) -m py_compile python/hf_pricing.py python/cost_ledger.py python/upload_checkpoints.py python/param_name_map.py python/convert_reference.py python/verify_conversion.py scripts/launch_hf_job.py scripts/check_release_blockers.py scripts/check_phase_a_handoff.py scripts/check_phase_a_approval.py scripts/upload_model_cards.py scripts/check_warmstart_source.py scripts/full_pusht_contract_smoke.py scripts/check_full_pusht_contract_smoke_report.py scripts/check_f1_source_build_dry_run_report.py scripts/check_runtime_image_publish_report.py scripts/check_pusht_release_wording.py scripts/f1_export_pusht_onnx.py scripts/audit_pusht_full_safetensors.py scripts/check_pusht_full_safetensors_hub_audit_report.py scripts/pusht_warmstart_source_smoke.py scripts/check_pusht_warmstart_source_smoke_report.py scripts/audit_pusht_warmstart_sources.py scripts/check_pusht_warmstart_hub_audit_report.py
 	$(PYTHON) python/cost_ledger.py check --path reports/cost.md --cap-usd 200
 	cargo deny check
 	# hdf5-metno depends on paste; cargo-deny still blocks direct workspace unmaintained deps.

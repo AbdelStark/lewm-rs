@@ -38,6 +38,7 @@ REQUIRED_EVIDENCE_BY_ID: dict[str, tuple[str, ...]] = {
         "scripts/verify_runtime_image.py",
         ".github/workflows/runtime-image.yml",
         "scripts/check_runtime_image_publish_report.py",
+        "scripts/check_pusht_release_wording.py",
         "reports/phase_a_handoff.json",
         "reports/phase_a_approval.json",
         "scripts/check_phase_a_approval.py",
