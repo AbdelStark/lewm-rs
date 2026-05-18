@@ -2,47 +2,49 @@
 
 > A pure-Rust reproduction of LeWorldModel (Maes et al., 2026) — JEPA training, CEM planning, and CPU/GPU inference, numerically parity-verified against the PyTorch reference.
 
-[![CI](https://github.com/AbdelStark/lewm-rs/actions/workflows/ci.yml/badge.svg)](https://github.com/AbdelStark/lewm-rs/actions/workflows/ci.yml)
-[![Spec checks](https://github.com/AbdelStark/lewm-rs/actions/workflows/specs.yml/badge.svg)](https://github.com/AbdelStark/lewm-rs/actions/workflows/specs.yml)
-[![Conformance](https://github.com/AbdelStark/lewm-rs/actions/workflows/conformance.yml/badge.svg)](https://github.com/AbdelStark/lewm-rs/actions/workflows/conformance.yml)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Rust 1.95](https://img.shields.io/badge/rust-1.95%20edition%202024-orange.svg)](rust-toolchain.toml)
-[![Burn 0.20.1](https://img.shields.io/badge/burn-0.20.1-informational.svg)](https://github.com/tracel-ai/burn)
-[![Tract 0.22.1](https://img.shields.io/badge/tract-0.22.1-informational.svg)](https://github.com/sonos/tract)
-[![Hub: PushT](https://img.shields.io/badge/%F0%9F%A4%97%20hub-lewm--rs--pusht-yellow.svg)](https://huggingface.co/abdelstark/lewm-rs-pusht)
-[![arXiv 2502.16560](https://img.shields.io/badge/arXiv-2502.16560-b31b1b.svg)](https://arxiv.org/abs/2502.16560)
+[![CI](https://img.shields.io/github/actions/workflow/status/AbdelStark/lewm-rs/ci.yml?style=for-the-badge&label=CI&logo=github&logoColor=white)](https://github.com/AbdelStark/lewm-rs/actions/workflows/ci.yml)
+[![Spec Checks](https://img.shields.io/github/actions/workflow/status/AbdelStark/lewm-rs/specs.yml?style=for-the-badge&label=Spec+Checks)](https://github.com/AbdelStark/lewm-rs/actions/workflows/specs.yml)
+[![Conformance](https://img.shields.io/github/actions/workflow/status/AbdelStark/lewm-rs/conformance.yml?style=for-the-badge&label=Conformance)](https://github.com/AbdelStark/lewm-rs/actions/workflows/conformance.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](LICENSE)
+[![Rust 1.95](https://img.shields.io/badge/Rust-1.95_·_edition_2024-orange?style=for-the-badge&logo=rust&logoColor=white)](rust-toolchain.toml)
+[![Burn 0.21.0](https://img.shields.io/badge/Burn-0.21.0-7c5cfc?style=for-the-badge)](https://github.com/tracel-ai/burn)
+[![Tract 0.22.1](https://img.shields.io/badge/Tract-0.22.1-informational?style=for-the-badge)](https://github.com/sonos/tract)
+[![Hub: PushT](https://img.shields.io/badge/%F0%9F%A4%97_Hub-PushT-yellow?style=for-the-badge)](https://huggingface.co/abdelstark/lewm-rs-pusht)
+[![Hub: SO-100](https://img.shields.io/badge/%F0%9F%A4%97_Hub-SO--100-yellow?style=for-the-badge)](https://huggingface.co/abdelstark/lewm-rs-so100)
+[![arXiv 2502.16560](https://img.shields.io/badge/arXiv-2502.16560-b31b1b?style=for-the-badge&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2502.16560)
 
-```mermaid
-flowchart LR
-  subgraph Train["lewm-train (Burn)"]
-    H5[("PushT / SO-100 HDF5")] --> DL[lewm-data loader]
-    DL --> J["Jepa module: encoder + predictor + projector"]
-    J --> L["loss = pred + lambda · SIGReg"]
-    L --> AD[AdamW + cosine LR + grad clip]
-    AD --> CKPT[(safetensors + .mpk)]
-  end
-
-  subgraph Export["python/export_onnx.py"]
-    CKPT --> E1[encoder.onnx]
-    CKPT --> E2[predictor.onnx]
-  end
-
-  subgraph Infer["lewm-infer (no Python)"]
-    E1 --> TR["Tract CPU runner"]
-    E2 --> TR
-    CKPT --> BR["Burn NdArray / CUDA runner"]
-    TR --> CEM["CEM planner — n_iter × n_cand"]
-    BR --> CEM
-  end
-
-  CEM --> ACT[("action sequence")]
+```
+  TRAINING  ·  lewm-train (Burn)
+  ─────────────────────────────────────────────────────────────────────────────
+   HDF5 (PushT / SO-100)
+    │  lewm-data loader
+    │  Jepa<B>: encoder + predictor + projector
+    │  loss = pred_loss + λ · SIGReg
+    │  AdamW + cosine-LR + grad-clip
+    ▼  checkpoint  (.safetensors + .mpk)
+  ─────────────────────────────────────────────────────────────────────────────
+                       │
+          ┌────────────┴─────────────────────────────────┐
+          │                                              │
+  ONNX Export (python/export_onnx.py)        Burn runner (lewm-infer)
+   encoder.onnx · predictor.onnx              NdArray (CPU) · CUDA (lewm-gpu)
+          │                                              │
+  Tract CPU runner (lewm-infer)                         │
+   ONNX / NNEF · no Python required                     │
+          │                                              │
+          └────────────────────────┬─────────────────────┘
+                                   │
+                   CEM planner (lewm-plan / lewm-infer)
+                    n_iter × n_cand
+                                   │
+                            action sequence
 ```
 
 *Pipeline: HDF5 windows → `Jepa<B>` training → ONNX export → CPU/GPU runners → CEM planning. Each box is a crate or a binary; the dependency layering is enforced by `scripts/check_layers.py`.*
 
 ## TL;DR
 
-- **Pure-Rust LeWM** across 8 Cargo crates on [Burn 0.20.1](https://github.com/tracel-ai/burn) + [Tract 0.22.1](https://github.com/sonos/tract); no Python at training or inference time.
+- **Pure-Rust LeWM** across 8 Cargo crates on [Burn 0.21.0](https://github.com/tracel-ai/burn) + [Tract 0.22.1](https://github.com/sonos/tract); no Python at training or inference time.
 - **Numerical parity** with the published `quentinll/lewm-pusht` reference: all 10 activation-level tests pass with L∞ < 1e-4 ([`reports/gpu_inference.md`](reports/gpu_inference.md)).
 - **PushT** trained end-to-end on a single A10G-large in **318 min / 50k steps**, loss 0.4912 → 3.17e-06; artifacts at [`abdelstark/lewm-rs-pusht`](https://huggingface.co/abdelstark/lewm-rs-pusht). **SO-100** trained in **864 s / 5k steps**, loss 0.5002 → 9.56e-05; artifacts at [`abdelstark/lewm-rs-so100`](https://huggingface.co/abdelstark/lewm-rs-so100).
 - **Tract CPU planning** at **4.08 s/episode (p50)** on Apple M3 release build, 5 CEM iterations × 1024 candidates ([`reports/inference.md`](reports/inference.md)).
