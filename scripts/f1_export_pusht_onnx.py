@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 import shlex
 import subprocess
 import sys
@@ -16,6 +17,7 @@ DEFAULT_WORK_DIR = Path("/tmp/lewm-f1-pusht-onnx")
 DEFAULT_META = Path("tests/fixtures/reference_model.meta.json")
 REQUIRED_RUN_PREFIX = "train/pusht-full-burn-jepa-"
 LEGACY_BOUNDED_RUN_PREFIX = "train/pusht-full-lewm-"
+RUN_SUFFIX_RE = re.compile(r"^\d{8}T\d{6}Z$")
 
 
 def repo_root() -> Path:
@@ -110,11 +112,17 @@ def validate_run_prefix(run_prefix: str) -> None:
     if run_prefix.startswith(LEGACY_BOUNDED_RUN_PREFIX):
         raise ValueError(
             "--run-prefix points at the legacy bounded PushT artifact family; "
-            f"F1 requires a completed {REQUIRED_RUN_PREFIX}<UTC timestamp> run"
+            f"F1 requires a completed {REQUIRED_RUN_PREFIX}YYYYMMDDTHHMMSSZ run"
         )
     if not run_prefix.startswith(REQUIRED_RUN_PREFIX):
         raise ValueError(
             f"--run-prefix must start with {REQUIRED_RUN_PREFIX!r} for the F1 full Burn/Jepa handoff"
+        )
+    suffix = run_prefix.removeprefix(REQUIRED_RUN_PREFIX)
+    if RUN_SUFFIX_RE.fullmatch(suffix) is None:
+        raise ValueError(
+            f"--run-prefix must be a completed Hub directory like "
+            f"{REQUIRED_RUN_PREFIX}YYYYMMDDTHHMMSSZ"
         )
 
 

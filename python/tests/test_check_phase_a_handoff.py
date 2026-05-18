@@ -56,18 +56,18 @@ def handoff_payload() -> dict[str, object]:
                         [
                             "scripts/f1_export_pusht_onnx.py",
                             "--run-prefix",
-                            "train/pusht-full-burn-jepa-<UTC timestamp>",
+                            "train/pusht-full-burn-jepa-REPLACE_WITH_UTC_TIMESTAMP",
                         ],
                         [
                             "scripts/f1_export_pusht_onnx.py",
                             "--run-prefix",
-                            "train/pusht-full-burn-jepa-<UTC timestamp>",
+                            "train/pusht-full-burn-jepa-REPLACE_WITH_UTC_TIMESTAMP",
                             "--execute",
                         ],
                         [
                             "scripts/f1_export_pusht_onnx.py",
                             "--run-prefix",
-                            "train/pusht-full-burn-jepa-<UTC timestamp>",
+                            "train/pusht-full-burn-jepa-REPLACE_WITH_UTC_TIMESTAMP",
                             "--execute",
                             "--upload",
                         ],

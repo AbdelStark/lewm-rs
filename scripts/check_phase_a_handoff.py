@@ -22,7 +22,7 @@ EXPECTED_TASKS = (
             "--allow-approval-required",
             "scripts/f1_export_pusht_onnx.py",
             "--run-prefix",
-            "train/pusht-full-burn-jepa-<UTC timestamp>",
+            "train/pusht-full-burn-jepa-REPLACE_WITH_UTC_TIMESTAMP",
             "--execute",
             "--upload",
         ),
@@ -194,7 +194,7 @@ def validate_f1_command_stages(commands: dict[str, list[list[str]]], path: Path)
             command,
             "scripts/f1_export_pusht_onnx.py",
             "--run-prefix",
-            "train/pusht-full-burn-jepa-<UTC timestamp>",
+            "train/pusht-full-burn-jepa-REPLACE_WITH_UTC_TIMESTAMP",
         ):
             raise HandoffError(f"{path}: F1.after_full_checkpoint_exists[{index}] is malformed")
     if "--execute" in export[0] or "--upload" in export[0]:

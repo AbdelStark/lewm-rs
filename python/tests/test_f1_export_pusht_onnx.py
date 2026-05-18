@@ -96,6 +96,17 @@ def test_hub_run_rejects_glob_prefix() -> None:
         raise AssertionError("expected globbed PushT run prefix to fail")
 
 
+def test_hub_run_rejects_placeholder_prefix() -> None:
+    args = parse("--run-prefix", "train/pusht-full-burn-jepa-REPLACE_WITH_UTC_TIMESTAMP")
+
+    try:
+        f1.workflow_commands(args)
+    except ValueError as exc:
+        assert "YYYYMMDDTHHMMSSZ" in str(exc)
+    else:
+        raise AssertionError("expected placeholder PushT run prefix to fail")
+
+
 def test_step_file_name_uses_release_width() -> None:
     assert f1.step_file_name(50_000) == "step_0050000.safetensors"
 

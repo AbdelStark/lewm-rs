@@ -24,7 +24,7 @@
         ".ml-intern/cli_agent_config.json"
       ],
       "blocked_on": [
-        "Human-approved jobs/train_pusht.yaml production run that uploads train/pusht-full-burn-jepa-<UTC timestamp>/step_0050000.safetensors.",
+        "Human-approved jobs/train_pusht.yaml production run that uploads train/pusht-full-burn-jepa-YYYYMMDDTHHMMSSZ/step_0050000.safetensors.",
         "Release owner approval for final onnx-full/ Hub upload after python/verify_onnx.py passes."
       ],
       "commands": {
@@ -52,18 +52,18 @@
           [
             "scripts/f1_export_pusht_onnx.py",
             "--run-prefix",
-            "train/pusht-full-burn-jepa-<UTC timestamp>"
+            "train/pusht-full-burn-jepa-REPLACE_WITH_UTC_TIMESTAMP"
           ],
           [
             "scripts/f1_export_pusht_onnx.py",
             "--run-prefix",
-            "train/pusht-full-burn-jepa-<UTC timestamp>",
+            "train/pusht-full-burn-jepa-REPLACE_WITH_UTC_TIMESTAMP",
             "--execute"
           ],
           [
             "scripts/f1_export_pusht_onnx.py",
             "--run-prefix",
-            "train/pusht-full-burn-jepa-<UTC timestamp>",
+            "train/pusht-full-burn-jepa-REPLACE_WITH_UTC_TIMESTAMP",
             "--execute",
             "--upload"
           ]

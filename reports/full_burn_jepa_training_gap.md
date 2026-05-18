@@ -122,8 +122,12 @@ F1 still needs a production PushT training run that produces a real trained
 
 ```text
 scripts/f1_export_pusht_onnx.py \
-  --run-prefix train/pusht-full-burn-jepa-<UTC timestamp>
+  --run-prefix train/pusht-full-burn-jepa-REPLACE_WITH_UTC_TIMESTAMP
 ```
+
+Replace `REPLACE_WITH_UTC_TIMESTAMP` with the actual `YYYYMMDDTHHMMSSZ` suffix
+from the approved PushT job. The wrapper rejects placeholders and legacy
+bounded PushT paths before any download, export, or upload command runs.
 
 The wrapper prints commands by default. Add `--execute` only after reviewing
 the dry run. Add `--upload` only after `python/verify_onnx.py` has passed and

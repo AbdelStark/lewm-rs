@@ -66,7 +66,7 @@ Phase A handoff shape:
       "commands": {
         "preflight": [["python3", "scripts/check_full_pusht_contract_smoke_report.py"]],
         "after_full_checkpoint_exists": [
-          ["scripts/f1_export_pusht_onnx.py", "--run-prefix", "train/pusht-full-burn-jepa-<UTC timestamp>"]
+          ["scripts/f1_export_pusht_onnx.py", "--run-prefix", "train/pusht-full-burn-jepa-REPLACE_WITH_UTC_TIMESTAMP"]
         ]
       }
     }

@@ -52,7 +52,7 @@ scripts/launch_hf_job.py jobs/train_pusht.yaml --allow-approval-required
   ```
 
 The job uploads the trainer output directory to
-`abdelstark/lewm-rs-pusht/train/pusht-full-burn-jepa-<UTC timestamp>/`
+`abdelstark/lewm-rs-pusht/train/pusht-full-burn-jepa-YYYYMMDDTHHMMSSZ/`
 after the train command completes and after `python/export_onnx.py
 --check-contract-only` verifies that the produced safetensors recovers the
 exact 255 Burn destination tensors and all 303 PyTorch source keys required
@@ -63,8 +63,12 @@ executing any upload:
 
 ```sh
 scripts/f1_export_pusht_onnx.py \
-  --run-prefix train/pusht-full-burn-jepa-<UTC timestamp>
+  --run-prefix train/pusht-full-burn-jepa-REPLACE_WITH_UTC_TIMESTAMP
 ```
+
+Replace `REPLACE_WITH_UTC_TIMESTAMP` with the actual `YYYYMMDDTHHMMSSZ` suffix
+published by the approved job. The wrapper rejects placeholders and legacy
+bounded PushT paths before rendering any export or upload commands.
 
 The wrapper prints the Hub download, checkpoint contract check, dual ONNX
 export, ONNX verification, and `onnx-full/` upload-preflight commands. Add

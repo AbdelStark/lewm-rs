@@ -191,13 +191,16 @@ Approval-gated full PushT production run (HF account required; cost must be appr
 scripts/launch_hf_job.py jobs/train_pusht.yaml --allow-approval-required
 ```
 
-After that job publishes `train/pusht-full-burn-jepa-<UTC timestamp>/`, dry-run
+After that job publishes `train/pusht-full-burn-jepa-YYYYMMDDTHHMMSSZ/`, dry-run
 the F1 ONNX handoff before executing or uploading:
 
 ```bash
 scripts/f1_export_pusht_onnx.py \
-  --run-prefix train/pusht-full-burn-jepa-<UTC timestamp>
+  --run-prefix train/pusht-full-burn-jepa-REPLACE_WITH_UTC_TIMESTAMP
 ```
+
+Replace `REPLACE_WITH_UTC_TIMESTAMP` with the actual `YYYYMMDDTHHMMSSZ` suffix
+published by the approved PushT job.
 
 ## Project structure
 

@@ -92,7 +92,10 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   that dry-run, execute, and upload commands stay in their intended stages.
   README, conformance, and quality-gate docs now describe the Phase A handoff
   gate and no longer present `jobs/train_pusht.yaml` as a reproduction command
-  for the legacy bounded PushT artifact.
+  for the legacy bounded PushT artifact. F1 handoff docs now use a shell-safe
+  `REPLACE_WITH_UTC_TIMESTAMP` token, and `scripts/f1_export_pusht_onnx.py`
+  rejects placeholders or non-`YYYYMMDDTHHMMSSZ` Hub run suffixes before any
+  download, export, or upload command runs.
 - **Model-card accuracy**: local PushT and SO-100 Hub cards now label the
   current uploads as bounded trainer artifacts instead of full release
   checkpoints, and `scripts/upload_model_cards.py --dry-run` no longer requires
