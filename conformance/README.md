@@ -9,9 +9,9 @@ For F3, `make check` also validates `reports/pusht_warmstart_hub_audit.json`
 with `scripts/check_pusht_warmstart_hub_audit_report.py` so the committed
 public-Hub source audit stays structurally aligned with the warm-start blocker.
 `reports/phase_a_approval.json` and `scripts/check_phase_a_approval.py` pin the
-paid-job approval packet, including the per-job worst-case cost and the fact
-that F1 ($18.00) plus F3 ($9.00) exceeds the $20.00 session cap if approved in
-one session.
+paid-job approval packet, including the per-job worst-case cost, the fact that
+F1 ($18.00) plus F3 ($9.00) exceeds the $20.00 session cap if approved in one
+session, and the explicit replacement rule for any placeholder command.
 `make accept` runs the release blocker validator without `--allow-open`, so
 release acceptance fails while any listed blocker has status `blocked`,
 `pending`, or `open`.

@@ -52,6 +52,10 @@
       "price_usd_per_hour": "1.50",
       "worst_case_usd": "9.00",
       "requires_human_approval": true,
+      "template_placeholders": [
+        "REPLACE_WITH_COMPATIBLE_BOUNDED_RUN"
+      ],
+      "template_resolution": "Replace REPLACE_WITH_COMPATIBLE_BOUNDED_RUN with a concrete Hub run directory whose .mpk is accepted by scripts/check_warmstart_source.py before running the dry-run or approval command.",
       "dry_run_command": [
         "LEWM_PUSHT_WARMSTART_MPK=train/REPLACE_WITH_COMPATIBLE_BOUNDED_RUN/step_0050000.mpk",
         "python3",

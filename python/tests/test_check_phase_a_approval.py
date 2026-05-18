@@ -61,6 +61,10 @@ def approval_payload(**updates: object) -> dict[str, object]:
                 "price_usd_per_hour": "1.50",
                 "worst_case_usd": "9.00",
                 "requires_human_approval": True,
+                "template_placeholders": ["REPLACE_WITH_COMPATIBLE_BOUNDED_RUN"],
+                "template_resolution": (
+                    "Replace REPLACE_WITH_COMPATIBLE_BOUNDED_RUN with a compatible Hub source."
+                ),
                 "dry_run_command": [
                     "LEWM_PUSHT_WARMSTART_MPK=train/REPLACE_WITH_COMPATIBLE_BOUNDED_RUN/step_0050000.mpk",
                     "python3",
@@ -149,6 +153,22 @@ def test_rejects_shell_unsafe_placeholder(tmp_path: Path) -> None:
 
     assert result.returncode == 1
     assert "shell-unsafe placeholder" in result.stderr
+
+
+def test_rejects_f3_without_template_resolution(tmp_path: Path) -> None:
+    path = tmp_path / "phase_a_approval.json"
+    payload = approval_payload()
+    tasks = payload["tasks"]
+    assert isinstance(tasks, list)
+    f3 = tasks[1]
+    assert isinstance(f3, dict)
+    f3["template_placeholders"] = []
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    result = run_check(path)
+
+    assert result.returncode == 1
+    assert "F3.template_placeholders must be a non-empty string list" in result.stderr
 
 
 def test_rejects_approval_dry_run(tmp_path: Path) -> None:

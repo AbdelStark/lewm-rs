@@ -25,6 +25,10 @@ def handoff_payload() -> dict[str, object]:
                 "requires_human_approval": True,
                 "source_prefix": "train/pusht-full-burn-jepa-",
                 "rejected_source_prefixes": ["train/pusht-full-lewm-"],
+                "template_placeholders": ["REPLACE_WITH_UTC_TIMESTAMP"],
+                "template_resolution": (
+                    "Replace REPLACE_WITH_UTC_TIMESTAMP with the approved UTC run suffix."
+                ),
                 "evidence": [
                     "reports/pusht_onnx_export.md",
                     "reports/full_burn_jepa_training_gap.md",
@@ -85,6 +89,10 @@ def handoff_payload() -> dict[str, object]:
                 "requires_human_approval": True,
                 "source_env": "LEWM_PUSHT_WARMSTART_MPK",
                 "source_verifier": "scripts/check_warmstart_source.py",
+                "template_placeholders": ["REPLACE_WITH_COMPATIBLE_BOUNDED_RUN"],
+                "template_resolution": (
+                    "Replace REPLACE_WITH_COMPATIBLE_BOUNDED_RUN with a compatible Hub source."
+                ),
                 "evidence": [
                     "reports/so100_warmstart.md",
                     "jobs/train_so100_warmstart.yaml",
@@ -207,6 +215,24 @@ def test_rejects_f3_without_warmstart_env(tmp_path: Path) -> None:
 
     assert result.returncode == 1
     assert "F3.source_env must be 'LEWM_PUSHT_WARMSTART_MPK'" in result.stderr
+
+
+def test_rejects_f3_without_placeholder_resolution(tmp_path: Path) -> None:
+    handoff = tmp_path / "phase_a_handoff.json"
+    payload = handoff_payload()
+    tasks = payload["tasks"]
+    assert isinstance(tasks, list)
+    f3 = tasks[1]
+    assert isinstance(f3, dict)
+    f3["template_resolution"] = "Use a compatible Hub source."
+    handoff.write_text(json.dumps(payload), encoding="utf-8")
+
+    result = run_check(handoff)
+
+    assert result.returncode == 1
+    assert "F3.template_resolution must mention 'REPLACE_WITH_COMPATIBLE_BOUNDED_RUN'" in (
+        result.stderr
+    )
 
 
 def test_rejects_f1_upload_in_preflight(tmp_path: Path) -> None:

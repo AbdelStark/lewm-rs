@@ -15,6 +15,10 @@
       "rejected_source_prefixes": [
         "train/pusht-full-lewm-"
       ],
+      "template_placeholders": [
+        "REPLACE_WITH_UTC_TIMESTAMP"
+      ],
+      "template_resolution": "Replace REPLACE_WITH_UTC_TIMESTAMP with the approved run's concrete YYYYMMDDTHHMMSSZ suffix before running any after_full_checkpoint_exists command.",
       "evidence": [
         "reports/pusht_onnx_export.md",
         "reports/full_burn_jepa_training_gap.md",
@@ -86,6 +90,10 @@
       "requires_human_approval": true,
       "source_env": "LEWM_PUSHT_WARMSTART_MPK",
       "source_verifier": "scripts/check_warmstart_source.py",
+      "template_placeholders": [
+        "REPLACE_WITH_COMPATIBLE_BOUNDED_RUN"
+      ],
+      "template_resolution": "Replace REPLACE_WITH_COMPATIBLE_BOUNDED_RUN with a concrete Hub run directory whose .mpk is accepted by scripts/check_warmstart_source.py before running the dry-run or launch command.",
       "evidence": [
         "reports/so100_warmstart.md",
         "jobs/train_so100_warmstart.yaml",

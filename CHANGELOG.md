@@ -94,6 +94,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   `scripts/check_phase_a_handoff.py` now pin the ordered F1/F3 handoff
   commands, human-approval gates, accepted/rejected PushT source prefixes, and
   warm-start source requirements in one machine-checked artifact. The handoff
+  and approval validators now also require placeholder commands to declare the
+  exact placeholder and replacement rule before they can pass. The handoff
   validator also cross-checks `conformance/release_blockers.json` so F1/F3
   cannot drift away from their blocked Phase A release status, and enforces
   that dry-run, execute, and upload commands stay in their intended stages.

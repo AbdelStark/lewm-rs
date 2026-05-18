@@ -26,6 +26,7 @@ EXPECTED_TASKS = (
             "--execute",
             "--upload",
         ),
+        "template_placeholder": "REPLACE_WITH_UTC_TIMESTAMP",
     },
     {
         "id": "F3",
@@ -39,6 +40,7 @@ EXPECTED_TASKS = (
             "scripts/check_pusht_warmstart_source_smoke_report.py",
             "scripts/check_pusht_warmstart_hub_audit_report.py",
         ),
+        "template_placeholder": "REPLACE_WITH_COMPATIBLE_BOUNDED_RUN",
     },
 )
 
@@ -254,6 +256,41 @@ def validate_command_stages(
         validate_f3_command_stages(commands, path)
 
 
+def validate_template_declaration(
+    task: dict[str, Any],
+    expected: dict[str, Any],
+    handoff_path: Path,
+) -> None:
+    placeholder = expected.get("template_placeholder")
+    if not isinstance(placeholder, str):
+        return
+
+    raw_placeholders = task.get("template_placeholders")
+    if not isinstance(raw_placeholders, list) or not raw_placeholders:
+        raise HandoffError(
+            f"{handoff_path}: {task['id']}.template_placeholders must be a non-empty string list"
+        )
+    if not all(isinstance(item, str) and item for item in raw_placeholders):
+        raise HandoffError(
+            f"{handoff_path}: {task['id']}.template_placeholders must contain only strings"
+        )
+    placeholders = raw_placeholders
+    if placeholder not in placeholders:
+        raise HandoffError(
+            f"{handoff_path}: {task['id']}.template_placeholders must include {placeholder!r}"
+        )
+
+    resolution = require_str(task, "template_resolution", handoff_path)
+    if placeholder not in resolution:
+        raise HandoffError(
+            f"{handoff_path}: {task['id']}.template_resolution must mention {placeholder!r}"
+        )
+    if "replace" not in resolution.lower():
+        raise HandoffError(
+            f"{handoff_path}: {task['id']}.template_resolution must say the placeholder is replaced"
+        )
+
+
 def validate_evidence_paths(paths: list[str], context: str, handoff_path: Path) -> None:
     root = repo_root()
     for evidence in paths:
@@ -293,6 +330,7 @@ def validate_task(task: Any, expected: dict[str, Any], handoff_path: Path) -> No
     require_str_list(task, "acceptance", handoff_path)
     commands = require_commands(task, handoff_path)
     validate_command_stages(task_id, commands, handoff_path)
+    validate_template_declaration(task, expected, handoff_path)
     tokens = flatten_commands(commands)
 
     for token in expected["required_tokens"]:
