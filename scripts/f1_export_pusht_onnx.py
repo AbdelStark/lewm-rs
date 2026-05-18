@@ -14,6 +14,8 @@ DEFAULT_STEP = 50_000
 DEFAULT_ACTION_DIM = 10
 DEFAULT_WORK_DIR = Path("/tmp/lewm-f1-pusht-onnx")
 DEFAULT_META = Path("tests/fixtures/reference_model.meta.json")
+REQUIRED_RUN_PREFIX = "train/pusht-full-burn-jepa-"
+LEGACY_BOUNDED_RUN_PREFIX = "train/pusht-full-lewm-"
 
 
 def repo_root() -> Path:
@@ -98,6 +100,22 @@ def default_output_dir(work_dir: Path) -> Path:
 
 def downloaded_safetensors(work_dir: Path, run_prefix: str, step: int) -> Path:
     return download_dir(work_dir) / run_prefix / step_file_name(step)
+
+
+def validate_run_prefix(run_prefix: str) -> None:
+    if any(char in run_prefix for char in "*?["):
+        raise ValueError("--run-prefix must be a literal Hub directory, not a glob")
+    if run_prefix.endswith("/"):
+        raise ValueError("--run-prefix must not end with '/'")
+    if run_prefix.startswith(LEGACY_BOUNDED_RUN_PREFIX):
+        raise ValueError(
+            "--run-prefix points at the legacy bounded PushT artifact family; "
+            f"F1 requires a completed {REQUIRED_RUN_PREFIX}<UTC timestamp> run"
+        )
+    if not run_prefix.startswith(REQUIRED_RUN_PREFIX):
+        raise ValueError(
+            f"--run-prefix must start with {REQUIRED_RUN_PREFIX!r} for the F1 full Burn/Jepa handoff"
+        )
 
 
 def download_command(repo: str, run_prefix: str, work_dir: Path) -> list[str]:
@@ -189,6 +207,7 @@ def workflow_commands(args: argparse.Namespace) -> list[list[str]]:
 
     commands: list[list[str]] = []
     if args.run_prefix:
+        validate_run_prefix(args.run_prefix)
         commands.append(download_command(args.repo, args.run_prefix, work_dir))
         safetensors = downloaded_safetensors(work_dir, args.run_prefix, args.step)
     else:

@@ -74,6 +74,28 @@ def test_local_safetensors_workflow_skips_download_and_can_upload(tmp_path: Path
     assert "--dry-run" not in commands[-1]
 
 
+def test_hub_run_rejects_legacy_bounded_prefix() -> None:
+    args = parse("--run-prefix", "train/pusht-full-lewm-20260515T100908Z")
+
+    try:
+        f1.workflow_commands(args)
+    except ValueError as exc:
+        assert "legacy bounded PushT artifact family" in str(exc)
+    else:
+        raise AssertionError("expected legacy bounded PushT run prefix to fail")
+
+
+def test_hub_run_rejects_glob_prefix() -> None:
+    args = parse("--run-prefix", "train/pusht-full-burn-jepa-*")
+
+    try:
+        f1.workflow_commands(args)
+    except ValueError as exc:
+        assert "literal Hub directory" in str(exc)
+    else:
+        raise AssertionError("expected globbed PushT run prefix to fail")
+
+
 def test_step_file_name_uses_release_width() -> None:
     assert f1.step_file_name(50_000) == "step_0050000.safetensors"
 
