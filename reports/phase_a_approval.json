@@ -19,9 +19,10 @@
       "worst_case_usd": "18.00",
       "requires_human_approval": true,
       "template_placeholders": [
-        "REPLACE_WITH_RUNTIME_IMAGE_TAG"
+        "REPLACE_WITH_RUNTIME_IMAGE_TAG",
+        "REPLACE_WITH_SOURCE_REVISION"
       ],
-      "template_resolution": "Replace REPLACE_WITH_RUNTIME_IMAGE_TAG with a concrete GHCR image tag containing the current full Burn/Jepa training and export-gate code before running the dry-run or approval command.",
+      "template_resolution": "Replace REPLACE_WITH_RUNTIME_IMAGE_TAG with a concrete GHCR image tag containing the current full Burn/Jepa training and export-gate code before running the primary dry-run or approval command. If GHCR remains blocked, replace REPLACE_WITH_SOURCE_REVISION with a full 40-character git SHA before using the source-build fallback.",
       "image_check_command": [
         "python3",
         "scripts/verify_runtime_image.py",
@@ -44,13 +45,28 @@
         "--image-tag",
         "REPLACE_WITH_RUNTIME_IMAGE_TAG"
       ],
+      "fallback_dry_run_command": [
+        "LEWM_SOURCE_REVISION=REPLACE_WITH_SOURCE_REVISION",
+        "python3",
+        "scripts/launch_hf_job.py",
+        "jobs/train_pusht_source.yaml",
+        "--dry-run",
+        "--allow-approval-required"
+      ],
+      "fallback_approval_command": [
+        "LEWM_SOURCE_REVISION=REPLACE_WITH_SOURCE_REVISION",
+        "scripts/launch_hf_job.py",
+        "jobs/train_pusht_source.yaml",
+        "--allow-approval-required"
+      ],
       "blocked_on": [
-        "A concrete GHCR runtime image tag containing the current full Burn/Jepa training and export-gate code.",
+        "A concrete GHCR runtime image tag containing the current full Burn/Jepa training and export-gate code, or a concrete 40-character LEWM_SOURCE_REVISION for the source-build fallback.",
         "Human approval for the paid PushT full Burn/Jepa production run.",
         "A successful upload under train/pusht-full-burn-jepa-YYYYMMDDTHHMMSSZ/."
       ],
       "evidence": [
         "jobs/train_pusht.yaml",
+        "jobs/train_pusht_source.yaml",
         ".ml-intern/cli_agent_config.json",
         "reports/full_pusht_contract_smoke.json",
         "reports/pusht_full_safetensors_hub_audit.json",

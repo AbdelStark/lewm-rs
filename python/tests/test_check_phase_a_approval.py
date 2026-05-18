@@ -30,9 +30,13 @@ def approval_payload(**updates: object) -> dict[str, object]:
                 "price_usd_per_hour": "1.50",
                 "worst_case_usd": "18.00",
                 "requires_human_approval": True,
-                "template_placeholders": ["REPLACE_WITH_RUNTIME_IMAGE_TAG"],
+                "template_placeholders": [
+                    "REPLACE_WITH_RUNTIME_IMAGE_TAG",
+                    "REPLACE_WITH_SOURCE_REVISION",
+                ],
                 "template_resolution": (
-                    "Replace REPLACE_WITH_RUNTIME_IMAGE_TAG with a concrete runtime image tag."
+                    "Replace REPLACE_WITH_RUNTIME_IMAGE_TAG with a concrete runtime image tag. "
+                    "Replace REPLACE_WITH_SOURCE_REVISION with a full source revision."
                 ),
                 "image_check_command": [
                     "python3",
@@ -56,9 +60,24 @@ def approval_payload(**updates: object) -> dict[str, object]:
                     "--image-tag",
                     "REPLACE_WITH_RUNTIME_IMAGE_TAG",
                 ],
+                "fallback_dry_run_command": [
+                    "LEWM_SOURCE_REVISION=REPLACE_WITH_SOURCE_REVISION",
+                    "python3",
+                    "scripts/launch_hf_job.py",
+                    "jobs/train_pusht_source.yaml",
+                    "--dry-run",
+                    "--allow-approval-required",
+                ],
+                "fallback_approval_command": [
+                    "LEWM_SOURCE_REVISION=REPLACE_WITH_SOURCE_REVISION",
+                    "scripts/launch_hf_job.py",
+                    "jobs/train_pusht_source.yaml",
+                    "--allow-approval-required",
+                ],
                 "blocked_on": ["approval"],
                 "evidence": [
                     "jobs/train_pusht.yaml",
+                    "jobs/train_pusht_source.yaml",
                     ".ml-intern/cli_agent_config.json",
                     "reports/full_pusht_contract_smoke.json",
                     "reports/full_burn_jepa_training_gap.md",
@@ -186,6 +205,22 @@ def test_rejects_f3_without_template_resolution(tmp_path: Path) -> None:
     assert "F3.template_placeholders must be a non-empty string list" in result.stderr
 
 
+def test_rejects_f1_without_source_build_fallback(tmp_path: Path) -> None:
+    path = tmp_path / "phase_a_approval.json"
+    payload = approval_payload()
+    tasks = payload["tasks"]
+    assert isinstance(tasks, list)
+    f1 = tasks[0]
+    assert isinstance(f1, dict)
+    f1.pop("fallback_dry_run_command")
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    result = run_check(path)
+
+    assert result.returncode == 1
+    assert "fallback_dry_run_command" in result.stderr
+
+
 def test_rejects_approval_dry_run(tmp_path: Path) -> None:
     path = tmp_path / "phase_a_approval.json"
     payload = approval_payload()
@@ -202,3 +237,21 @@ def test_rejects_approval_dry_run(tmp_path: Path) -> None:
 
     assert result.returncode == 1
     assert "approval_command must not dry-run" in result.stderr
+
+
+def test_rejects_fallback_approval_dry_run(tmp_path: Path) -> None:
+    path = tmp_path / "phase_a_approval.json"
+    payload = approval_payload()
+    tasks = payload["tasks"]
+    assert isinstance(tasks, list)
+    f1 = tasks[0]
+    assert isinstance(f1, dict)
+    command = f1["fallback_approval_command"]
+    assert isinstance(command, list)
+    command.append("--dry-run")
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    result = run_check(path)
+
+    assert result.returncode == 1
+    assert "fallback_approval_command must not dry-run" in result.stderr

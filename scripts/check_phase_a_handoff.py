@@ -19,9 +19,11 @@ EXPECTED_TASKS = (
         "rejected_source_prefix": "train/pusht-full-lewm-",
         "required_tokens": (
             "jobs/train_pusht.yaml",
+            "jobs/train_pusht_source.yaml",
             "--allow-approval-required",
             "--image-tag",
             "REPLACE_WITH_RUNTIME_IMAGE_TAG",
+            "LEWM_SOURCE_REVISION=REPLACE_WITH_SOURCE_REVISION",
             "scripts/verify_runtime_image.py",
             "scripts/check_pusht_full_safetensors_hub_audit_report.py",
             "scripts/f1_export_pusht_onnx.py",
@@ -32,6 +34,7 @@ EXPECTED_TASKS = (
         ),
         "template_placeholders": (
             "REPLACE_WITH_RUNTIME_IMAGE_TAG",
+            "REPLACE_WITH_SOURCE_REVISION",
             "REPLACE_WITH_UTC_TIMESTAMP",
         ),
     },
@@ -204,6 +207,16 @@ def validate_f1_command_stages(commands: dict[str, list[list[str]]], path: Path)
         "--image-tag",
         "REPLACE_WITH_RUNTIME_IMAGE_TAG",
     )
+    require_any_command(
+        preflight,
+        "F1.preflight",
+        path,
+        "LEWM_SOURCE_REVISION=REPLACE_WITH_SOURCE_REVISION",
+        "scripts/launch_hf_job.py",
+        "jobs/train_pusht_source.yaml",
+        "--dry-run",
+        "--allow-approval-required",
+    )
 
     approval = require_command_group(commands, "after_human_approval", "F1", path)
     require_no_token(approval, "--dry-run", "F1.after_human_approval", path)
@@ -216,6 +229,15 @@ def validate_f1_command_stages(commands: dict[str, list[list[str]]], path: Path)
         "--allow-approval-required",
         "--image-tag",
         "REPLACE_WITH_RUNTIME_IMAGE_TAG",
+    )
+    require_any_command(
+        approval,
+        "F1.after_human_approval",
+        path,
+        "LEWM_SOURCE_REVISION=REPLACE_WITH_SOURCE_REVISION",
+        "scripts/launch_hf_job.py",
+        "jobs/train_pusht_source.yaml",
+        "--allow-approval-required",
     )
 
     export = require_command_group(commands, "after_full_checkpoint_exists", "F1", path)

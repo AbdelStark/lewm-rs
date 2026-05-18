@@ -23,6 +23,7 @@ EXPECTED_TASKS = {
     "F1": {
         "issue": 243,
         "job": "jobs/train_pusht.yaml",
+        "alternative_jobs": ("jobs/train_pusht_source.yaml",),
         "dry_run_tokens": (
             "scripts/verify_runtime_image.py",
             "--image-tag",
@@ -43,7 +44,23 @@ EXPECTED_TASKS = {
             "--image-tag",
             "REPLACE_WITH_RUNTIME_IMAGE_TAG",
         ),
-        "template_placeholders": ("REPLACE_WITH_RUNTIME_IMAGE_TAG",),
+        "fallback_dry_run_tokens": (
+            "LEWM_SOURCE_REVISION=REPLACE_WITH_SOURCE_REVISION",
+            "scripts/launch_hf_job.py",
+            "jobs/train_pusht_source.yaml",
+            "--dry-run",
+            "--allow-approval-required",
+        ),
+        "fallback_approval_tokens": (
+            "LEWM_SOURCE_REVISION=REPLACE_WITH_SOURCE_REVISION",
+            "scripts/launch_hf_job.py",
+            "jobs/train_pusht_source.yaml",
+            "--allow-approval-required",
+        ),
+        "template_placeholders": (
+            "REPLACE_WITH_RUNTIME_IMAGE_TAG",
+            "REPLACE_WITH_SOURCE_REVISION",
+        ),
     },
     "F3": {
         "issue": 245,
@@ -208,6 +225,44 @@ def validate_job_cost(task: dict[str, Any], expected: dict[str, Any], report_pat
     return worst_case
 
 
+def validate_alternative_job_costs(
+    task: dict[str, Any],
+    expected: dict[str, Any],
+    report_path: Path,
+) -> None:
+    """Ensure alternative approval paths have the same declared cost envelope."""
+    for raw_job_path in expected.get("alternative_jobs", ()):
+        job_path = str(raw_job_path)
+        job = launch_hf_job.parse_job(ROOT / job_path)
+        hardware = str(job["hardware"])
+        timeout = str(job["timeout"])
+        hours = launch_hf_job.parse_timeout_hours(timeout)
+        price = launch_hf_job.lookup_price(hardware)
+        if price is None:
+            raise ApprovalError(f"{report_path}: {job_path} has unknown hardware {hardware!r}")
+        worst_case = (price * hours).quantize(Decimal("0.01"), rounding=ROUND_CEILING)
+        if task.get("hardware") != hardware:
+            raise ApprovalError(
+                f"{report_path}: {task['id']} alternative {job_path} hardware must be "
+                f"{task.get('hardware')!r}"
+            )
+        if task.get("timeout") != timeout:
+            raise ApprovalError(
+                f"{report_path}: {task['id']} alternative {job_path} timeout must be "
+                f"{task.get('timeout')!r}"
+            )
+        if parse_money(task.get("price_usd_per_hour"), f"{task['id']}.price_usd_per_hour") != price:
+            raise ApprovalError(
+                f"{report_path}: {task['id']} alternative {job_path} price must be "
+                f"{task.get('price_usd_per_hour')}"
+            )
+        if parse_money(task.get("worst_case_usd"), f"{task['id']}.worst_case_usd") != worst_case:
+            raise ApprovalError(
+                f"{report_path}: {task['id']} alternative {job_path} worst-case cost must be "
+                f"{task.get('worst_case_usd')}"
+            )
+
+
 def validate_task(
     task: Any,
     leash: dict[str, Any],
@@ -233,6 +288,14 @@ def validate_task(
         raise ApprovalError(f"{report_path}: {job_name} must be approval-required in leash")
     if job_name in allowed:
         raise ApprovalError(f"{report_path}: {job_name} must not be pre-approved in leash")
+    for raw_job_path in expected.get("alternative_jobs", ()):
+        alternative_name = Path(str(raw_job_path)).name
+        if alternative_name not in approval_required:
+            raise ApprovalError(
+                f"{report_path}: {alternative_name} must be approval-required in leash"
+            )
+        if alternative_name in allowed:
+            raise ApprovalError(f"{report_path}: {alternative_name} must not be pre-approved in leash")
 
     dry_run = require_command(task, "dry_run_command", report_path)
     image_check = task.get("image_check_command")
@@ -265,11 +328,32 @@ def validate_task(
     )
     if "--dry-run" in approval:
         raise ApprovalError(f"{report_path}: {task_id}.approval_command must not dry-run")
+    if "fallback_dry_run_tokens" in expected:
+        fallback_dry_run = require_command(task, "fallback_dry_run_command", report_path)
+        fallback_approval = require_command(task, "fallback_approval_command", report_path)
+        validate_command_tokens(
+            fallback_dry_run,
+            expected["fallback_dry_run_tokens"],
+            context=f"{task_id}.fallback_dry_run_command",
+            report_path=report_path,
+        )
+        validate_command_tokens(
+            fallback_approval,
+            expected["fallback_approval_tokens"],
+            context=f"{task_id}.fallback_approval_command",
+            report_path=report_path,
+        )
+        if "--dry-run" in fallback_approval:
+            raise ApprovalError(
+                f"{report_path}: {task_id}.fallback_approval_command must not dry-run"
+            )
     require_str(task, "title", report_path)
     require_str_list(task, "blocked_on", report_path)
     validate_template_declaration(task, expected, report_path)
     validate_evidence(require_str_list(task, "evidence", report_path), task_id, report_path)
-    return validate_job_cost(task, expected, report_path)
+    primary_cost = validate_job_cost(task, expected, report_path)
+    validate_alternative_job_costs(task, expected, report_path)
+    return primary_cost
 
 
 def validate_template_declaration(

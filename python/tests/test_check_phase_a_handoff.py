@@ -27,10 +27,12 @@ def handoff_payload() -> dict[str, object]:
                 "rejected_source_prefixes": ["train/pusht-full-lewm-"],
                 "template_placeholders": [
                     "REPLACE_WITH_RUNTIME_IMAGE_TAG",
+                    "REPLACE_WITH_SOURCE_REVISION",
                     "REPLACE_WITH_UTC_TIMESTAMP",
                 ],
                 "template_resolution": (
                     "Replace REPLACE_WITH_RUNTIME_IMAGE_TAG with the runtime image tag. "
+                    "Replace REPLACE_WITH_SOURCE_REVISION with the source revision. "
                     "Replace REPLACE_WITH_UTC_TIMESTAMP with the approved UTC run suffix."
                 ),
                 "evidence": [
@@ -45,6 +47,7 @@ def handoff_payload() -> dict[str, object]:
                     "scripts/f1_export_pusht_onnx.py",
                     "scripts/check_phase_a_approval.py",
                     "jobs/train_pusht.yaml",
+                    "jobs/train_pusht_source.yaml",
                     ".ml-intern/cli_agent_config.json",
                 ],
                 "blocked_on": ["human-approved full PushT job"],
@@ -70,6 +73,14 @@ def handoff_payload() -> dict[str, object]:
                             "--image-tag",
                             "REPLACE_WITH_RUNTIME_IMAGE_TAG",
                         ],
+                        [
+                            "LEWM_SOURCE_REVISION=REPLACE_WITH_SOURCE_REVISION",
+                            "python3",
+                            "scripts/launch_hf_job.py",
+                            "jobs/train_pusht_source.yaml",
+                            "--dry-run",
+                            "--allow-approval-required",
+                        ],
                     ],
                     "after_human_approval": [
                         [
@@ -78,7 +89,13 @@ def handoff_payload() -> dict[str, object]:
                             "--allow-approval-required",
                             "--image-tag",
                             "REPLACE_WITH_RUNTIME_IMAGE_TAG",
-                        ]
+                        ],
+                        [
+                            "LEWM_SOURCE_REVISION=REPLACE_WITH_SOURCE_REVISION",
+                            "scripts/launch_hf_job.py",
+                            "jobs/train_pusht_source.yaml",
+                            "--allow-approval-required",
+                        ],
                     ],
                     "after_full_checkpoint_exists": [
                         [
@@ -277,6 +294,29 @@ def test_rejects_f1_upload_in_preflight(tmp_path: Path) -> None:
 
     assert result.returncode == 1
     assert "F1.preflight must not contain '--upload'" in result.stderr
+
+
+def test_rejects_f1_without_source_build_fallback(tmp_path: Path) -> None:
+    handoff = tmp_path / "phase_a_handoff.json"
+    payload = handoff_payload()
+    tasks = payload["tasks"]
+    assert isinstance(tasks, list)
+    f1 = tasks[0]
+    assert isinstance(f1, dict)
+    commands = f1["commands"]
+    assert isinstance(commands, dict)
+    preflight = commands["preflight"]
+    approval = commands["after_human_approval"]
+    assert isinstance(preflight, list)
+    assert isinstance(approval, list)
+    preflight.pop()
+    approval.pop()
+    handoff.write_text(json.dumps(payload), encoding="utf-8")
+
+    result = run_check(handoff)
+
+    assert result.returncode == 1
+    assert "jobs/train_pusht_source.yaml" in result.stderr
 
 
 def test_rejects_f3_dry_run_after_human_approval(tmp_path: Path) -> None:
