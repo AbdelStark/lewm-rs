@@ -66,6 +66,24 @@ JOB_SPECS = {
             "--path-prefix train/pusht-full-module-lewm-$(date -u +%Y%m%dT%H%M%SZ)",
         ],
     },
+    "train_so100_warmstart.yaml": {
+        "hardware": "a10g-large",
+        "timeout": "6h",
+        "image": "rust:1.95.0-bookworm",
+        "command_tokens": [
+            "LEWM_PUSHT_WARMSTART_MPK:?set LEWM_PUSHT_WARMSTART_MPK",
+            "hf download abdelstark/so100-pickplace-lewm-ready",
+            "LEWM_PUSHT_WARMSTART_REPO:-abdelstark/lewm-rs-pusht",
+            "--repo-type model",
+            "--local-dir /tmp/checkpoints/pusht",
+            "./target/release/lewm-train train",
+            "--config configs/so100_warmstart.toml",
+            "training.warmstart_from=",
+            "python3 python/upload_checkpoints.py",
+            "--dst abdelstark/lewm-rs-so100",
+            "--path-prefix train/so100-warmstart-",
+        ],
+    },
     "smoke_so100.yaml": {
         "hardware": "l4x1",
         "timeout": "30m",
@@ -132,8 +150,11 @@ def main() -> int:
                 f"{path}: namespace must be {EXPECTED_NAMESPACE!r}, got {fields.get('namespace')!r}"
             )
 
-        if fields.get("image") != EXPECTED_IMAGE:
-            failures.append(f"{path}: image must be {EXPECTED_IMAGE!r}, got {fields.get('image')!r}")
+        expected_image = expected.get("image", EXPECTED_IMAGE)
+        if fields.get("image") != expected_image:
+            failures.append(
+                f"{path}: image must be {expected_image!r}, got {fields.get('image')!r}"
+            )
 
         missing_env = sorted(REQUIRED_ENV - env_keys)
         if missing_env:
@@ -150,7 +171,10 @@ def main() -> int:
             failures.append(f"{path}: command references removed PushT archive.tar.zst path")
 
         if expected.get("requires_upload", True):
-            upload_pos = command.rfind("python python/upload_checkpoints.py")
+            upload_pos = max(
+                command.rfind("python python/upload_checkpoints.py"),
+                command.rfind("python3 python/upload_checkpoints.py"),
+            )
             train_pos = max(command.rfind("lewm-train smoke"), command.rfind("lewm-train train"))
             if upload_pos <= train_pos:
                 failures.append(f"{path}: upload_checkpoints.py must run after lewm-train")
@@ -299,6 +323,8 @@ def validate_intern_config(failures: list[str]) -> None:
         failures.append(f"{path}: train_pusht.yaml must require human approval")
     if "train_pusht.yaml" in jobs_allowed:
         failures.append(f"{path}: train_pusht.yaml must not be pre-approved")
+    if "train_so100_warmstart.yaml" in jobs_allowed:
+        failures.append(f"{path}: train_so100_warmstart.yaml must not be pre-approved")
 
 
 if __name__ == "__main__":

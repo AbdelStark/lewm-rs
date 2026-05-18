@@ -1,6 +1,6 @@
 # Release Checklist (Issue #197)
 
-**Updated:** 2026-05-18 (F1 artifact audit + F3 trainer wiring)
+**Updated:** 2026-05-18 (F1 artifact audit + F3 trainer/job wiring)
 **Target release:** v0.4.0 (post-training-completion)
 
 This document tracks all items needed before tagging a public release.
@@ -35,7 +35,7 @@ This document tracks all items needed before tagging a public release.
 | PushT CEM planning eval | 🚫 Blocked | F1 export failed because no trained full Burn/Jepa safetensors exists under `abdelstark/lewm-rs-pusht`; see `reports/pusht_onnx_export.md` |
 | PushT model card with metrics | ⏳ Pending | Needs eval results |
 | SO-100 training artifacts on Hub | ✅ Done | `abdelstark/lewm-rs-so100/train/so100-full-20260515T122820Z/` |
-| SO-100 warm-start ablation | 🚫 Launch blocked | `lewm-train` now consumes `training.warmstart_from` for fresh SO-100 starts and records provenance, but no compatible PushT source checkpoint exists, `jobs/train_so100_warmstart.yaml` is absent, and paid launch requires safety-leash update + human approval; see `reports/so100_warmstart.md` |
+| SO-100 warm-start ablation | 🚫 Launch blocked | `lewm-train` now consumes `training.warmstart_from` and `jobs/train_so100_warmstart.yaml` exists with a fail-closed source-checkpoint env gate, but no compatible PushT source checkpoint exists and paid launch requires safety-leash update + human approval; see `reports/so100_warmstart.md` |
 | SO-100 model card | ⏳ Pending final metrics | Existing card uploaded via `scripts/upload_model_cards.py`, but F5 still needs warm-start delta |
 | ONNX artifacts (onnxruntime) | ⚠️ Reference only | Root `encoder.onnx` + `.data` + `predictor.onnx` + `.data` exist, but not under the F1-required `onnx-full/` trained-checkpoint path |
 | ONNX artifacts (Tract-compat) | ⚠️ Reference only | `tract-compat/encoder.onnx` + `predictor.onnx` exist, but not under the F1-required `onnx-full/` trained-checkpoint path |

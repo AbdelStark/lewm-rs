@@ -39,9 +39,13 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   transfers shared PushT modules through the RFC 0012 warm-start boundary,
   preserves the fresh SO-100 action encoder, resets AdamW state, and records
   warm-start provenance in reports/checkpoints. `reports/so100_warmstart.md`
-  still blocks F3 launch because the compatible PushT source checkpoint and
-  `jobs/train_so100_warmstart.yaml` are absent, and paid launch requires a
-  safety-leash update plus human approval.
+  still blocks F3 launch because the compatible PushT source checkpoint is
+  absent and paid launch requires a safety-leash update plus human approval.
+  Added `jobs/train_so100_warmstart.yaml` as a fail-closed HF Job spec: it
+  refuses to run unless `LEWM_PUSHT_WARMSTART_MPK` names a compatible PushT
+  `.mpk` source, downloads SO-100 data, runs the warm-start config with an
+  explicit `training.warmstart_from` override, and uploads to
+  `train/so100-warmstart-*`.
 - **`lewm-train` eval adapter**: new `lewm_train::eval` module provides
   `JepaCemCostModel<B>`, a `lewm_plan::CemCostModel` adapter that
   tensorises CEM batches and forwards to the parity-verified

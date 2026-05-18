@@ -1,0 +1,62 @@
+name: so100-warmstart-train
+hardware: a10g-large
+timeout: 6h
+namespace: abdelstark
+image: rust:1.95.0-bookworm
+env:
+  CARGO_INCREMENTAL: "0"
+  DEBIAN_FRONTEND: noninteractive
+  RUST_LOG: lewm=info,burn=info
+  HF_TOKEN: ${HF_TOKEN}
+  HF_HOME: /tmp/hf
+  HDF5_DIR: /tmp/hdf5-compat
+  HDF5_SYS_STATIC: "0"
+  PKG_CONFIG_PATH: /usr/lib/x86_64-linux-gnu/pkgconfig
+  RUSTFLAGS: -C link-args=-Wl,-rpath,/usr/lib/x86_64-linux-gnu/hdf5/serial
+  TRACKIO_PROJECT: lewm-rs
+  TRACKIO_RUN: so100-warmstart
+  OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_ENDPOINT:-}
+  LEWM_SO100_MAX_STEPS: "5000"
+  LEWM_PUSHT_WARMSTART_REPO: ${LEWM_PUSHT_WARMSTART_REPO:-abdelstark/lewm-rs-pusht}
+  LEWM_PUSHT_WARMSTART_MPK: ${LEWM_PUSHT_WARMSTART_MPK:-}
+command: |
+  bash -lc "
+    set -euo pipefail
+    : \"\${LEWM_PUSHT_WARMSTART_MPK:?set LEWM_PUSHT_WARMSTART_MPK to a compatible PushT .mpk path}\"
+    case \"\$LEWM_PUSHT_WARMSTART_MPK\" in
+      *.mpk) ;;
+      *) echo 'LEWM_PUSHT_WARMSTART_MPK must end in .mpk' >&2; exit 2 ;;
+    esac
+    export PATH=/usr/local/cargo/bin:\$PATH
+    apt-get update -qq
+    apt-get install -y --no-install-recommends build-essential clang cmake git ca-certificates curl python3-pip libhdf5-serial-dev pkg-config libzstd-dev
+    mkdir -p /tmp/hdf5-compat /tmp/checkpoints/pusht
+    ln -sf /usr/include/hdf5/serial /tmp/hdf5-compat/include
+    ln -sf /usr/lib/x86_64-linux-gnu/hdf5/serial /tmp/hdf5-compat/lib
+    ln -sf /usr/lib/x86_64-linux-gnu/pkgconfig/hdf5-serial.pc /usr/lib/x86_64-linux-gnu/pkgconfig/hdf5.pc 2>/dev/null || true
+    git clone https://github.com/AbdelStark/lewm-rs.git /src
+    cd /src
+    cargo build --locked --release -p lewm-train
+    pip3 install --break-system-packages huggingface_hub==1.8.0
+    hf download abdelstark/so100-pickplace-lewm-ready \
+      --repo-type dataset \
+      --local-dir /tmp/data/so100
+    hf download \"\${LEWM_PUSHT_WARMSTART_REPO:-abdelstark/lewm-rs-pusht}\" \"\${LEWM_PUSHT_WARMSTART_MPK}\" \
+      --repo-type model \
+      --local-dir /tmp/checkpoints/pusht
+    export WARMSTART_LOCAL=\"/tmp/checkpoints/pusht/\${LEWM_PUSHT_WARMSTART_MPK}\"
+    test -f \"\$WARMSTART_LOCAL\"
+    ./target/release/lewm-train train \
+      --config configs/so100_warmstart.toml \
+      --output-dir /tmp/out/so100-warmstart \
+      --max-steps \${LEWM_SO100_MAX_STEPS:-5000} \
+      --set \"\$(printf 'dataset.hdf5_path=\"%s\"' /tmp/data/so100/svla_so100_pickplace.h5)\" \
+      --set \"\$(printf 'dataset.stats_path=\"%s\"' /tmp/data/so100/stats.safetensors)\" \
+      --set \"\$(printf 'training.warmstart_from=\"%s\"' \"\$WARMSTART_LOCAL\")\"
+    export RUN_ID=\$(date -u +%Y%m%dT%H%M%SZ)
+    python3 python/upload_checkpoints.py \
+      --src /tmp/out/so100-warmstart \
+      --dst abdelstark/lewm-rs-so100 \
+      --path-prefix train/so100-warmstart-\$RUN_ID \
+      --commit-message \"SO-100 warm-start artifacts: \$RUN_ID\"
+  "

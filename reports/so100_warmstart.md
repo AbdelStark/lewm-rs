@@ -2,7 +2,7 @@
 
 **Date:** 2026-05-18
 **Issue:** F3 / #245
-**Status:** Trainer wiring complete; launch still blocked
+**Status:** Trainer wiring and fail-closed job spec complete; launch still blocked
 
 ## Objective
 
@@ -16,15 +16,25 @@ from-scratch vs. warm-start Spearman / loss delta.
 The GitHub issue is still open and carries the `human-only` label. The issue
 also states that launch requires human approval because it costs money.
 
-The referenced job file is not present in the checkout:
+The referenced job file is now present in the checkout:
 
 ```text
-jobs/train_so100_warmstart.yaml: missing
+jobs/train_so100_warmstart.yaml
 ```
 
 The agent safety leash does not list `train_so100_warmstart.yaml` in either
 `jobs_allowed` or `jobs_human_approval_required`. `scripts/launch_hf_job.py`
-would reject the job name even if a YAML were added locally.
+therefore rejects the job name:
+
+```text
+python3 scripts/launch_hf_job.py jobs/train_so100_warmstart.yaml --dry-run
+launch_hf_job.py: train_so100_warmstart.yaml is not listed in the leash config
+```
+
+The job spec also fails closed inside the shell command unless
+`LEWM_PUSHT_WARMSTART_MPK` points at a compatible PushT `.mpk` path in the
+source model repo. This prevents accidentally launching against the stale
+`configs/so100_warmstart.toml` default.
 
 The config exists:
 
@@ -57,6 +67,12 @@ cargo test -p lewm-train so100_warmstart -- --nocapture
 
 Result: 2 passed.
 
+```text
+python3 scripts/check_jobs.py
+```
+
+Result: `check_jobs: HF Jobs specs ok`.
+
 ## Required Resolution
 
 F3 can be launched only after all of the following are true:
@@ -66,7 +82,8 @@ F3 can be launched only after all of the following are true:
 2. `lewm-train` applies `training.warmstart_from` before SO-100 training starts
    and records warm-start provenance in the run report. **Done locally.**
 3. `jobs/train_so100_warmstart.yaml` is added and validated against the real
-   source checkpoint path.
+   source checkpoint path. **Spec added locally; final source path still
+   pending.**
 4. The safety leash is updated by a human to list the job under
    `jobs_human_approval_required`.
 5. A human explicitly approves the paid HF Job launch.
