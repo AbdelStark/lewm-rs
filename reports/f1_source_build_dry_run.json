@@ -5,10 +5,10 @@
   "issue": 243,
   "status": "preflight_passed_pending_human_approval",
   "job": "jobs/train_pusht_source.yaml",
-  "source_revision": "4922e37497c3c42975f00d5f063be0532403ca5c",
-  "source_revision_note": "This is the pushed main commit fetched inside the no-GHCR source-build job. It includes the F1 NumPy preflight dependency hardening; later report-only commits may update evidence, but this field remains the training source selected for the paid run.",
+  "source_revision": "87b03271172512d01e20602d2b8b2f16e2a89ee3",
+  "source_revision_note": "This is the pushed main commit fetched inside the no-GHCR source-build job. It includes the current F1/F3 release-gate evidence and source-build dependency hardening.",
   "dry_run_command": [
-    "LEWM_SOURCE_REVISION=4922e37497c3c42975f00d5f063be0532403ca5c",
+    "LEWM_SOURCE_REVISION=87b03271172512d01e20602d2b8b2f16e2a89ee3",
     "python3",
     "scripts/launch_hf_job.py",
     "jobs/train_pusht_source.yaml",
@@ -16,7 +16,7 @@
     "--allow-approval-required"
   ],
   "approval_command": [
-    "LEWM_SOURCE_REVISION=4922e37497c3c42975f00d5f063be0532403ca5c",
+    "LEWM_SOURCE_REVISION=87b03271172512d01e20602d2b8b2f16e2a89ee3",
     "scripts/launch_hf_job.py",
     "jobs/train_pusht_source.yaml",
     "--allow-approval-required"
@@ -31,7 +31,7 @@
     "--namespace abdelstark",
     "--flavor a10g-large",
     "--timeout 12h",
-    "--env LEWM_SOURCE_REVISION=4922e37497c3c42975f00d5f063be0532403ca5c",
+    "--env LEWM_SOURCE_REVISION=87b03271172512d01e20602d2b8b2f16e2a89ee3",
     "rust:1.95.0-bookworm",
     "TRACKIO_RUN=pusht-full-burn-jepa-source",
     "numpy==2.4.4",
