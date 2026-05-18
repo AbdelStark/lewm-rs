@@ -1,0 +1,48 @@
+{
+  "schema_version": "1.0.0",
+  "updated": "2026-05-18",
+  "task": "F1",
+  "issue": 243,
+  "status": "preflight_passed_pending_human_approval",
+  "job": "jobs/train_pusht_source.yaml",
+  "source_revision": "ced093cae02e2daf644ca4415e4c0e42e4a34ff6",
+  "source_revision_note": "This was the pushed main commit used for the no-GHCR source-build dry run. Later report-only commits do not change the training job source selected here.",
+  "dry_run_command": [
+    "LEWM_SOURCE_REVISION=ced093cae02e2daf644ca4415e4c0e42e4a34ff6",
+    "python3",
+    "scripts/launch_hf_job.py",
+    "jobs/train_pusht_source.yaml",
+    "--dry-run",
+    "--allow-approval-required"
+  ],
+  "approval_command": [
+    "LEWM_SOURCE_REVISION=ced093cae02e2daf644ca4415e4c0e42e4a34ff6",
+    "scripts/launch_hf_job.py",
+    "jobs/train_pusht_source.yaml",
+    "--allow-approval-required"
+  ],
+  "result": "passed",
+  "launched_paid_job": false,
+  "uploaded_artifacts": false,
+  "cost_cap_usd": "20.00",
+  "worst_case_usd": "18.00",
+  "rendered_command_checks": [
+    "hf jobs run",
+    "--namespace abdelstark",
+    "--flavor a10g-large",
+    "--timeout 12h",
+    "--env LEWM_SOURCE_REVISION=ced093cae02e2daf644ca4415e4c0e42e4a34ff6",
+    "rust:1.95.0-bookworm",
+    "TRACKIO_RUN=pusht-full-burn-jepa-source",
+    "experimental.pusht_train_mode=\"full_burn_jepa\"",
+    "python/export_onnx.py",
+    "--check-contract-only",
+    "python/upload_checkpoints.py",
+    "--path-prefix train/pusht-full-burn-jepa-"
+  ],
+  "blocked_on": [
+    "Explicit human approval for the paid 12h A10G-large source-build launch.",
+    "Successful upload under train/pusht-full-burn-jepa-YYYYMMDDTHHMMSSZ/.",
+    "Post-run F1 ONNX export, verification, and upload under onnx-full/."
+  ]
+}

@@ -26,6 +26,7 @@
         "reports/full_burn_jepa_training_gap.md",
         "reports/full_pusht_contract_smoke.json",
         "reports/pusht_full_safetensors_hub_audit.json",
+        "reports/f1_source_build_dry_run.json",
         "scripts/audit_pusht_full_safetensors.py",
         "scripts/check_pusht_full_safetensors_hub_audit_report.py",
         "scripts/verify_runtime_image.py",
@@ -37,7 +38,8 @@
         ".ml-intern/cli_agent_config.json"
       ],
       "blocked_on": [
-        "A concrete GHCR runtime image tag containing the current full Burn/Jepa training and export-gate code, passed with --image-tag or LEWM_IMAGE_TAG, or a concrete 40-character LEWM_SOURCE_REVISION for the source-build fallback.",
+        "Primary path: a concrete GHCR runtime image tag containing the current full Burn/Jepa training and export-gate code, passed with --image-tag or LEWM_IMAGE_TAG.",
+        "Fallback path: explicit human approval for the paid jobs/train_pusht_source.yaml production run using the source revision preflighted in reports/f1_source_build_dry_run.json.",
         "Human-approved jobs/train_pusht.yaml or jobs/train_pusht_source.yaml production run that uploads train/pusht-full-burn-jepa-YYYYMMDDTHHMMSSZ/step_0050000.safetensors.",
         "Release owner approval for final onnx-full/ Hub upload after python/verify_onnx.py passes."
       ],
