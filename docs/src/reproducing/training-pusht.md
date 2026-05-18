@@ -58,6 +58,16 @@ after the train command completes and after `python/export_onnx.py
 exact 255 Burn destination tensors and all 303 PyTorch source keys required
 by the ONNX export contract.
 
+Before launching the paid job, run the local contract smoke:
+
+```sh
+scripts/full_pusht_contract_smoke.py
+```
+
+This runs one CPU step with `configs/pusht.toml` and validates the resulting
+safetensors against the same 255-destination / 303-source ONNX export contract.
+It does not upload artifacts or launch a Hugging Face Job.
+
 ## 4. Monitoring
 
 While the job is running:

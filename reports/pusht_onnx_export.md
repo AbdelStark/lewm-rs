@@ -179,6 +179,10 @@ The Python edge tooling is ready for a valid full PushT checkpoint:
 - `python/upload_checkpoints.py --dry-run` validates the final `onnx-full/`
   Hub upload command locally without requiring `HF_TOKEN` or the `hf` CLI;
   actual uploads still require both.
+- `scripts/full_pusht_contract_smoke.py` runs a local one-step
+  `configs/pusht.toml` full Burn/Jepa train and immediately checks the produced
+  safetensors with `python/export_onnx.py --check-contract-only`. This is the
+  no-Hub, no-spend operator preflight for the F1 train job.
 
 Focused validation:
 

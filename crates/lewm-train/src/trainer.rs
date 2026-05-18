@@ -3700,6 +3700,7 @@ fn smoke_step_as_f64(step: u64) -> Result<f64, TrainerError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::BTreeSet;
     use std::process;
     use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -3897,7 +3898,8 @@ mod tests {
         assert_eq!(loaded.sidecar.rng_state.global_seed, 11);
         assert!(loaded.burn_record.len() > 1024);
         let tensors = SafeTensors::deserialize(&loaded.safetensors_bytes)?;
-        assert!(tensors.names().len() > 14);
+        let actual_names = tensors.names().into_iter().collect::<BTreeSet<_>>();
+        assert_eq!(actual_names.len(), 58);
         assert!(
             !tensors
                 .names()

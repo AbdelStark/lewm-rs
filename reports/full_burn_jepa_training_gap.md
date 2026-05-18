@@ -76,6 +76,34 @@ The exporter itself is not the blocker:
 - It successfully exports and verifies both ONNX variants from the local
   converted full-layout reference checkpoint at
   `/tmp/lewm-parity-dumps/reference_model.safetensors`.
+- A local one-step release-config full Burn/Jepa smoke completed on CPU and
+  passed the exporter's safetensors-only contract check:
+
+  ```text
+  cargo run -p lewm-train --bin lewm-train -- \
+    --config configs/pusht.toml \
+    --set 'experimental.pusht_train_mode="full_burn_jepa"' \
+    --device cpu \
+    --output-dir /tmp/lewm-pusht-full-burn-jepa-contract-smoke-1779100637 \
+    --max-steps 1 \
+    train
+
+  [pusht-burn-jepa step 1/1] loss=0.721793 pred=0.607750 sigreg=0.114043 lr=3.00e-7 elapsed=65s eta=0s
+  train artifacts written to /tmp/lewm-pusht-full-burn-jepa-contract-smoke-1779100637; mode=pusht-full-burn-jepa; checkpoint_step=1; checkpoint_complete=true
+
+  uv run --project python --with safetensors python python/export_onnx.py \
+    --safetensors /tmp/lewm-pusht-full-burn-jepa-contract-smoke-1779100637/step_0000001.safetensors \
+    --check-contract-only
+
+  Checkpoint contract ok: recovered 303 of 303 expected PyTorch keys
+  Burn destination tensors: 255
+  Safetensors SHA-256: b9cbd30771c4f35725fe8ea8ec54660fd18df59e8aade45c06e2d111e60bb3eb
+  ```
+
+  `scripts/full_pusht_contract_smoke.py` now wraps this local operator smoke
+  without any Hub upload or paid job launch. This proves the release-config
+  full-mode writer can produce the F1 ONNX contract locally; it still does not
+  replace the missing approved 50k PushT production checkpoint.
 
 ## Required Implementation
 
