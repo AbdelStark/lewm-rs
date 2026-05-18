@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from decimal import ROUND_CEILING, Decimal
 from pathlib import Path
@@ -19,11 +20,14 @@ import launch_hf_job  # noqa: E402
 
 DEFAULT_REPORT = Path("reports/phase_a_approval.json")
 DEFAULT_LEASH = Path(".ml-intern/cli_agent_config.json")
+SOURCE_REVISION_RE = re.compile(r"^[0-9a-f]{40}$")
 EXPECTED_TASKS = {
     "F1": {
         "issue": 243,
         "job": "jobs/train_pusht.yaml",
         "alternative_jobs": ("jobs/train_pusht_source.yaml",),
+        "source_build_preflight_report": "reports/f1_source_build_dry_run.json",
+        "source_build_report_checker": "scripts/check_f1_source_build_dry_run_report.py",
         "dry_run_tokens": (
             "scripts/verify_runtime_image.py",
             "--image-tag",
@@ -203,6 +207,68 @@ def validate_command_tokens(
         raise ApprovalError(f"{report_path}: {context} must not disable cost cap")
 
 
+def validate_source_build_preflight(
+    task: dict[str, Any],
+    expected: dict[str, Any],
+    evidence: list[str],
+    report_path: Path,
+) -> None:
+    report_ref = expected.get("source_build_preflight_report")
+    if not isinstance(report_ref, str):
+        return
+
+    declared_report = require_str(task, "source_build_preflight_report", report_path)
+    if declared_report != report_ref:
+        raise ApprovalError(
+            f"{report_path}: {task['id']}.source_build_preflight_report must be {report_ref!r}"
+        )
+    if declared_report not in evidence:
+        raise ApprovalError(
+            f"{report_path}: {task['id']}.evidence must include {declared_report!r}"
+        )
+    checker_ref = expected.get("source_build_report_checker")
+    if isinstance(checker_ref, str) and checker_ref not in evidence:
+        raise ApprovalError(f"{report_path}: {task['id']}.evidence must include {checker_ref!r}")
+
+    source_report_path = ROOT / declared_report
+    source_report = load_json(source_report_path, "F1 source-build dry-run report")
+    source_revision = require_str(source_report, "source_revision", source_report_path)
+    if SOURCE_REVISION_RE.fullmatch(source_revision) is None:
+        raise ApprovalError(
+            f"{source_report_path}: source_revision must be a full lowercase git SHA"
+        )
+
+    declared_revision = require_str(task, "source_build_preflight_revision", report_path)
+    if declared_revision != source_revision:
+        raise ApprovalError(
+            f"{report_path}: {task['id']}.source_build_preflight_revision must match "
+            f"{declared_report} source_revision"
+        )
+
+    source_dry_run = require_command(source_report, "dry_run_command", source_report_path)
+    source_approval = require_command(source_report, "approval_command", source_report_path)
+    resolved_dry_run = require_command(task, "resolved_fallback_dry_run_command", report_path)
+    resolved_approval = require_command(task, "resolved_fallback_approval_command", report_path)
+    if resolved_dry_run != source_dry_run:
+        raise ApprovalError(
+            f"{report_path}: {task['id']}.resolved_fallback_dry_run_command must match "
+            f"{declared_report}.dry_run_command"
+        )
+    if resolved_approval != source_approval:
+        raise ApprovalError(
+            f"{report_path}: {task['id']}.resolved_fallback_approval_command must match "
+            f"{declared_report}.approval_command"
+        )
+    if "--dry-run" not in resolved_dry_run:
+        raise ApprovalError(
+            f"{report_path}: {task['id']}.resolved_fallback_dry_run_command must dry-run"
+        )
+    if "--dry-run" in resolved_approval:
+        raise ApprovalError(
+            f"{report_path}: {task['id']}.resolved_fallback_approval_command must not dry-run"
+        )
+
+
 def validate_job_cost(task: dict[str, Any], expected: dict[str, Any], report_path: Path) -> Decimal:
     job_path = str(expected["job"])
     job = launch_hf_job.parse_job(ROOT / job_path)
@@ -349,8 +415,10 @@ def validate_task(
             )
     require_str(task, "title", report_path)
     require_str_list(task, "blocked_on", report_path)
+    evidence = require_str_list(task, "evidence", report_path)
+    validate_source_build_preflight(task, expected, evidence, report_path)
     validate_template_declaration(task, expected, report_path)
-    validate_evidence(require_str_list(task, "evidence", report_path), task_id, report_path)
+    validate_evidence(evidence, task_id, report_path)
     primary_cost = validate_job_cost(task, expected, report_path)
     validate_alternative_job_costs(task, expected, report_path)
     return primary_cost

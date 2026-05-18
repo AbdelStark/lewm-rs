@@ -7,6 +7,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts" / "check_phase_a_approval.py"
+SOURCE_BUILD_REPORT = ROOT / "reports" / "f1_source_build_dry_run.json"
+SOURCE_BUILD_PAYLOAD = json.loads(SOURCE_BUILD_REPORT.read_text(encoding="utf-8"))
+SOURCE_REVISION = str(SOURCE_BUILD_PAYLOAD["source_revision"])
 
 
 def approval_payload(**updates: object) -> dict[str, object]:
@@ -25,6 +28,8 @@ def approval_payload(**updates: object) -> dict[str, object]:
                 "issue": 243,
                 "title": "Export trained full PushT ONNX artifacts",
                 "job": "jobs/train_pusht.yaml",
+                "source_build_preflight_report": "reports/f1_source_build_dry_run.json",
+                "source_build_preflight_revision": SOURCE_REVISION,
                 "hardware": "a10g-large",
                 "timeout": "12h",
                 "price_usd_per_hour": "1.50",
@@ -68,18 +73,22 @@ def approval_payload(**updates: object) -> dict[str, object]:
                     "--dry-run",
                     "--allow-approval-required",
                 ],
+                "resolved_fallback_dry_run_command": SOURCE_BUILD_PAYLOAD["dry_run_command"],
                 "fallback_approval_command": [
                     "LEWM_SOURCE_REVISION=REPLACE_WITH_SOURCE_REVISION",
                     "scripts/launch_hf_job.py",
                     "jobs/train_pusht_source.yaml",
                     "--allow-approval-required",
                 ],
+                "resolved_fallback_approval_command": SOURCE_BUILD_PAYLOAD["approval_command"],
                 "blocked_on": ["approval"],
                 "evidence": [
                     "jobs/train_pusht.yaml",
                     "jobs/train_pusht_source.yaml",
                     ".ml-intern/cli_agent_config.json",
                     "reports/full_pusht_contract_smoke.json",
+                    "reports/f1_source_build_dry_run.json",
+                    "scripts/check_f1_source_build_dry_run_report.py",
                     "reports/full_burn_jepa_training_gap.md",
                     "scripts/verify_runtime_image.py",
                     "scripts/f1_export_pusht_onnx.py",
@@ -255,3 +264,75 @@ def test_rejects_fallback_approval_dry_run(tmp_path: Path) -> None:
 
     assert result.returncode == 1
     assert "fallback_approval_command must not dry-run" in result.stderr
+
+
+def test_rejects_mismatched_source_build_revision(tmp_path: Path) -> None:
+    path = tmp_path / "phase_a_approval.json"
+    payload = approval_payload()
+    tasks = payload["tasks"]
+    assert isinstance(tasks, list)
+    f1 = tasks[0]
+    assert isinstance(f1, dict)
+    f1["source_build_preflight_revision"] = "b" * 40
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    result = run_check(path)
+
+    assert result.returncode == 1
+    assert "source_build_preflight_revision must match" in result.stderr
+
+
+def test_rejects_missing_source_build_evidence(tmp_path: Path) -> None:
+    path = tmp_path / "phase_a_approval.json"
+    payload = approval_payload()
+    tasks = payload["tasks"]
+    assert isinstance(tasks, list)
+    f1 = tasks[0]
+    assert isinstance(f1, dict)
+    evidence = f1["evidence"]
+    assert isinstance(evidence, list)
+    f1["evidence"] = [item for item in evidence if item != "reports/f1_source_build_dry_run.json"]
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    result = run_check(path)
+
+    assert result.returncode == 1
+    assert "evidence must include 'reports/f1_source_build_dry_run.json'" in result.stderr
+
+
+def test_rejects_missing_source_build_checker_evidence(tmp_path: Path) -> None:
+    path = tmp_path / "phase_a_approval.json"
+    payload = approval_payload()
+    tasks = payload["tasks"]
+    assert isinstance(tasks, list)
+    f1 = tasks[0]
+    assert isinstance(f1, dict)
+    evidence = f1["evidence"]
+    assert isinstance(evidence, list)
+    f1["evidence"] = [
+        item for item in evidence if item != "scripts/check_f1_source_build_dry_run_report.py"
+    ]
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    result = run_check(path)
+
+    assert result.returncode == 1
+    assert "evidence must include 'scripts/check_f1_source_build_dry_run_report.py'" in result.stderr
+
+
+def test_rejects_resolved_fallback_command_mismatch(tmp_path: Path) -> None:
+    path = tmp_path / "phase_a_approval.json"
+    payload = approval_payload()
+    tasks = payload["tasks"]
+    assert isinstance(tasks, list)
+    f1 = tasks[0]
+    assert isinstance(f1, dict)
+    command = f1["resolved_fallback_approval_command"]
+    assert isinstance(command, list)
+    f1["resolved_fallback_approval_command"] = [*command, "--dry-run"]
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    result = run_check(path)
+
+    assert result.returncode == 1
+    assert "resolved_fallback_approval_command must match" in result.stderr

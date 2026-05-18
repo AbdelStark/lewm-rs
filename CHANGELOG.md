@@ -30,7 +30,9 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   docs now distinguish the historical bounded-core PushT result from the
   still-blocked F1 full Burn/Jepa release checkpoint and `onnx-full/` artifacts.
   The concrete F1 source-build dry-run evidence is now machine-checked by
-  `scripts/check_f1_source_build_dry_run_report.py`.
+  `scripts/check_f1_source_build_dry_run_report.py`, and the Phase A approval
+  packet validator cross-checks its resolved source-build commands against
+  that dry-run report.
   PushT Hub audit scripts now accept absolute or out-of-repo `--report` paths
   without crashing after a successful audit.
 - **Burn 0.20.1 → 0.21.0** (per ADR 0003). Updated all seven workspace
