@@ -41,9 +41,10 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   retry tag or source revision from current repository evidence instead of
   hard-coding the first failed runtime-image attempt, and
   `scripts/check_runtime_image_publish_report.py` now gates that report.
-  Result/cost docs now label the historical PushT spend as bounded-core
-  training and record the F1/F3 worst-case approval envelopes instead of
-  treating the missing full Burn/Jepa release checkpoint as already spent.
+  Result, roadmap, status, paper, and cost docs now label the historical PushT
+  spend as bounded-core training and record the F1/F3 worst-case approval
+  envelopes instead of treating the missing full Burn/Jepa release checkpoint
+  as already spent.
   PushT Hub audit scripts now accept absolute or out-of-repo `--report` paths
   without crashing after a successful audit.
 - **Burn 0.20.1 → 0.21.0** (per ADR 0003). Updated all seven workspace
@@ -325,7 +326,7 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - `python/export_onnx.py`: exports a trained Burn safetensors checkpoint to
   ONNX opset 18 (encoder + predictor) for Tract CPU inference via inverse
   parameter-name-map transform.
-- PushT full training job submitted to HuggingFace Jobs
+- PushT bounded-core training job submitted to HuggingFace Jobs
   (`abdelstark/6a06f0c43308d79117b90276`; 50k steps on A10G-large).
 - SO-100 training job submitted to HuggingFace Jobs
   (`abdelstark/6a06fe17e48bea4538b9e1cb`; 10 epochs on A10G-large).

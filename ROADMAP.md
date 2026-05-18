@@ -83,8 +83,8 @@ with linked evidence:
   checkpoint, beyond the bounded host full-module path.
 - Reference parity against the published PushT checkpoint, with fixtures small
   enough for CI.
-- Full PushT training, CEM planning evaluation, model card, report, and Hub
-  artifacts.
+- Full Burn/Jepa PushT training, CEM planning evaluation, model card, report,
+  and Hub artifacts.
 - SO-100 short/full training, warm-start evaluation, report, and Hub artifacts.
 - Tract CPU export/runner benchmark from a real checkpoint and a reachable demo
   Space.
@@ -103,7 +103,7 @@ with linked evidence:
 | Done | [#37](https://github.com/AbdelStark/lewm-rs/issues/37) | Add dump subcommand to convert_reference.py | `python/convert_reference.py dump` captures all per-layer activations as Safetensors; PR [#214](https://github.com/AbdelStark/lewm-rs/pull/214); numerical fixes in PR [#217](https://github.com/AbdelStark/lewm-rs/pull/217) |
 | Done | [#38](https://github.com/AbdelStark/lewm-rs/issues/38) | Implement Rust parity test suite | 10 tests for encoder/action_encoder/predictor/pred_proj/sigreg; graceful skip without dumps; PR [#215](https://github.com/AbdelStark/lewm-rs/pull/215) |
 | Done | [#39](https://github.com/AbdelStark/lewm-rs/issues/39) | Wire CI parity workflow | Cache + HF download + numerical/shape conditional; PR [#216](https://github.com/AbdelStark/lewm-rs/pull/216) |
-| In Progress | [#193](https://github.com/AbdelStark/lewm-rs/issues/193) | Run full PushT training, planning eval, and publish artifacts | Training COMPLETED: `6a06f0c43308d79117b90276` (50k steps, loss 0.4912→3.17e-06, 318 min); artifacts at `abdelstark/lewm-rs-pusht/train/pusht-full-lewm-20260515T100908Z/`; pending: CEM planning eval, model card |
+| In Progress | [#193](https://github.com/AbdelStark/lewm-rs/issues/193) | Run full Burn/Jepa PushT training, planning eval, and publish artifacts | Historical bounded-core training completed: `6a06f0c43308d79117b90276` (50k steps, loss 0.4912→3.17e-06, 318 min); artifacts at `abdelstark/lewm-rs-pusht/train/pusht-full-lewm-20260515T100908Z/` are not valid F1 sources. Pending: approval-gated full Burn/Jepa run, ONNX export, CEM planning eval, model card |
 | In Progress | [#194](https://github.com/AbdelStark/lewm-rs/issues/194) | Complete SO-100 short/full training and evaluation path | v11a COMPLETED: `6a070e02e48bea4538b9e2a5` (864s, 5000 steps); artifacts at `abdelstark/lewm-rs-so100/train/so100-full-20260515T122820Z/`; model card uploaded; ONNX export skipped (SO-100 checkpoint uses bounded model, not full ViT); pending: warm-start eval, model card final pass |
 | Done | [#195](https://github.com/AbdelStark/lewm-rs/issues/195) | Finish Tract export, CPU benchmark, and demo Space validation | Tract-compat ONNX exported (opset 17, fixed-batch, causal-mask buffer); `lewm-infer bench` benchmark: ~4.1s median/episode (debug, M-series Mac); both onnxruntime and tract-compat variants uploaded to `abdelstark/lewm-rs-pusht`; demo Space `app.py` fixed (auto-detects action_dim, downloads .data files) |
 | Done | [#196](https://github.com/AbdelStark/lewm-rs/issues/196) | Finish public reports, paper, and release evidence | All reports done: pusht_training.md, so100_training.md, inference.md, cost.md ($11.70), release_checklist.md; paper §6.1 training curves filled; README final pass; cross-links done; pandoc CI works; CEM eval §6.2 and SO-100 warm-start §7.3 remain TBD |
@@ -118,9 +118,12 @@ with linked evidence:
   job in the release workflow.
 - **Token rotation**: The `HF_TOKEN` in `.env` must be rotated before public release.
   Use env vars only; no live secrets in git.
-- **CEM eval** (#193): PushT checkpoint is live at `abdelstark/lewm-rs-pusht/train/pusht-full-lewm-20260515T100908Z/`.
-  Need to run `lewm-infer bench` with the trained ONNX (requires exporting from the PushT safetensors first)
-  and measure success rate on 50 test episodes. Target ≥ 87%.
+- **F1 / CEM eval** (#193, #243, #244): the live
+  `abdelstark/lewm-rs-pusht/train/pusht-full-lewm-20260515T100908Z/`
+  checkpoint is bounded-core only and is rejected by the trained-checkpoint
+  ONNX exporter. Need a human-approved full Burn/Jepa F1 run under
+  `train/pusht-full-burn-jepa-*`, then export `onnx-full/`, run CEM planning
+  eval, and measure success rate on 50 test episodes. Target ≥ 87%.
 - **SO-100 warm-start** (#194): scratch checkpoint shipped; needs the warm-started run
   from PushT epoch-10 and Spearman delta to close the ablation.
 
@@ -134,18 +137,21 @@ creating a second tracker.
 
 ## Next Logical Steps
 
-PushT full training (50k steps, 318 min, A10G-large) and SO-100 v11a (5000 steps,
-864s) are both complete; artifacts live on the Hub. Quality gate (`make check`)
-is passing with the Python lint surface promoted to Ruff (see
-`python/pyproject.toml`).
+Historical bounded-core PushT training (50k steps, 318 min, A10G-large) and
+SO-100 v11a (5000 steps, 864s) are both complete; artifacts live on the Hub.
+Quality gate (`make check`) is passing with the Python lint surface promoted to
+Ruff (see `python/pyproject.toml`). The F1 full Burn/Jepa PushT release
+checkpoint is still pending human-approved paid execution.
 
 Immediate next actions:
-1. Export ONNX from the trained PushT safetensors:
-   `python/export_onnx.py --safetensors .../step_0050000.safetensors`.
-2. Run CEM planning eval with the exported ONNX and record the success rate
+1. Run the approved F1 full Burn/Jepa PushT job or source-build fallback after
+   explicit human approval.
+2. Export and verify `onnx-full/` from the resulting
+   `train/pusht-full-burn-jepa-*` safetensors.
+3. Run CEM planning eval with the exported ONNX and record the success rate
    (target ≥ 87 %) — closes the acceptance criterion for #193.
-3. Upload the PushT model card with the measured eval metrics.
-4. Launch the SO-100 warm-started training arm and compute the warm-start
+4. Upload the PushT model card with the measured eval metrics.
+5. Launch the SO-100 warm-started training arm and compute the warm-start
    Spearman delta (closes the acceptance criterion for #194).
 
 Remaining release steps (user actions required):

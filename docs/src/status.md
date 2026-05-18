@@ -98,7 +98,7 @@ action dim $= 10$ (frameskip-packed PushT actions).
 
 Total confirmed spend on training compute: **\$11.70 USD** at \$1.50 /hr for
 A10G-large — \$3.75 for SO-100 attempts and pre-training, \$7.95 for the
-50 k-step PushT full run. Cap: \$200. See
+50 k-step historical PushT bounded-core run. Cap: \$200. See
 [`reports/cost.md`](https://github.com/AbdelStark/lewm-rs/blob/main/reports/cost.md).
 
 ## Known gaps

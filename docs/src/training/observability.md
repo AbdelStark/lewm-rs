@@ -102,9 +102,9 @@ After a run completes, `python/plot_curves.py` reads
 The figures land in `paper/figures/` and feed both the paper writeup
 and the model card.
 
-The full PushT training report (`reports/pusht_training.md`) and
-SO-100 training report (`reports/so100_training.md`) are written by
-hand from these figures plus the sidecar metadata.
+The PushT bounded-core training report (`reports/pusht_training.md`)
+and SO-100 training report (`reports/so100_training.md`) are written
+by hand from these figures plus the sidecar metadata.
 
 ## 5. The `lewm-telemetry` crate
 

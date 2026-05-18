@@ -262,7 +262,8 @@ Target: ≥ 87% success rate on 50 test episodes (matching the reference paper).
 
 See `reports/cost.md`. Total confirmed spend: $11.70 at $1.50/hr for
 A10G-large ($3.75 for SO-100 attempts and pre-training runs + $7.95 for the
-50k-step PushT full run, 318 min).
+50k-step historical PushT bounded-core run, 318 min). The F1 full Burn/Jepa
+PushT release run is not included in that spend yet.
 
 ---
 
