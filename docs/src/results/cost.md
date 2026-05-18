@@ -20,11 +20,13 @@ Source of truth:
 | Run | Wall time | Cost |
 |-----|----------:|-----:|
 | SO-100 attempts + pre-training (multiple short runs) | 2.50 h | \$3.75 |
-| PushT 50 k-step full run | 5.30 h | \$7.95 |
+| PushT 50 k-step bounded-core run | 5.30 h | \$7.95 |
 | **Total** | **7.80 h** | **\$11.70** |
 
-The PushT full run dominates: a single 5.3-hour A10G-large session
-accounts for two-thirds of the total spend.
+The historical PushT bounded-core run dominates: a single 5.3-hour
+A10G-large session accounts for two-thirds of the total spend. It is
+not the F1 full Burn/Jepa release checkpoint; that approval-gated run
+is still pending.
 
 ## 3. The cost cap
 
@@ -46,7 +48,7 @@ launches. At \$11.70 of \$200, we are at **5.85 % utilization**.
 | Bounded smoke train (PushT) | included | Hours-of-A10G needed: ~10 min for plumbing |
 | SO-100 dataset prep | \$0 | Local decode via `ffmpeg` |
 | SO-100 full training | ~\$0.36 | Inside the "pre-training" bucket |
-| PushT full training | \$7.95 | Main run |
+| PushT bounded-core training | \$7.95 | Historical 50 k-step run; not the F1 full Burn/Jepa release checkpoint |
 | ONNX export | \$0 | Local |
 | Tract benchmark | \$0 | Local |
 | Hub uploads | \$0 | Hub uploads are free |
@@ -72,14 +74,16 @@ Remaining budgeted activities (from [`ROADMAP.md`]):
 
 | Item | Estimated cost |
 |------|---------------:|
-| Full Burn-Jepa end-to-end training (PushT 50 k steps) | ~\$8 |
-| Warm-start SO-100 training | ~\$0.40 |
+| F1 full Burn/Jepa source-build run (PushT 50 k steps) | up to \$18 |
+| F3 warm-start SO-100 training | up to \$9 |
 | Planning eval (PushT, 50 episodes × CEM) | ~\$2 |
 | Multi-camera SO-100 experiment | ~\$2 |
-| **Total remaining** | **~\$12** |
+| **Total remaining** | **~\$31** |
 
-Combined with the \$11.70 already spent: \$24 total against the \$200
-cap. The cap is roomy.
+Combined with the \$11.70 already spent: roughly \$43 total against
+the \$200 cap. The cap is roomy, but F1 and F3 cannot be approved in
+the same intern session because their combined \$27 worst-case envelope
+exceeds the \$20 session cap in `.ml-intern/cli_agent_config.json`.
 
 ## 7. Source pointers
 

@@ -17,28 +17,34 @@ The training and parity work to date establishes:
 1. **Numerical parity** with the upstream PyTorch reference, to
    $L_\infty < 10^{-4}$ on every checked activation. The implementation
    is a faithful port, not a re-interpretation.
-2. **A working training pipeline** in pure Rust, end-to-end, that
-   converges on both PushT (50 k steps, 5.3 h on A10G) and SO-100
-   (5 k steps, 14 min on A10G), with zero gradient explosions and zero
-   collapse-probe trips.
-3. **A working CPU inference path** via ONNX export + Tract, at 4.08 s
-   per planning episode on Apple M-series. No Python required at
-   inference time.
+2. **A working bounded-core training pipeline** in pure Rust,
+   end-to-end, that converges on both PushT (50 k steps, 5.3 h on
+   A10G) and SO-100 (5 k steps, 14 min on A10G), with zero gradient
+   explosions and zero collapse-probe trips.
+3. **A working CPU inference path** via reference ONNX export + Tract,
+   at 4.08 s per planning episode on Apple M-series. No Python is
+   required at inference time, but these are not yet the F1 trained
+   `onnx-full/` artifacts.
 4. **A reproducible engineering envelope**: pinned toolchain, locked
    `Cargo.lock`, deterministic seed handling, parity tests gated in
    CI, cost ledger under \$12 / \$200 cap.
 
 ## 2. What the results do not yet establish
 
-Three things are pending evaluation:
+Four things are pending evaluation or publication:
 
-1. **PushT planning success rate.** The CEM eval against the 50-episode
+1. **Full Burn/Jepa PushT checkpoint.** The historical 50 k-step PushT
+   checkpoint is a bounded-core artifact. F1 still needs an
+   approval-gated full Burn/Jepa run that publishes
+   `train/pusht-full-burn-jepa-*`.
+2. **PushT planning success rate.** The CEM eval against the 50-episode
    PushT test set has not been run. The target is ≥ 87 % (matching the
-   upstream paper). The training loss curve looks like a successful
-   model, but until the eval runs, this is unverified.
-2. **SO-100 latent-MSE and Spearman.** The held-out eval split has
+   upstream paper). The bounded-core training loss curve looks like a
+   successful model, but until the F1 export and eval run, this is
+   unverified for the release checkpoint.
+3. **SO-100 latent-MSE and Spearman.** The held-out eval split has
    been prepared but not evaluated.
-3. **Warm-start ablation.** The from-PushT SO-100 training run has not
+4. **Warm-start ablation.** The from-PushT SO-100 training run has not
    yet been launched.
 
 ## 3. The "bounded model" gap
@@ -51,18 +57,20 @@ $\sim 14$-tensor Rust core, not the full Burn `Jepa` (303 tensors,
 $18\,042\,672$ parameters).
 
 The full `Jepa<B>` module passes all 10 parity tests against the
-upstream checkpoint — it is *correct*. The remaining work is to wire
-it into the *training* loop in place of the bounded core, then
-retrain end-to-end. This is the primary item in [`ROADMAP.md`].
+upstream checkpoint — it is *correct*. The checked-in training job now
+has an opt-in full Burn/Jepa path and a local contract smoke, but the
+50 k-step approval-gated run has not been launched and published yet.
+This is the primary release blocker tracked as F1.
 
 Until that is done:
 
-- The ONNX export uses converted PyTorch reference weights, not a
-  natively Rust-trained ViT checkpoint.
+- The release `onnx-full/` artifacts do not exist.
+- The current ONNX export uses converted PyTorch reference weights, not
+  a natively Rust-trained ViT checkpoint.
 - The CPU inference benchmarks measure the *upstream model's* CPU cost,
-  not a Rust-trained variant.
-- The PushT eval (when it runs) will be on the upstream-converted
-  weights, not on a Rust-trained ViT checkpoint.
+  not a Rust-trained release checkpoint.
+- The PushT eval is blocked until F1 publishes a trained full-layout
+  checkpoint and verified ONNX artifacts.
 
 This is an important caveat. The project's claim of "Rust reproduction"
 is currently true at the *architecture* and *parity* level, partially
