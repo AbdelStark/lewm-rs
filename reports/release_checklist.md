@@ -1,6 +1,6 @@
 # Release Checklist (Issue #197)
 
-**Updated:** 2026-05-15 (post-cleanup pass)
+**Updated:** 2026-05-18 (F1 artifact audit)
 **Target release:** v0.4.0 (post-training-completion)
 
 This document tracks all items needed before tagging a public release.
@@ -31,13 +31,14 @@ This document tracks all items needed before tagging a public release.
 
 | Item | Status | Notes |
 |------|--------|-------|
-| PushT training artifacts on Hub | ✅ Done | Job `6a06f0c43308d79117b90276` completed (50k steps, 318 min); artifacts at `abdelstark/lewm-rs-pusht/train/pusht-full-lewm-20260515T100908Z/` |
-| PushT CEM planning eval | ⏳ Pending | Needs ONNX export from trained safetensors, then `lewm-infer bench` on 50 episodes (target ≥ 87 %) |
+| PushT training artifacts on Hub | ⚠️ Bounded-core only | Job `6a06f0c43308d79117b90276` completed (50k steps, 318 min), but the uploaded checkpoint is the 14-tensor `pusht-minimal-lewm` / `PushtFullLewmCore` bounded host path, not a 303-tensor full Burn/Jepa checkpoint |
+| PushT CEM planning eval | 🚫 Blocked | F1 export failed because no trained full Burn/Jepa safetensors exists under `abdelstark/lewm-rs-pusht`; see `reports/pusht_onnx_export.md` |
 | PushT model card with metrics | ⏳ Pending | Needs eval results |
 | SO-100 training artifacts on Hub | ✅ Done | `abdelstark/lewm-rs-so100/train/so100-full-20260515T122820Z/` |
-| SO-100 model card | ✅ Done | Uploaded via `scripts/upload_model_cards.py` |
-| ONNX artifacts (onnxruntime) | ✅ Done | `encoder.onnx` + `.data` + `predictor.onnx` + `.data` at root of `abdelstark/lewm-rs-pusht` |
-| ONNX artifacts (Tract-compat) | ✅ Done | `tract-compat/encoder.onnx` + `predictor.onnx` at `abdelstark/lewm-rs-pusht` |
+| SO-100 warm-start ablation | 🚫 Blocked | `jobs/train_so100_warmstart.yaml` is absent, `training.warmstart_from` is not wired into `lewm-train`, and paid launch requires human approval; see `reports/so100_warmstart.md` |
+| SO-100 model card | ⏳ Pending final metrics | Existing card uploaded via `scripts/upload_model_cards.py`, but F5 still needs warm-start delta |
+| ONNX artifacts (onnxruntime) | ⚠️ Reference only | Root `encoder.onnx` + `.data` + `predictor.onnx` + `.data` exist, but not under the F1-required `onnx-full/` trained-checkpoint path |
+| ONNX artifacts (Tract-compat) | ⚠️ Reference only | `tract-compat/encoder.onnx` + `predictor.onnx` exist, but not under the F1-required `onnx-full/` trained-checkpoint path |
 | Demo Space live | ✅ Done | `abdelstark/lewm-rs-demo` |
 | Parity dumps on Hub | ✅ Done | `AbdelStark/lewm-rs-parity-dumps` |
 | SO-100 dataset on Hub | ✅ Done | `abdelstark/so100-pickplace-lewm-ready` |

@@ -73,6 +73,7 @@ known-first-party = [
     "cost_ledger",
     "upload_checkpoints",
     "verify_conversion",
+    "verify_onnx",
     "build_parity_fixture",
     "compute_so100_stats",
     "compute_stats",

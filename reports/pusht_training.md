@@ -22,7 +22,7 @@
 | Property | Value |
 |----------|-------|
 | Mode | `pusht-minimal-lewm` |
-| Model | `PushtFullLewmCore` (dim=192) |
+| Model | `PushtFullLewmCore` bounded host core (dim=192, 14 tensor groups) |
 | Max steps | 50,000 |
 | Batch size | 64 |
 | Device | `cuda:0` (A10G-large) |
@@ -71,8 +71,8 @@ oscillation from the cosine schedule tail.
 
 | File | Description |
 |------|-------------|
-| `step_0050000.safetensors` | Burn model weights (303 tensors) |
-| `step_0050000.mpk` | Full Burn checkpoint (model + optimizer + RNG) |
+| `step_0050000.safetensors` | Bounded host-core parameter mirror (14 tensors, 1.2 KB) |
+| `step_0050000.mpk` | Bounded host-core checkpoint (model + optimizer + RNG, 1.2 KB) |
 | `step_0050000.json` | Checkpoint sidecar (config hash, step, seed) |
 | `step_0050000.parity.json` | Parity probe output |
 | `train_losses.jsonl` | Per-step loss log (50,000 rows) |
@@ -80,17 +80,29 @@ oscillation from the cosine schedule tail.
 
 ## ONNX Export
 
-The reference safetensors (from parity-verified reference checkpoint) were used
-for the ONNX export benchmarks. The trained checkpoint can be exported using:
+The existing root and `tract-compat/` ONNX artifacts in
+`abdelstark/lewm-rs-pusht` come from the parity-verified reference checkpoint,
+not from the 50k-step bounded host-core checkpoint above.
+
+The F1 export attempt on 2026-05-18 showed that
+`step_0050000.safetensors` contains 14 bounded-core tensors, not the 303-tensor
+full Burn/Jepa layout expected by `python/export_onnx.py`. See
+`reports/pusht_onnx_export.md` for the command log and blocker evidence.
+
+The exporter is ready for a compatible full checkpoint:
 
 ```bash
 uv run --extra parity python python/export_onnx.py \
   --safetensors train/pusht-full-lewm-20260515T100908Z/step_0050000.safetensors \
   --meta tests/fixtures/reference_model.meta.json \
-  --output-dir /tmp/pusht-onnx
+  --output-dir /tmp/pusht-onnx \
+  --variant both \
+  --action-dim 10
 ```
 
 ## CEM Planning Evaluation
 
 Pending. Target: ≥ 87% success rate on 50 test episodes (matching the reference
-paper). The checkpoint is available for eval at the artifact path above.
+paper). This is blocked until a trained full Burn/Jepa PushT checkpoint is
+available or the release acceptance criteria are changed to evaluate the bounded
+host-core checkpoint.

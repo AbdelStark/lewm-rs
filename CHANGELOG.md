@@ -25,6 +25,19 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Added
 
+- **PushT ONNX export gate**: `python/export_onnx.py` now has an explicit
+  `--variant {both,onnxruntime,tract-compat}` path that writes
+  `onnxruntime/` (opset 18, dynamic batch) and `tract-compat/` (opset 17,
+  fixed batch) layouts with root/per-variant `onnx_export.json` sidecars.
+  New `python/verify_onnx.py` verifies ONNX Runtime shape execution for both
+  variants. `reports/pusht_onnx_export.md` records the F1 blocker: the current
+  50k PushT artifact is a 14-tensor bounded host-core checkpoint, not the
+  303-tensor full Burn/Jepa checkpoint required for trained-checkpoint ONNX
+  export.
+- **SO-100 warm-start preflight**: `reports/so100_warmstart.md` records why F3
+  cannot be launched yet: the referenced HF Job YAML is absent, the job is not
+  listed in the agent leash, `training.warmstart_from` is parsed but not wired
+  into the trainer, and the configured PushT source checkpoint is stale.
 - **`lewm-train` eval adapter**: new `lewm_train::eval` module provides
   `JepaCemCostModel<B>`, a `lewm_plan::CemCostModel` adapter that
   tensorises CEM batches and forwards to the parity-verified

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Export a trained Burn LeWM checkpoint to ONNX for Tract CPU inference.
+"""Export a trained Burn LeWM checkpoint to ONNX.
 
 Usage:
     uv run python export_onnx.py \\
@@ -10,15 +10,18 @@ The script:
 1. Loads the Burn safetensors file (produced by lewm_core::export::to_safetensors).
 2. Inverts the param_name_map to reconstruct PyTorch state-dict layout.
 3. Wraps encoder/projector and action-encoder/predictor/pred-proj in nn.Module.
-4. Exports each subgraph to ONNX opset 18.
-5. Writes encoder.onnx, predictor.onnx, and onnx_export.json beside them.
+4. Exports ONNX Runtime and/or Tract-compatible graph pairs.
+5. Writes encoder.onnx, predictor.onnx, and onnx_export.json sidecars.
 """
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import re
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -350,10 +353,27 @@ class LeWMPredictorModule(nn.Module):
 # ONNX export
 # ---------------------------------------------------------------------------
 
+VARIANT_ONNXRUNTIME = "onnxruntime"
+VARIANT_TRACT_COMPAT = "tract-compat"
+VARIANTS = (VARIANT_ONNXRUNTIME, VARIANT_TRACT_COMPAT)
+STEP_RE = re.compile(r"step_(\d+)\.safetensors$")
+
+
+def infer_action_dim(state: dict[str, torch.Tensor], fallback: int = 2) -> int:
+    """Infer the exported predictor action dimension from checkpoint tensors."""
+    smoother_w = state.get("action_encoder.patch_embed.weight")
+    if smoother_w is None:
+        return fallback
+    return int(smoother_w.shape[1])
+
+
 def export_encoder_onnx(
     state: dict[str, torch.Tensor],
     arch: dict[str, Any],
     output_path: Path,
+    *,
+    opset_version: int,
+    dynamic_batch: bool,
 ) -> None:
     enc_cfg = arch["encoder"]
     image_size = enc_cfg.get("image_size", 224)
@@ -361,64 +381,170 @@ def export_encoder_onnx(
     dummy = torch.zeros(1, channels, image_size, image_size)
     module = LeWMEncoderModule(state, arch)
     module.eval()
+    dynamic_axes = None
+    if dynamic_batch:
+        dynamic_axes = {"pixels": {0: "batch"}, "embedding": {0: "batch"}}
     with torch.no_grad():
         torch.onnx.export(
             module,
             dummy,
             str(output_path),
-            opset_version=17,
+            opset_version=opset_version,
             input_names=["pixels"],
             output_names=["embedding"],
+            dynamic_axes=dynamic_axes,
             dynamo=False,
             verbose=False,
         )
-    print(f"Encoder ONNX written: {output_path}")
+    print(
+        "Encoder ONNX written: "
+        f"{output_path} (opset={opset_version}, dynamic_batch={dynamic_batch})"
+    )
 
 
 def export_predictor_onnx(
     state: dict[str, torch.Tensor],
     arch: dict[str, Any],
     output_path: Path,
-    action_dim: int = 2,
-) -> int:
+    *,
+    action_dim: int,
+    opset_version: int,
+    dynamic_batch: bool,
+) -> None:
     pred_cfg = arch["predictor"]
     history_size = pred_cfg.get("num_frames", 3)
     latent_dim = pred_cfg.get("input_dim", 192)
     dummy_history = torch.zeros(1, history_size, latent_dim)
-    # Infer actual action_dim from the smoother Conv1d weight (in_channels axis).
-    # The reference model uses smoothed_dim=10 as its input_dim, so the smoother
-    # weight is [out, in=10, 1].  A Burn-trained model uses in=action_dim (e.g. 2).
-    smoother_w = state.get("action_encoder.patch_embed.weight")
-    if smoother_w is not None:
-        action_dim = int(smoother_w.shape[1])
     dummy_actions = torch.zeros(1, history_size, action_dim)
     module = LeWMPredictorModule(state, arch)
     module.eval()
+    dynamic_axes = None
+    if dynamic_batch:
+        dynamic_axes = {
+            "history": {0: "batch"},
+            "actions": {0: "batch"},
+            "predicted_embedding": {0: "batch"},
+        }
     with torch.no_grad():
         torch.onnx.export(
             module,
             (dummy_history, dummy_actions),
             str(output_path),
-            opset_version=17,
+            opset_version=opset_version,
             input_names=["history", "actions"],
             output_names=["predicted_embedding"],
+            dynamic_axes=dynamic_axes,
             dynamo=False,
             verbose=False,
         )
-    print(f"Predictor ONNX written: {output_path} (action_dim={action_dim})")
-    return action_dim
+    print(
+        "Predictor ONNX written: "
+        f"{output_path} (action_dim={action_dim}, opset={opset_version}, "
+        f"dynamic_batch={dynamic_batch})"
+    )
+
+
+def selected_variants(name: str) -> tuple[str, ...]:
+    """Return the concrete ONNX variants requested by the CLI."""
+    if name == "both":
+        return VARIANTS
+    return (name,)
+
+
+def variant_output_dir(output_dir: Path, variant: str, variant_count: int) -> Path:
+    """Return the output directory for a variant.
+
+    A single-variant export preserves the historical flat layout. Multi-variant
+    export writes explicit `onnxruntime/` and `tract-compat/` directories.
+    """
+    if variant_count == 1:
+        return output_dir
+    return output_dir / variant
+
+
+def variant_export_options(variant: str) -> dict[str, Any]:
+    """Return export options for a named variant."""
+    if variant == VARIANT_ONNXRUNTIME:
+        return {"opset_version": 18, "dynamic_batch": True}
+    if variant == VARIANT_TRACT_COMPAT:
+        return {"opset_version": 17, "dynamic_batch": False}
+    raise ValueError(f"unknown ONNX variant: {variant}")
+
+
+def parse_step_count(path: Path) -> int | None:
+    """Parse `step_0050000.safetensors` into an integer step count."""
+    match = STEP_RE.search(path.name)
+    if match is None:
+        return None
+    return int(match.group(1))
+
+
+def sha256_file(path: Path) -> str:
+    """Return the SHA-256 digest for an artifact file."""
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def utc_timestamp() -> str:
+    """Return an RFC 3339 UTC timestamp."""
+    return datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
+def build_metadata(
+    *,
+    safetensors: Path,
+    output_dir: Path,
+    arch: dict[str, Any],
+    action_dim: int,
+    variants: tuple[str, ...],
+    export_timestamp: str,
+) -> dict[str, Any]:
+    """Build the ONNX export sidecar payload."""
+    enc_cfg = arch["encoder"]
+    pred_cfg = arch["predictor"]
+    variant_count = len(variants)
+    variant_info = {}
+    for variant in variants:
+        variant_dir = variant_output_dir(output_dir, variant, variant_count)
+        options = variant_export_options(variant)
+        variant_info[variant] = {
+            "opset_version": options["opset_version"],
+            "dynamic_batch": options["dynamic_batch"],
+            "encoder": str((variant_dir / "encoder.onnx").relative_to(output_dir)),
+            "predictor": str((variant_dir / "predictor.onnx").relative_to(output_dir)),
+        }
+
+    return {
+        "schema_version": "1.0.0",
+        "source": "burn_safetensors",
+        "safetensors_source": str(safetensors),
+        "safetensors_sha256": sha256_file(safetensors),
+        "step_count": parse_step_count(safetensors),
+        "export_timestamp": export_timestamp,
+        "config": {
+            "image_size": enc_cfg.get("image_size", 224),
+            "history_size": pred_cfg.get("num_frames", 3),
+            "latent_dim": pred_cfg.get("input_dim", 192),
+            "action_dim": action_dim,
+        },
+        "variants": variant_info,
+    }
 
 
 def write_metadata(output_dir: Path, info: dict) -> None:
     meta_path = output_dir / "onnx_export.json"
-    with open(meta_path, "w") as f:
+    with open(meta_path, "w", encoding="utf-8") as f:
         json.dump(info, f, indent=2)
+        f.write("\n")
     print(f"Export metadata: {meta_path}")
 
 
 def load_arch_from_meta(meta_path: Path) -> dict[str, Any]:
     """Load the locked architecture dict from reference_model.meta.json."""
-    with open(meta_path) as f:
+    with open(meta_path, encoding="utf-8") as f:
         meta = json.load(f)
     return meta["locked_architecture"]
 
@@ -450,6 +576,15 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         type=Path,
         required=True,
         help="Directory to write encoder.onnx, predictor.onnx, and onnx_export.json.",
+    )
+    parser.add_argument(
+        "--variant",
+        choices=("both", VARIANT_ONNXRUNTIME, VARIANT_TRACT_COMPAT),
+        default="both",
+        help=(
+            "ONNX variant to export. Default: both, written under onnxruntime/ "
+            "and tract-compat/. Single variants preserve the historical flat layout."
+        ),
     )
     parser.add_argument(
         "--action-dim",
@@ -489,34 +624,48 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Recovered {len(state)} PyTorch keys from Burn checkpoint.")
 
     arch = load_arch_from_meta(meta_path)
+    actual_action_dim = infer_action_dim(state, fallback=args.action_dim)
+    variants = selected_variants(args.variant)
 
-    encoder_path = args.output_dir / "encoder.onnx"
-    predictor_path = args.output_dir / "predictor.onnx"
+    for variant in variants:
+        variant_dir = variant_output_dir(args.output_dir, variant, len(variants))
+        variant_dir.mkdir(parents=True, exist_ok=True)
+        options = variant_export_options(variant)
+        encoder_path = variant_dir / "encoder.onnx"
+        predictor_path = variant_dir / "predictor.onnx"
 
-    print("Exporting encoder ONNX...")
-    export_encoder_onnx(state, arch, encoder_path)
+        print(f"Exporting {variant} encoder ONNX...")
+        export_encoder_onnx(state, arch, encoder_path, **options)
 
-    print("Exporting predictor ONNX...")
-    actual_action_dim = export_predictor_onnx(state, arch, predictor_path, action_dim=args.action_dim)
+        print(f"Exporting {variant} predictor ONNX...")
+        export_predictor_onnx(
+            state,
+            arch,
+            predictor_path,
+            action_dim=actual_action_dim,
+            **options,
+        )
 
-    enc_cfg = arch["encoder"]
-    pred_cfg = arch["predictor"]
-    metadata = {
-        "safetensors_source": str(args.safetensors),
-        "opset_version": 18,
-        "encoder": {"kind": "encoder", "path": str(encoder_path)},
-        "predictor": {"kind": "predictor", "path": str(predictor_path)},
-        "config": {
-            "image_size": enc_cfg.get("image_size", 224),
-            "history_size": pred_cfg.get("num_frames", 3),
-            "latent_dim": pred_cfg.get("input_dim", 192),
-            "action_dim": actual_action_dim,
-        },
-    }
+    metadata = build_metadata(
+        safetensors=args.safetensors,
+        output_dir=args.output_dir,
+        arch=arch,
+        action_dim=actual_action_dim,
+        variants=variants,
+        export_timestamp=utc_timestamp(),
+    )
     write_metadata(args.output_dir, metadata)
+    if len(variants) > 1:
+        for variant in variants:
+            variant_dir = variant_output_dir(args.output_dir, variant, len(variants))
+            write_metadata(variant_dir, metadata)
 
     print("\nONNX export complete. Run lewm-infer with:")
-    print(f"  lewm-infer --checkpoint-dir {args.output_dir} bench --image /path/to/img.jpg")
+    if VARIANT_TRACT_COMPAT in variants:
+        tract_dir = variant_output_dir(args.output_dir, VARIANT_TRACT_COMPAT, len(variants))
+    else:
+        tract_dir = args.output_dir
+    print(f"  lewm-infer --checkpoint-dir {tract_dir} bench --image /path/to/img.jpg")
     return 0
 
 
