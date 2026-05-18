@@ -43,7 +43,7 @@
         "Primary path: a concrete GHCR runtime image tag containing the current full Burn/Jepa training and export-gate code, passed with --image-tag or LEWM_IMAGE_TAG.",
         "Fallback path: explicit human approval for the paid jobs/train_pusht_source.yaml production run using the source revision preflighted in reports/f1_source_build_dry_run.json.",
         "Human-approved jobs/train_pusht.yaml or jobs/train_pusht_source.yaml production run that uploads train/pusht-full-burn-jepa-YYYYMMDDTHHMMSSZ/step_0050000.safetensors.",
-        "Release owner approval for final onnx-full/ Hub upload after python/verify_onnx.py and scripts/check_pusht_onnx_export_metadata.py pass."
+        "Release owner approval for final onnx-full/ Hub upload after python/verify_onnx.py and scripts/check_pusht_onnx_export_metadata.py pass, acknowledged with --allow-hub-upload."
       ],
       "commands": {
         "preflight": [
@@ -115,7 +115,8 @@
             "--run-prefix",
             "train/pusht-full-burn-jepa-REPLACE_WITH_UTC_TIMESTAMP",
             "--execute",
-            "--upload"
+            "--upload",
+            "--allow-hub-upload"
           ]
         ]
       },

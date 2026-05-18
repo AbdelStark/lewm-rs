@@ -85,6 +85,7 @@ def test_local_safetensors_workflow_skips_download_and_can_upload(tmp_path: Path
         "--output-dir",
         str(tmp_path / "onnx-full"),
         "--upload",
+        "--allow-hub-upload",
     )
 
     commands = f1.workflow_commands(args)
@@ -94,6 +95,30 @@ def test_local_safetensors_workflow_skips_download_and_can_upload(tmp_path: Path
     assert commands[-2][1] == "scripts/check_pusht_onnx_export_metadata.py"
     assert commands[-1][6] == "python/upload_checkpoints.py"
     assert "--dry-run" not in commands[-1]
+
+
+def test_upload_requires_explicit_hub_upload_approval(tmp_path: Path) -> None:
+    checkpoint = tmp_path / "step_0050000.safetensors"
+    args = parse("--safetensors", str(checkpoint), "--upload")
+
+    try:
+        f1.workflow_commands(args)
+    except ValueError as exc:
+        assert "--upload requires --allow-hub-upload" in str(exc)
+    else:
+        raise AssertionError("expected --upload without --allow-hub-upload to fail")
+
+
+def test_hub_upload_approval_requires_upload(tmp_path: Path) -> None:
+    checkpoint = tmp_path / "step_0050000.safetensors"
+    args = parse("--safetensors", str(checkpoint), "--allow-hub-upload")
+
+    try:
+        f1.workflow_commands(args)
+    except ValueError as exc:
+        assert "--allow-hub-upload is only valid together with --upload" in str(exc)
+    else:
+        raise AssertionError("expected --allow-hub-upload without --upload to fail")
 
 
 def test_hub_run_rejects_legacy_bounded_prefix() -> None:

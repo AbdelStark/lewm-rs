@@ -158,9 +158,10 @@ from the approved PushT job. The wrapper rejects placeholders and legacy
 bounded PushT paths before any download, export, or upload command runs.
 
 The wrapper prints commands by default. Add `--execute` only after reviewing
-the dry run. Add `--upload` only after `python/verify_onnx.py`,
-`scripts/check_pusht_onnx_export_metadata.py`, and the upload dry run have
-passed and the release owner has approved the Hub upload.
+the dry run. Add `--upload --allow-hub-upload` only after
+`python/verify_onnx.py`, `scripts/check_pusht_onnx_export_metadata.py`, and
+the upload dry run have passed and the release owner has approved the Hub
+upload.
 
 ## Acceptance Gate
 

@@ -122,6 +122,7 @@ def handoff_payload() -> dict[str, object]:
                             "train/pusht-full-burn-jepa-REPLACE_WITH_UTC_TIMESTAMP",
                             "--execute",
                             "--upload",
+                            "--allow-hub-upload",
                         ],
                     ],
                 },
@@ -301,6 +302,28 @@ def test_rejects_f1_upload_in_preflight(tmp_path: Path) -> None:
 
     assert result.returncode == 1
     assert "F1.preflight must not contain '--upload'" in result.stderr
+
+
+def test_rejects_f1_final_upload_without_hub_upload_approval(tmp_path: Path) -> None:
+    handoff = tmp_path / "phase_a_handoff.json"
+    payload = handoff_payload()
+    tasks = payload["tasks"]
+    assert isinstance(tasks, list)
+    f1 = tasks[0]
+    assert isinstance(f1, dict)
+    commands = f1["commands"]
+    assert isinstance(commands, dict)
+    final = commands["after_full_checkpoint_exists"]
+    assert isinstance(final, list)
+    upload = final[2]
+    assert isinstance(upload, list)
+    upload.remove("--allow-hub-upload")
+    handoff.write_text(json.dumps(payload), encoding="utf-8")
+
+    result = run_check(handoff)
+
+    assert result.returncode == 1
+    assert "--allow-hub-upload" in result.stderr
 
 
 def test_rejects_f1_without_source_build_fallback(tmp_path: Path) -> None:

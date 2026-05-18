@@ -32,6 +32,7 @@ EXPECTED_TASKS = (
             "train/pusht-full-burn-jepa-REPLACE_WITH_UTC_TIMESTAMP",
             "--execute",
             "--upload",
+            "--allow-hub-upload",
         ),
         "template_placeholders": (
             "REPLACE_WITH_RUNTIME_IMAGE_TAG",
@@ -261,12 +262,21 @@ def validate_f1_command_stages(commands: dict[str, list[list[str]]], path: Path)
             "train/pusht-full-burn-jepa-REPLACE_WITH_UTC_TIMESTAMP",
         ):
             raise HandoffError(f"{path}: F1.after_full_checkpoint_exists[{index}] is malformed")
-    if "--execute" in export[0] or "--upload" in export[0]:
-        raise HandoffError(f"{path}: F1 export dry-run command must not execute or upload")
-    if "--execute" not in export[1] or "--upload" in export[1]:
+    if "--execute" in export[0] or "--upload" in export[0] or "--allow-hub-upload" in export[0]:
+        raise HandoffError(
+            f"{path}: F1 export dry-run command must not execute or upload"
+        )
+    if "--execute" not in export[1] or "--upload" in export[1] or "--allow-hub-upload" in export[1]:
         raise HandoffError(f"{path}: F1 export execute command must execute without upload")
-    if "--execute" not in export[2] or "--upload" not in export[2]:
-        raise HandoffError(f"{path}: F1 final upload command must include --execute and --upload")
+    if (
+        "--execute" not in export[2]
+        or "--upload" not in export[2]
+        or "--allow-hub-upload" not in export[2]
+    ):
+        raise HandoffError(
+            f"{path}: F1 final upload command must include --execute, --upload, "
+            "and --allow-hub-upload"
+        )
 
 
 def validate_f3_command_stages(commands: dict[str, list[list[str]]], path: Path) -> None:

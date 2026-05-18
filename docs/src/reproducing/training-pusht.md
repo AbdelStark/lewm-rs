@@ -97,8 +97,9 @@ bounded PushT paths before rendering any export or upload commands.
 
 The wrapper prints the Hub download, checkpoint contract check, dual ONNX
 export, ONNX verification, and `onnx-full/` upload-preflight commands. Add
-`--execute` only after reviewing the dry run, and add `--upload` only after the
-verified ONNX artifacts are ready to publish.
+`--execute` only after reviewing the dry run, and add
+`--upload --allow-hub-upload` only after the verified ONNX artifacts are ready
+to publish and the release owner has approved the Hub upload.
 
 Before launching the paid job, run the local contract smoke:
 

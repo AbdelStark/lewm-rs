@@ -78,6 +78,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         action="store_true",
         help="Actually upload ONNX artifacts. Without this, upload_checkpoints.py runs in dry-run mode.",
     )
+    parser.add_argument(
+        "--allow-hub-upload",
+        action="store_true",
+        help="Confirm release-owner approval for the final onnx-full/ Hub upload. Required with --upload.",
+    )
     return parser.parse_args(argv)
 
 
@@ -244,7 +249,18 @@ def upload_command(output_dir: Path, repo: str, *, upload: bool) -> list[str]:
     return command
 
 
+def validate_upload_approval(args: argparse.Namespace) -> None:
+    if args.upload and not args.allow_hub_upload:
+        raise ValueError(
+            "--upload requires --allow-hub-upload after release-owner approval for the "
+            "final onnx-full/ Hub upload"
+        )
+    if args.allow_hub_upload and not args.upload:
+        raise ValueError("--allow-hub-upload is only valid together with --upload")
+
+
 def workflow_commands(args: argparse.Namespace) -> list[list[str]]:
+    validate_upload_approval(args)
     work_dir = resolve_repo_path(args.work_dir)
     output_dir = resolve_repo_path(args.output_dir) if args.output_dir else default_output_dir(work_dir)
     meta = resolve_repo_path(args.meta)

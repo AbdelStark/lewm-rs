@@ -193,7 +193,9 @@ The Python edge tooling is ready for a valid full PushT checkpoint:
 - `scripts/f1_export_pusht_onnx.py` is the F1 post-job handoff wrapper for a
   completed `train/pusht-full-burn-jepa-*` run. It dry-runs by default and
   sequences Hub download, checkpoint contract check, dual ONNX export, ONNX
-  verification, metadata validation, and `onnx-full/` upload preflight.
+  verification, metadata validation, and `onnx-full/` upload preflight. A real
+  upload requires both `--upload` and `--allow-hub-upload` after release-owner
+  approval.
 - `scripts/full_pusht_contract_smoke.py` runs a local one-step
   `configs/pusht.toml` full Burn/Jepa train and immediately checks the produced
   safetensors with `python/export_onnx.py --check-contract-only`. This is the

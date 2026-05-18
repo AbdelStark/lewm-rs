@@ -51,10 +51,12 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   must carry the required PushT step count, action dimension, source
   safetensors SHA, timestamp, and both ONNX variant sidecars. The Phase A
   handoff now also requires that metadata gate as F1 evidence and acceptance
-  criteria before final Hub upload approval. The Phase A approval packet now
-  also pins the F3 warm-start source verifier plus its smoke and public-Hub
-  audit checker evidence before the paid SO-100 warm-start launch can be
-  approved.
+  criteria before final Hub upload approval. The final F1 `onnx-full/` Hub
+  upload path now requires both `--upload` and the separate
+  `--allow-hub-upload` approval flag, and the handoff validator enforces that
+  fail-closed command shape. The Phase A approval packet now also pins the F3
+  warm-start source verifier plus its smoke and public-Hub audit checker
+  evidence before the paid SO-100 warm-start launch can be approved.
   Result, roadmap, status, paper, and cost docs now label the historical PushT
   spend as bounded-core training and record the F1/F3 worst-case approval
   envelopes instead of treating the missing full Burn/Jepa release checkpoint
@@ -164,7 +166,9 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   for the legacy bounded PushT artifact. F1 handoff docs now use a shell-safe
   `REPLACE_WITH_UTC_TIMESTAMP` token, and `scripts/f1_export_pusht_onnx.py`
   rejects placeholders or non-`YYYYMMDDTHHMMSSZ` Hub run suffixes before any
-  download, export, or upload command runs. `reports/phase_a_approval.json`
+  download, export, or upload command runs. The final F1 Hub upload stage now
+  also requires `--allow-hub-upload` in addition to `--upload`, and the Phase A
+  handoff gate validates that upload-approval token. `reports/phase_a_approval.json`
   and `scripts/check_phase_a_approval.py` now pin the paid approval packet and
   make explicit that F1 ($18.00) plus F3 ($9.00) exceeds the $20.00 session cap
   if approved together.
