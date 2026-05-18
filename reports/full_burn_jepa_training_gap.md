@@ -145,8 +145,8 @@ LEWM_SOURCE_REVISION="$(git rev-parse HEAD)" \
 
 2. Only after a real full-layout 50k PushT checkpoint exists, run the F1
    post-job handoff wrapper. It downloads the named Hub run, checks the
-   safetensors contract, exports both ONNX variants, verifies them, and
-   dry-runs the Hub upload:
+   safetensors contract, exports both ONNX variants, verifies them, validates
+   the `onnx-full/` metadata sidecars, and dry-runs the Hub upload:
 
 ```text
 scripts/f1_export_pusht_onnx.py \
@@ -158,8 +158,9 @@ from the approved PushT job. The wrapper rejects placeholders and legacy
 bounded PushT paths before any download, export, or upload command runs.
 
 The wrapper prints commands by default. Add `--execute` only after reviewing
-the dry run. Add `--upload` only after `python/verify_onnx.py` has passed and
-the release owner has approved the Hub upload.
+the dry run. Add `--upload` only after `python/verify_onnx.py`,
+`scripts/check_pusht_onnx_export_metadata.py`, and the upload dry run have
+passed and the release owner has approved the Hub upload.
 
 ## Acceptance Gate
 
@@ -170,6 +171,7 @@ Do not mark F1 resolved until all of these are true:
 - Both `onnxruntime` and `tract-compat` variants are generated under
   `onnx-full/`.
 - `python/verify_onnx.py --dir <onnx-full-root>` passes.
+- `scripts/check_pusht_onnx_export_metadata.py --dir <onnx-full-root>` passes.
 - The verified ONNX variants are uploaded to `abdelstark/lewm-rs-pusht`; the
   local `--dry-run` upload check is only a preflight and does not resolve F1.
 - `conformance/release_blockers.json` marks F1 resolved only after the evidence

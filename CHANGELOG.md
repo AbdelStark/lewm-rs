@@ -44,6 +44,9 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   The release blocker gate now also preserves downstream F2-F10/F13 resolution
   criteria so PushT eval, model cards, paper sections, blog, arXiv, and the
   final tag cannot be weakened while F1/F3 evidence remains absent.
+  The F1 ONNX handoff now runs a metadata gate before upload so `onnx-full/`
+  must carry the required PushT step count, action dimension, source
+  safetensors SHA, timestamp, and both ONNX variant sidecars.
   Result, roadmap, status, paper, and cost docs now label the historical PushT
   spend as bounded-core training and record the F1/F3 worst-case approval
   envelopes instead of treating the missing full Burn/Jepa release checkpoint

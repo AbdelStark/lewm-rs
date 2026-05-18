@@ -62,9 +62,19 @@ def test_hub_run_workflow_orders_download_contract_export_verify_upload() -> Non
     ]
     assert commands[3][8] == "onnxruntime>=1.22,<2"
     assert commands[3][-2:] == ["--dir", "/tmp/f1/onnx-full"]
-    assert commands[4][0:6] == ["uv", "run", "--project", "python", "--frozen", "python"]
-    assert commands[4][-1] == "--dry-run"
-    assert "onnx-full/" in commands[4]
+    assert commands[4] == [
+        "python3",
+        "scripts/check_pusht_onnx_export_metadata.py",
+        "--dir",
+        "/tmp/f1/onnx-full",
+        "--expected-step",
+        "50000",
+        "--expected-action-dim",
+        "10",
+    ]
+    assert commands[5][0:6] == ["uv", "run", "--project", "python", "--frozen", "python"]
+    assert commands[5][-1] == "--dry-run"
+    assert "onnx-full/" in commands[5]
 
 
 def test_local_safetensors_workflow_skips_download_and_can_upload(tmp_path: Path) -> None:
@@ -81,6 +91,7 @@ def test_local_safetensors_workflow_skips_download_and_can_upload(tmp_path: Path
 
     assert commands[0][8] == "python/export_onnx.py"
     assert commands[0][commands[0].index("--safetensors") + 1] == str(checkpoint)
+    assert commands[-2][1] == "scripts/check_pusht_onnx_export_metadata.py"
     assert commands[-1][6] == "python/upload_checkpoints.py"
     assert "--dry-run" not in commands[-1]
 

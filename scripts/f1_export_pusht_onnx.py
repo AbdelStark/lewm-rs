@@ -210,6 +210,19 @@ def verify_command(output_dir: Path) -> list[str]:
     )
 
 
+def metadata_check_command(output_dir: Path, step: int, action_dim: int) -> list[str]:
+    return [
+        "python3",
+        "scripts/check_pusht_onnx_export_metadata.py",
+        "--dir",
+        str(output_dir),
+        "--expected-step",
+        str(step),
+        "--expected-action-dim",
+        str(action_dim),
+    ]
+
+
 def upload_command(output_dir: Path, repo: str, *, upload: bool) -> list[str]:
     command = [
         "uv",
@@ -247,6 +260,7 @@ def workflow_commands(args: argparse.Namespace) -> list[list[str]]:
     commands.append(contract_command(safetensors))
     commands.append(export_command(safetensors, meta, output_dir, args.action_dim))
     commands.append(verify_command(output_dir))
+    commands.append(metadata_check_command(output_dir, args.step, args.action_dim))
     commands.append(upload_command(output_dir, args.repo, upload=args.upload))
     return commands
 

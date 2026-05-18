@@ -175,6 +175,10 @@ The Python edge tooling is ready for a valid full PushT checkpoint:
   source SHA-256, variant options, and export timestamp.
 - `python/verify_onnx.py` verifies ONNX Runtime shape execution for both
   variants and checks dynamic batch behavior for the `onnxruntime` variant.
+- `scripts/check_pusht_onnx_export_metadata.py` validates the F1
+  `onnx-full/` sidecars before upload, including the PushT step count, action
+  dimension, source safetensors path/SHA, export timestamp, variant layout, and
+  matching root/variant `onnx_export.json` payloads.
 - `python/export_onnx.py` now validates the checkpoint contract up front and
   refuses bounded-core artifacts with an actionable F1 diagnostic instead of
   falling through to a raw missing-key error.
@@ -189,7 +193,7 @@ The Python edge tooling is ready for a valid full PushT checkpoint:
 - `scripts/f1_export_pusht_onnx.py` is the F1 post-job handoff wrapper for a
   completed `train/pusht-full-burn-jepa-*` run. It dry-runs by default and
   sequences Hub download, checkpoint contract check, dual ONNX export, ONNX
-  verification, and `onnx-full/` upload preflight.
+  verification, metadata validation, and `onnx-full/` upload preflight.
 - `scripts/full_pusht_contract_smoke.py` runs a local one-step
   `configs/pusht.toml` full Burn/Jepa train and immediately checks the produced
   safetensors with `python/export_onnx.py --check-contract-only`. This is the
