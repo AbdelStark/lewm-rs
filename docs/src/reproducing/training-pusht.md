@@ -61,12 +61,15 @@ by the ONNX export contract.
 Before launching the paid job, run the local contract smoke:
 
 ```sh
-scripts/full_pusht_contract_smoke.py
+scripts/full_pusht_contract_smoke.py \
+  --report reports/full_pusht_contract_smoke.json
 ```
 
 This runs one CPU step with `configs/pusht.toml` and validates the resulting
 safetensors against the same 255-destination / 303-source ONNX export contract.
-It does not upload artifacts or launch a Hugging Face Job.
+The optional report records the parsed `303/303` PyTorch-key recovery,
+255 Burn destination tensors, and safetensors SHA-256. It does not upload
+artifacts or launch a Hugging Face Job.
 
 ## 4. Monitoring
 

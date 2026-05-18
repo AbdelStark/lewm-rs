@@ -101,7 +101,10 @@ The exporter itself is not the blocker:
   ```
 
   `scripts/full_pusht_contract_smoke.py` now wraps this local operator smoke
-  without any Hub upload or paid job launch. This proves the release-config
+  without any Hub upload or paid job launch. Run it with
+  `--report reports/full_pusht_contract_smoke.json` to leave machine-readable
+  evidence containing the parsed `303/303` PyTorch-key recovery, 255 Burn
+  destination tensors, and safetensors SHA-256. This proves the release-config
   full-mode writer can produce the F1 ONNX contract locally; it still does not
   replace the missing approved 50k PushT production checkpoint.
 

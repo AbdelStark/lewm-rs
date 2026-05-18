@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import importlib.util
+import json
+import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -44,3 +46,64 @@ def test_contract_command_uses_frozen_python_exporter(tmp_path: Path) -> None:
 
 def test_checkpoint_path_uses_train_step_width(tmp_path: Path) -> None:
     assert smoke.checkpoint_path(tmp_path, 50_000) == tmp_path / "step_0050000.safetensors"
+
+
+def test_parse_contract_output_extracts_release_counts() -> None:
+    summary = smoke.parse_contract_output(
+        "\n".join(
+            [
+                "Checkpoint contract ok: recovered 303 of 303 expected PyTorch keys",
+                "Burn destination tensors: 255",
+                "Safetensors SHA-256: " + ("a" * 64),
+            ]
+        )
+    )
+
+    assert summary == {
+        "recovered_pytorch_keys": 303,
+        "expected_pytorch_keys": 303,
+        "burn_destination_tensors": 255,
+        "safetensors_sha256": "a" * 64,
+    }
+
+
+def test_write_report_records_contract_evidence(tmp_path: Path) -> None:
+    checkpoint = tmp_path / "step_0000001.safetensors"
+    checkpoint.write_bytes(b"weights")
+    report = tmp_path / "reports" / "smoke.json"
+    train = subprocess.CompletedProcess(
+        args=["cargo", "run"],
+        returncode=0,
+        stdout="train ok\n",
+        stderr="",
+    )
+    contract = subprocess.CompletedProcess(
+        args=["uv", "run"],
+        returncode=0,
+        stdout="\n".join(
+            [
+                "Checkpoint contract ok: recovered 303 of 303 expected PyTorch keys",
+                "Burn destination tensors: 255",
+                "Safetensors SHA-256: " + ("b" * 64),
+            ]
+        ),
+        stderr="",
+    )
+
+    smoke.write_report(
+        report,
+        config=ROOT / "configs/pusht.toml",
+        output_dir=tmp_path,
+        steps=1,
+        checkpoint=checkpoint,
+        train=train,
+        contract=contract,
+    )
+
+    payload = json.loads(report.read_text(encoding="utf-8"))
+    assert payload["schema_version"] == "1.0.0"
+    assert payload["steps"] == 1
+    assert payload["checkpoint_size_bytes"] == len(b"weights")
+    assert payload["contract"]["recovered_pytorch_keys"] == 303
+    assert payload["contract"]["burn_destination_tensors"] == 255
+    assert payload["contract"]["safetensors_sha256"] == "b" * 64
