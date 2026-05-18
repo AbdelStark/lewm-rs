@@ -29,13 +29,20 @@ faithful reproduction leave them at the defaults.
 ## 3. Launch
 
 ```sh
-scripts/launch_hf_job.py jobs/train_pusht.yaml --allow-approval-required
+scripts/launch_hf_job.py jobs/train_pusht.yaml \
+  --allow-approval-required \
+  --image-tag REPLACE_WITH_RUNTIME_IMAGE_TAG
 ```
+
+Replace `REPLACE_WITH_RUNTIME_IMAGE_TAG` with a concrete published GHCR image
+tag containing the current full Burn/Jepa training and export-gate code. The
+launcher refuses approval-required PushT runs that would silently use mutable
+`latest`.
 
 `jobs/train_pusht.yaml` declares:
 
-- Image: `ghcr.io/abdelstark/lewm-rs:latest` (built from the checked-in
-  `Dockerfile`).
+- Image: `ghcr.io/abdelstark/lewm-rs:latest` in YAML, overridden at launch
+  with `--image-tag` for paid production runs.
 - Hardware: A10G-large.
 - Env: `HF_TOKEN`, `TRACKIO_PROJECT`, `TRACKIO_RUN`, and optional OTLP endpoint.
 - Command:

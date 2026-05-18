@@ -83,6 +83,13 @@ class TestRewriteImageTag:
                     "ghcr.io/abdelstark/lewm-rs:latest", bad
                 )
 
+    def test_rejects_placeholder_tag(self) -> None:
+        with pytest.raises(launch_hf_job.LaunchError, match="real published tag"):
+            launch_hf_job.rewrite_image_tag(
+                "ghcr.io/abdelstark/lewm-rs:latest",
+                "REPLACE_WITH_RUNTIME_IMAGE_TAG",
+            )
+
 
 class TestCheckCostCap:
     """`check_cost_cap` is the last line of defence against runaway spend."""
@@ -235,3 +242,37 @@ class TestValidateJob:
             "train/pusht-bounded-module-lewm-source/step_0050000.mpk",
         )
         launch_hf_job.validate_job(self.JOB_PATH, self._job(), self._leash(), True)
+
+
+class TestValidatePaidRuntimeImage:
+    """Production PushT launches must not silently use mutable `latest`."""
+
+    JOB_PATH = PROJECT_ROOT / "jobs" / "train_pusht.yaml"
+
+    def _job(self) -> dict[str, object]:
+        return launch_hf_job.parse_job(self.JOB_PATH)
+
+    def test_train_pusht_requires_image_tag_when_approval_required(self) -> None:
+        with pytest.raises(launch_hf_job.LaunchError, match="requires --image-tag"):
+            launch_hf_job.validate_paid_runtime_image(
+                self.JOB_PATH,
+                self._job(),
+                None,
+                True,
+            )
+
+    def test_train_pusht_accepts_explicit_image_tag(self) -> None:
+        launch_hf_job.validate_paid_runtime_image(
+            self.JOB_PATH,
+            self._job(),
+            "v0.1.0",
+            True,
+        )
+
+    def test_non_approval_dry_runs_keep_existing_default(self) -> None:
+        launch_hf_job.validate_paid_runtime_image(
+            self.JOB_PATH,
+            self._job(),
+            None,
+            False,
+        )

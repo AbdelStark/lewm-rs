@@ -13,6 +13,9 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   release workflow: the runtime image ships `lewm-train` under `/workspace`,
   GHCR publication happens from the release workflow, and production HF Jobs
   should pin an image tag through `scripts/launch_hf_job.py --image-tag`.
+  The launcher now refuses approval-required PushT production launches that
+  would silently use mutable `ghcr.io/abdelstark/lewm-rs:latest`, and rejects
+  placeholder image tags before rendering an HF Jobs command.
 - **Burn 0.20.1 → 0.21.0** (per ADR 0003). Updated all seven workspace
   Burn dependencies (`burn`, `burn-core`, `burn-cuda`, `burn-ndarray`,
   `burn-autodiff`, `burn-import`, `burn-train`). Migrated five

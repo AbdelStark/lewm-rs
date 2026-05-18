@@ -25,8 +25,12 @@ def handoff_payload() -> dict[str, object]:
                 "requires_human_approval": True,
                 "source_prefix": "train/pusht-full-burn-jepa-",
                 "rejected_source_prefixes": ["train/pusht-full-lewm-"],
-                "template_placeholders": ["REPLACE_WITH_UTC_TIMESTAMP"],
+                "template_placeholders": [
+                    "REPLACE_WITH_RUNTIME_IMAGE_TAG",
+                    "REPLACE_WITH_UTC_TIMESTAMP",
+                ],
                 "template_resolution": (
+                    "Replace REPLACE_WITH_RUNTIME_IMAGE_TAG with the runtime image tag. "
                     "Replace REPLACE_WITH_UTC_TIMESTAMP with the approved UTC run suffix."
                 ),
                 "evidence": [
@@ -56,6 +60,8 @@ def handoff_payload() -> dict[str, object]:
                             "jobs/train_pusht.yaml",
                             "--dry-run",
                             "--allow-approval-required",
+                            "--image-tag",
+                            "REPLACE_WITH_RUNTIME_IMAGE_TAG",
                         ],
                     ],
                     "after_human_approval": [
@@ -63,6 +69,8 @@ def handoff_payload() -> dict[str, object]:
                             "scripts/launch_hf_job.py",
                             "jobs/train_pusht.yaml",
                             "--allow-approval-required",
+                            "--image-tag",
+                            "REPLACE_WITH_RUNTIME_IMAGE_TAG",
                         ]
                     ],
                     "after_full_checkpoint_exists": [

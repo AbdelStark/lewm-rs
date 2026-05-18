@@ -20,6 +20,8 @@ EXPECTED_TASKS = (
         "required_tokens": (
             "jobs/train_pusht.yaml",
             "--allow-approval-required",
+            "--image-tag",
+            "REPLACE_WITH_RUNTIME_IMAGE_TAG",
             "scripts/check_pusht_full_safetensors_hub_audit_report.py",
             "scripts/f1_export_pusht_onnx.py",
             "--run-prefix",
@@ -27,7 +29,10 @@ EXPECTED_TASKS = (
             "--execute",
             "--upload",
         ),
-        "template_placeholder": "REPLACE_WITH_UTC_TIMESTAMP",
+        "template_placeholders": (
+            "REPLACE_WITH_RUNTIME_IMAGE_TAG",
+            "REPLACE_WITH_UTC_TIMESTAMP",
+        ),
     },
     {
         "id": "F3",
@@ -41,7 +46,7 @@ EXPECTED_TASKS = (
             "scripts/check_pusht_warmstart_source_smoke_report.py",
             "scripts/check_pusht_warmstart_hub_audit_report.py",
         ),
-        "template_placeholder": "REPLACE_WITH_COMPATIBLE_BOUNDED_RUN",
+        "template_placeholders": ("REPLACE_WITH_COMPATIBLE_BOUNDED_RUN",),
     },
 )
 
@@ -187,6 +192,8 @@ def validate_f1_command_stages(commands: dict[str, list[list[str]]], path: Path)
         "jobs/train_pusht.yaml",
         "--dry-run",
         "--allow-approval-required",
+        "--image-tag",
+        "REPLACE_WITH_RUNTIME_IMAGE_TAG",
     )
 
     approval = require_command_group(commands, "after_human_approval", "F1", path)
@@ -198,6 +205,8 @@ def validate_f1_command_stages(commands: dict[str, list[list[str]]], path: Path)
         "scripts/launch_hf_job.py",
         "jobs/train_pusht.yaml",
         "--allow-approval-required",
+        "--image-tag",
+        "REPLACE_WITH_RUNTIME_IMAGE_TAG",
     )
 
     export = require_command_group(commands, "after_full_checkpoint_exists", "F1", path)
@@ -273,8 +282,8 @@ def validate_template_declaration(
     expected: dict[str, Any],
     handoff_path: Path,
 ) -> None:
-    placeholder = expected.get("template_placeholder")
-    if not isinstance(placeholder, str):
+    expected_placeholders = expected.get("template_placeholders")
+    if not isinstance(expected_placeholders, tuple):
         return
 
     raw_placeholders = task.get("template_placeholders")
@@ -287,16 +296,17 @@ def validate_template_declaration(
             f"{handoff_path}: {task['id']}.template_placeholders must contain only strings"
         )
     placeholders = raw_placeholders
-    if placeholder not in placeholders:
-        raise HandoffError(
-            f"{handoff_path}: {task['id']}.template_placeholders must include {placeholder!r}"
-        )
-
     resolution = require_str(task, "template_resolution", handoff_path)
-    if placeholder not in resolution:
-        raise HandoffError(
-            f"{handoff_path}: {task['id']}.template_resolution must mention {placeholder!r}"
-        )
+    for placeholder in expected_placeholders:
+        if placeholder not in placeholders:
+            raise HandoffError(
+                f"{handoff_path}: {task['id']}.template_placeholders must include "
+                f"{placeholder!r}"
+            )
+        if placeholder not in resolution:
+            raise HandoffError(
+                f"{handoff_path}: {task['id']}.template_resolution must mention {placeholder!r}"
+            )
     if "replace" not in resolution.lower():
         raise HandoffError(
             f"{handoff_path}: {task['id']}.template_resolution must say the placeholder is replaced"

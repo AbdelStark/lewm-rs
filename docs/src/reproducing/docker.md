@@ -45,7 +45,9 @@ HF Jobs spec files live under `jobs/`:
 Launch with the helper:
 
 ```sh
-scripts/launch_hf_job.py jobs/train_pusht.yaml --allow-approval-required
+scripts/launch_hf_job.py jobs/train_pusht.yaml \
+  --allow-approval-required \
+  --image-tag REPLACE_WITH_RUNTIME_IMAGE_TAG
 ```
 
 For a release-pinned job:
@@ -59,8 +61,9 @@ The helper:
 1. Validates the YAML against the schema in
    `scripts/check_jobs.py`.
 2. Resolves `${HF_TOKEN}` and other env-var placeholders.
-3. Calls `hf jobs run` to schedule the job.
-4. Returns the job ID for monitoring.
+3. Rewrites the image tag when `--image-tag` or `LEWM_IMAGE_TAG` is set.
+4. Calls `hf jobs run` to schedule the job.
+5. Returns the job ID for monitoring.
 
 ## 4. Job lifecycle
 

@@ -28,18 +28,23 @@ EXPECTED_TASKS = {
             "jobs/train_pusht.yaml",
             "--dry-run",
             "--allow-approval-required",
+            "--image-tag",
+            "REPLACE_WITH_RUNTIME_IMAGE_TAG",
         ),
         "approval_tokens": (
             "scripts/launch_hf_job.py",
             "jobs/train_pusht.yaml",
             "--allow-approval-required",
+            "--image-tag",
+            "REPLACE_WITH_RUNTIME_IMAGE_TAG",
         ),
+        "template_placeholders": ("REPLACE_WITH_RUNTIME_IMAGE_TAG",),
     },
     "F3": {
         "issue": 245,
         "job": "jobs/train_so100_warmstart.yaml",
         "env_prefix": "LEWM_PUSHT_WARMSTART_MPK=train/",
-        "template_placeholder": "REPLACE_WITH_COMPATIBLE_BOUNDED_RUN",
+        "template_placeholders": ("REPLACE_WITH_COMPATIBLE_BOUNDED_RUN",),
         "dry_run_tokens": (
             "LEWM_PUSHT_WARMSTART_MPK=train/REPLACE_WITH_COMPATIBLE_BOUNDED_RUN/step_0050000.mpk",
             "scripts/launch_hf_job.py",
@@ -252,8 +257,8 @@ def validate_template_declaration(
     expected: dict[str, Any],
     report_path: Path,
 ) -> None:
-    placeholder = expected.get("template_placeholder")
-    if not isinstance(placeholder, str):
+    expected_placeholders = expected.get("template_placeholders")
+    if not isinstance(expected_placeholders, tuple):
         return
 
     raw_placeholders = task.get("template_placeholders")
@@ -266,15 +271,17 @@ def validate_template_declaration(
             f"{report_path}: {task['id']}.template_placeholders must contain only strings"
         )
     placeholders = raw_placeholders
-    if placeholder not in placeholders:
-        raise ApprovalError(
-            f"{report_path}: {task['id']}.template_placeholders must include {placeholder!r}"
-        )
     resolution = require_str(task, "template_resolution", report_path)
-    if placeholder not in resolution:
-        raise ApprovalError(
-            f"{report_path}: {task['id']}.template_resolution must mention {placeholder!r}"
-        )
+    for placeholder in expected_placeholders:
+        if placeholder not in placeholders:
+            raise ApprovalError(
+                f"{report_path}: {task['id']}.template_placeholders must include "
+                f"{placeholder!r}"
+            )
+        if placeholder not in resolution:
+            raise ApprovalError(
+                f"{report_path}: {task['id']}.template_resolution must mention {placeholder!r}"
+            )
     if "replace" not in resolution.lower():
         raise ApprovalError(
             f"{report_path}: {task['id']}.template_resolution must say the placeholder is replaced"

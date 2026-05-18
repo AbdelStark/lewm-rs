@@ -18,19 +18,28 @@
       "price_usd_per_hour": "1.50",
       "worst_case_usd": "18.00",
       "requires_human_approval": true,
+      "template_placeholders": [
+        "REPLACE_WITH_RUNTIME_IMAGE_TAG"
+      ],
+      "template_resolution": "Replace REPLACE_WITH_RUNTIME_IMAGE_TAG with a concrete GHCR image tag containing the current full Burn/Jepa training and export-gate code before running the dry-run or approval command.",
       "dry_run_command": [
         "python3",
         "scripts/launch_hf_job.py",
         "jobs/train_pusht.yaml",
         "--dry-run",
-        "--allow-approval-required"
+        "--allow-approval-required",
+        "--image-tag",
+        "REPLACE_WITH_RUNTIME_IMAGE_TAG"
       ],
       "approval_command": [
         "scripts/launch_hf_job.py",
         "jobs/train_pusht.yaml",
-        "--allow-approval-required"
+        "--allow-approval-required",
+        "--image-tag",
+        "REPLACE_WITH_RUNTIME_IMAGE_TAG"
       ],
       "blocked_on": [
+        "A concrete GHCR runtime image tag containing the current full Burn/Jepa training and export-gate code.",
         "Human approval for the paid PushT full Burn/Jepa production run.",
         "A successful upload under train/pusht-full-burn-jepa-YYYYMMDDTHHMMSSZ/."
       ],

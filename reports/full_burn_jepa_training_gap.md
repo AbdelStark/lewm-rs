@@ -113,8 +113,17 @@ The exporter itself is not the blocker:
 F1 still needs a production PushT training run that produces a real trained
 50k-step `lewm_core::Jepa` checkpoint. Remaining work:
 
-1. With human approval, run `jobs/train_pusht.yaml` against the production
-   PushT data/config long enough to produce `step_0050000.safetensors`.
+1. Publish a concrete GHCR runtime image tag containing the current
+   full Burn/Jepa training and export-gate code. With human approval, run
+   `jobs/train_pusht.yaml` against the production PushT data/config long
+   enough to produce `step_0050000.safetensors`:
+
+```text
+scripts/launch_hf_job.py jobs/train_pusht.yaml \
+  --allow-approval-required \
+  --image-tag REPLACE_WITH_RUNTIME_IMAGE_TAG
+```
+
 2. Only after a real full-layout 50k PushT checkpoint exists, run the F1
    post-job handoff wrapper. It downloads the named Hub run, checks the
    safetensors contract, exports both ONNX variants, verifies them, and

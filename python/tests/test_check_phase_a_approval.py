@@ -30,17 +30,25 @@ def approval_payload(**updates: object) -> dict[str, object]:
                 "price_usd_per_hour": "1.50",
                 "worst_case_usd": "18.00",
                 "requires_human_approval": True,
+                "template_placeholders": ["REPLACE_WITH_RUNTIME_IMAGE_TAG"],
+                "template_resolution": (
+                    "Replace REPLACE_WITH_RUNTIME_IMAGE_TAG with a concrete runtime image tag."
+                ),
                 "dry_run_command": [
                     "python3",
                     "scripts/launch_hf_job.py",
                     "jobs/train_pusht.yaml",
                     "--dry-run",
                     "--allow-approval-required",
+                    "--image-tag",
+                    "REPLACE_WITH_RUNTIME_IMAGE_TAG",
                 ],
                 "approval_command": [
                     "scripts/launch_hf_job.py",
                     "jobs/train_pusht.yaml",
                     "--allow-approval-required",
+                    "--image-tag",
+                    "REPLACE_WITH_RUNTIME_IMAGE_TAG",
                 ],
                 "blocked_on": ["approval"],
                 "evidence": [

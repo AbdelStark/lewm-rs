@@ -121,7 +121,9 @@ cargo run -p lewm-train -- \
     --max-steps 10 train
 
 # Cloud full run (HF Jobs)
-scripts/launch_hf_job.py jobs/train_pusht.yaml --allow-approval-required
+scripts/launch_hf_job.py jobs/train_pusht.yaml \
+    --allow-approval-required \
+    --image-tag REPLACE_WITH_RUNTIME_IMAGE_TAG
 ```
 
 The HF Jobs spec is committed at `jobs/train_pusht.yaml`. With seed = 0

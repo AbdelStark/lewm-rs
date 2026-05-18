@@ -188,8 +188,13 @@ CEM planning success rate on the standard PushT eval is **not** measured in this
 Approval-gated full PushT production run (HF account required; cost must be approved before launch):
 
 ```bash
-scripts/launch_hf_job.py jobs/train_pusht.yaml --allow-approval-required
+scripts/launch_hf_job.py jobs/train_pusht.yaml \
+  --allow-approval-required \
+  --image-tag REPLACE_WITH_RUNTIME_IMAGE_TAG
 ```
+
+Replace `REPLACE_WITH_RUNTIME_IMAGE_TAG` with a concrete published GHCR image
+tag that contains the current full Burn/Jepa training and export-gate code.
 
 After that job publishes `train/pusht-full-burn-jepa-YYYYMMDDTHHMMSSZ/`, dry-run
 the F1 ONNX handoff before executing or uploading:

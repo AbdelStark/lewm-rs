@@ -74,6 +74,7 @@ def main() -> int:
         job = parse_job(job_path)
         leash = load_leash()
         validate_job(job_path, job, leash, args.allow_approval_required)
+        validate_paid_runtime_image(job_path, job, args.image_tag, args.allow_approval_required)
         if args.image_tag:
             job["image"] = rewrite_image_tag(str(job["image"]), args.image_tag)
         check_cost_cap(job_path, job, args.cost_cap_usd)
@@ -106,6 +107,8 @@ def parse_cost_cap(raw: str) -> Decimal:
 
 def rewrite_image_tag(image: str, new_tag: str) -> str:
     """Replace the ``:tag`` segment of ``image`` with ``new_tag``."""
+    if PLACEHOLDER_RE.search(new_tag):
+        raise LaunchError("image tag must be replaced with a real published tag")
     if not IMAGE_TAG_RE.fullmatch(new_tag):
         raise LaunchError(f"invalid image tag: {new_tag!r}")
     if "@" in image:
@@ -115,6 +118,23 @@ def rewrite_image_tag(image: str, new_tag: str) -> str:
         # No tag in the source string; treat the whole thing as the repo.
         repo = image
     return f"{repo}:{new_tag}"
+
+
+def validate_paid_runtime_image(
+    path: Path,
+    job: dict[str, object],
+    image_tag: str | None,
+    allow_approval_required: bool,
+) -> None:
+    """Require production PushT runs to pin a concrete runtime image tag."""
+    if path.name != "train_pusht.yaml" or not allow_approval_required:
+        return
+    image = str(job.get("image", ""))
+    if image.endswith(":latest") and not image_tag:
+        raise LaunchError(
+            "train_pusht.yaml requires --image-tag or LEWM_IMAGE_TAG so paid F1 "
+            "runs do not use mutable ghcr.io/abdelstark/lewm-rs:latest"
+        )
 
 
 def check_cost_cap(path: Path, job: dict[str, object], cap_usd: Decimal) -> None:

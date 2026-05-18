@@ -16,9 +16,10 @@
         "train/pusht-full-lewm-"
       ],
       "template_placeholders": [
+        "REPLACE_WITH_RUNTIME_IMAGE_TAG",
         "REPLACE_WITH_UTC_TIMESTAMP"
       ],
-      "template_resolution": "Replace REPLACE_WITH_UTC_TIMESTAMP with the approved run's concrete YYYYMMDDTHHMMSSZ suffix before running any after_full_checkpoint_exists command.",
+      "template_resolution": "Replace REPLACE_WITH_RUNTIME_IMAGE_TAG with a concrete GHCR image tag containing the current full Burn/Jepa training and export-gate code before running any train_pusht launch command. Replace REPLACE_WITH_UTC_TIMESTAMP with the approved run's concrete YYYYMMDDTHHMMSSZ suffix before running any after_full_checkpoint_exists command.",
       "evidence": [
         "reports/pusht_onnx_export.md",
         "reports/full_burn_jepa_training_gap.md",
@@ -33,6 +34,7 @@
         ".ml-intern/cli_agent_config.json"
       ],
       "blocked_on": [
+        "A concrete GHCR runtime image tag containing the current full Burn/Jepa training and export-gate code, passed with --image-tag or LEWM_IMAGE_TAG.",
         "Human-approved jobs/train_pusht.yaml production run that uploads train/pusht-full-burn-jepa-YYYYMMDDTHHMMSSZ/step_0050000.safetensors.",
         "Release owner approval for final onnx-full/ Hub upload after python/verify_onnx.py passes."
       ],
@@ -51,14 +53,18 @@
             "scripts/launch_hf_job.py",
             "jobs/train_pusht.yaml",
             "--dry-run",
-            "--allow-approval-required"
+            "--allow-approval-required",
+            "--image-tag",
+            "REPLACE_WITH_RUNTIME_IMAGE_TAG"
           ]
         ],
         "after_human_approval": [
           [
             "scripts/launch_hf_job.py",
             "jobs/train_pusht.yaml",
-            "--allow-approval-required"
+            "--allow-approval-required",
+            "--image-tag",
+            "REPLACE_WITH_RUNTIME_IMAGE_TAG"
           ]
         ],
         "after_full_checkpoint_exists": [
