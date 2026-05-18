@@ -7,9 +7,9 @@
 **Artifacts:** `abdelstark/lewm-rs-pusht/train/pusht-full-lewm-20260515T100908Z/`
 
 **Naming note:** this historical Hub path predates the bounded-artifact
-correction; checked-in PushT jobs and future bounded checkpoints now use
-`pusht-bounded-module-lewm` labels until a production full Burn/Jepa run is
-approved, launched, and uploaded under a separate full-checkpoint path.
+correction. Bounded PushT smoke/short jobs now use `pusht-bounded-module-lewm`
+labels, while the approval-gated production PushT job now uploads future full
+Burn/Jepa runs under `train/pusht-full-burn-jepa-*`.
 
 ## Dataset
 

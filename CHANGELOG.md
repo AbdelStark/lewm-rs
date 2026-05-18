@@ -70,14 +70,17 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   checkpoints, and `scripts/upload_model_cards.py --dry-run` no longer requires
   `HF_TOKEN`.
 - **F1 root-cause report**: `reports/full_burn_jepa_training_gap.md` records
-  why rerunning `jobs/train_pusht.yaml` still cannot produce the required
-  303-key full Burn/Jepa checkpoint and lists the implementation gates needed
+  why the current published PushT artifact cannot satisfy the required
+  303-key full Burn/Jepa ONNX export contract and lists the remaining gates
   before ONNX export can be marked complete.
-- **Bounded PushT job labeling**: checked-in PushT train jobs now use
+- **PushT job selection**: the approval-gated production PushT job now selects
+  CPU-backed `experimental.pusht_train_mode = "full_burn_jepa"`, reports
+  `--device cpu`, defaults to 50k steps, and uploads to
+  `train/pusht-full-burn-jepa-*`. Bounded PushT smoke/short jobs keep
   `pusht-bounded-module-lewm` TrackIO/upload labels, future bounded PushT
   checkpoints use bounded run IDs / record kinds / train-report modes, and
   `scripts/check_jobs.py` rejects bounded PushT jobs that publish under
-  `pusht-full*` paths before the full Burn/Jepa training mode exists.
+  `pusht-full*` paths.
 - **`lewm-train` eval adapter**: new `lewm_train::eval` module provides
   `JepaCemCostModel<B>`, a `lewm_plan::CemCostModel` adapter that
   tensorises CEM batches and forwards to the parity-verified

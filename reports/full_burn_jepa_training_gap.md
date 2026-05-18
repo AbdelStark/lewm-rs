@@ -10,28 +10,33 @@ The ONNX exporter and verifier are ready for a valid full-layout PushT
 checkpoint. `lewm-train` now has an opt-in CPU full Burn/Jepa mode
 (`experimental.pusht_train_mode = "full_burn_jepa"`) that trains
 `lewm_core::Jepa`, writes a Burn `NamedMpk` record, and mirrors the full
-Safetensors layout. The checked-in PushT training job still does not select
-that mode, so rerunning `jobs/train_pusht.yaml` would produce another bounded
-`PushtFullLewmCore` artifact, not the production 50k full-JEPA checkpoint.
-The checked-in bounded PushT jobs and checkpoints now use
+Safetensors layout. The approval-gated PushT production job now selects this
+CPU-backed mode, reports `--device cpu`, and uploads under
+`train/pusht-full-burn-jepa-*`, but no approved production run has produced or
+uploaded a 50k full-JEPA checkpoint yet. The
+checked-in bounded PushT smoke/short jobs and checkpoints use
 `pusht-bounded-module-lewm` labels so new artifacts cannot be mistaken for full
 Burn/Jepa checkpoints.
 
-This is the root implementation gap behind the current F1 blocker.
+This is the remaining artifact gap behind the current F1 blocker.
 
 ## Evidence
 
 `configs/pusht.toml` defines the full JEPA architecture dimensions, but it does
 not select the opt-in full Burn/Jepa training mode.
 
-`jobs/train_pusht.yaml` runs:
+`jobs/train_pusht.yaml` now runs:
 
 ```text
-lewm-train train --config configs/pusht.toml ... --max-steps ${LEWM_MAX_STEPS:-1000}
+lewm-train train \
+  --config configs/pusht.toml \
+  --set 'experimental.pusht_train_mode="full_burn_jepa"' \
+  --device cpu \
+  ... \
+  --max-steps ${LEWM_MAX_STEPS:-50000}
 ```
 
-That job is intentionally labeled as a bounded-module run until the full
-Burn/Jepa path exists.
+It uploads to `train/pusht-full-burn-jepa-$(date -u +%Y%m%dT%H%M%SZ)`.
 
 `crates/lewm-train/src/trainer.rs` now dispatches PushT training by
 `experimental.pusht_train_mode`. The default `bounded_module` path initializes
@@ -66,15 +71,12 @@ The exporter itself is not the blocker:
 F1 still needs a production PushT training run that produces a real trained
 50k-step `lewm_core::Jepa` checkpoint. Remaining work:
 
-1. Run the full mode against the production PushT data/config long enough to
-   produce `step_0050000.safetensors`.
+1. With human approval, run `jobs/train_pusht.yaml` against the production
+   PushT data/config long enough to produce `step_0050000.safetensors`.
 2. Add a local or CI smoke that proves the full Burn/Jepa path writes a
    checkpoint whose safetensors recover all 303 expected PyTorch keys for the
    production config.
-3. Update the HF Job so the production PushT run selects that full Burn/Jepa
-   mode and uploads under a path that cannot be mistaken for the bounded
-   artifact.
-4. Only after a real full-layout 50k PushT checkpoint exists, run:
+3. Only after a real full-layout 50k PushT checkpoint exists, run:
 
 ```text
 uv run --project python --extra parity python python/export_onnx.py \

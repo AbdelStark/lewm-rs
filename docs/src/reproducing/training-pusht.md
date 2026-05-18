@@ -2,9 +2,12 @@
 
 ## 1. The hardware contract
 
-The pinned PushT 50 k-step training run uses **A10G-large** on Hugging
-Face Jobs. Approximate wall time is **5.3 hours** at \$1.50/hr,
-totalling **\$7.95 USD**.
+The approval-gated PushT 50 k-step training job currently uses
+**A10G-large** on Hugging Face Jobs, but the full Burn/Jepa path is
+CPU-backed until the CUDA trainer is wired through `lewm-gpu`. The
+previous bounded-core 50 k-step run took **5.3 hours** at \$1.50/hr,
+totalling **\$7.95 USD**. The full Burn/Jepa job must be remeasured
+before those numbers are treated as the release runtime.
 
 Equivalent hardware (RTX 4090, RTX 6000 Ada, H100) should converge
 faster but produce slightly different bit-level losses due to CUDA
@@ -40,14 +43,17 @@ scripts/launch_hf_job.py jobs/train_pusht.yaml --allow-approval-required
   ```sh
   lewm-train train \
       --config configs/pusht.toml \
+      --set 'experimental.pusht_train_mode="full_burn_jepa"' \
+      --device cpu \
       --data-dir /tmp/data \
       --output-dir /tmp/out \
       --resume-if-present \
-      --max-steps ${LEWM_MAX_STEPS:-1000}
+      --max-steps ${LEWM_MAX_STEPS:-50000}
   ```
 
-The job uploads the trainer output directory to the PushT Hub repo after
-the train command completes.
+The job uploads the trainer output directory to
+`abdelstark/lewm-rs-pusht/train/pusht-full-burn-jepa-<UTC timestamp>/`
+after the train command completes.
 
 ## 4. Monitoring
 

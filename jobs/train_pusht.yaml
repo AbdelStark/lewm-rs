@@ -7,7 +7,7 @@ env:
   HF_TOKEN: ${HF_TOKEN}
   HF_HOME: /tmp/hf
   TRACKIO_PROJECT: lewm-rs
-  TRACKIO_RUN: pusht-bounded-module-lewm
+  TRACKIO_RUN: pusht-full-burn-jepa
   OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_ENDPOINT:-}
 command: |
   bash -lc "
@@ -17,12 +17,14 @@ command: |
     export HDF5_PLUGIN_PATH=$(python -c 'import hdf5plugin; print(hdf5plugin.PLUGIN_PATH)') &&
     lewm-train train \
       --config configs/pusht.toml \
+      --set 'experimental.pusht_train_mode=\"full_burn_jepa\"' \
+      --device cpu \
       --data-dir /tmp/data \
       --output-dir /tmp/out \
       --resume-if-present \
-      --max-steps ${LEWM_MAX_STEPS:-1000} &&
+      --max-steps ${LEWM_MAX_STEPS:-50000} &&
     python python/upload_checkpoints.py \
       --src /tmp/out \
       --dst abdelstark/lewm-rs-pusht \
-      --path-prefix train/pusht-bounded-module-lewm-$(date -u +%Y%m%dT%H%M%SZ)
+      --path-prefix train/pusht-full-burn-jepa-$(date -u +%Y%m%dT%H%M%SZ)
   "

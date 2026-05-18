@@ -18,11 +18,15 @@ REQUIRED_ENV = {
 EXPECTED_NAMESPACE = "abdelstark"
 EXPECTED_IMAGE = "ghcr.io/abdelstark/lewm-rs:latest"
 OPTIONAL_OTEL_ENDPOINT_VALUE = "${OTEL_ENDPOINT:-}"
-BOUNDED_PUSHT_JOBS = {"short_pusht.yaml", "train_pusht.yaml"}
+BOUNDED_PUSHT_JOBS = {"short_pusht.yaml"}
 BOUNDED_PUSHT_FORBIDDEN_TOKENS = (
     "TRACKIO_RUN: pusht-full",
     "--path-prefix train/pusht-full",
     "train/pusht-full-module-lewm",
+)
+FULL_PUSHT_FORBIDDEN_TOKENS = (
+    "pusht-bounded-module-lewm",
+    "train/pusht-full-lewm",
 )
 
 JOB_SPECS = {
@@ -62,7 +66,7 @@ JOB_SPECS = {
         "hardware": "a10g-large",
         "timeout": "12h",
         "env_values": {
-            "TRACKIO_RUN": "pusht-bounded-module-lewm",
+            "TRACKIO_RUN": "pusht-full-burn-jepa",
         },
         "command_tokens": [
             "hf download quentinll/lewm-pusht pusht_expert_train.h5.zst",
@@ -70,12 +74,14 @@ JOB_SPECS = {
             "export HDF5_PLUGIN_PATH=$(python -c 'import hdf5plugin; print(hdf5plugin.PLUGIN_PATH)')",
             "lewm-train train",
             "--config configs/pusht.toml",
+            "--set 'experimental.pusht_train_mode=\\\"full_burn_jepa\\\"'",
+            "--device cpu",
             "--data-dir /tmp/data",
             "--output-dir /tmp/out",
             "--resume-if-present",
-            "--max-steps ${LEWM_MAX_STEPS:-1000}",
+            "--max-steps ${LEWM_MAX_STEPS:-50000}",
             "python python/upload_checkpoints.py",
-            "--path-prefix train/pusht-bounded-module-lewm-$(date -u +%Y%m%dT%H%M%SZ)",
+            "--path-prefix train/pusht-full-burn-jepa-$(date -u +%Y%m%dT%H%M%SZ)",
         ],
     },
     "train_so100_warmstart.yaml": {
@@ -190,6 +196,7 @@ def main() -> int:
         if "archive.tar.zst" in command:
             failures.append(f"{path}: command references removed PushT archive.tar.zst path")
         validate_bounded_pusht_contract(name, path, text, command, failures)
+        validate_full_pusht_contract(name, path, text, command, failures)
 
         if expected.get("requires_upload", True):
             upload_pos = max(
@@ -346,6 +353,34 @@ def validate_bounded_pusht_contract(
         failures.append(
             f"{path}: bounded PushT job must use a bounded PushT run/path label"
         )
+
+
+def validate_full_pusht_contract(
+    name: str,
+    path: Path,
+    text: str,
+    command: str,
+    failures: list[str],
+) -> None:
+    if name != "train_pusht.yaml":
+        return
+
+    combined = f"{text}\n{command}"
+    for token in FULL_PUSHT_FORBIDDEN_TOKENS:
+        if token in combined:
+            failures.append(
+                f"{path}: full PushT job must not use bounded or ambiguous token {token!r}"
+            )
+
+    for token in (
+        "TRACKIO_RUN: pusht-full-burn-jepa",
+        "experimental.pusht_train_mode=\\\"full_burn_jepa\\\"",
+        "--device cpu",
+        "--path-prefix train/pusht-full-burn-jepa",
+        "--max-steps ${LEWM_MAX_STEPS:-50000}",
+    ):
+        if token not in combined:
+            failures.append(f"{path}: full PushT job missing {token!r}")
 
 
 def validate_intern_config(failures: list[str]) -> None:
