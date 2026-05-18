@@ -13,7 +13,7 @@ EXPECTED_PARAM_COUNT = 41_856
 def write_record(path: Path, **updates: object) -> None:
     payload: dict[str, object] = {
         "schema_version": "1.1.0",
-        "kind": "lewm-rs-pusht-full-module-lewm-record",
+        "kind": "lewm-rs-pusht-bounded-module-lewm-record",
         "step": 50_000,
         "params": [0.0] * EXPECTED_PARAM_COUNT,
         "adamw_params": [{}] * EXPECTED_PARAM_COUNT,

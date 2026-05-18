@@ -46,7 +46,7 @@ python3 scripts/check_warmstart_source.py \
 
 That verifier requires the current bounded PushT warm-start record contract:
 `schema_version == "1.1.0"`, `kind ==
-"lewm-rs-pusht-full-module-lewm-record"`, and the `41,856`-parameter layout
+"lewm-rs-pusht-bounded-module-lewm-record"`, and the `41,856`-parameter layout
 derived from `configs/pusht.toml`. The currently published 50k PushT `.mpk`
 is rejected immediately:
 
@@ -74,8 +74,8 @@ Before the 2026-05-18 release pass, `training.warmstart_from` was parsed in
 
 The trainer now applies `training.warmstart_from` for fresh SO-100 full-module
 training starts. The transfer copies only `encoder.*`, `predictor.*`,
-`projector.*`, and `pred_proj.*` from a PushT full-module record, preserves the
-fresh SO-100 `action_encoder.*` parameters, resets AdamW state, and records
+`projector.*`, and `pred_proj.*` from a PushT bounded-module record, preserves
+the fresh SO-100 `action_encoder.*` parameters, resets AdamW state, and records
 source path, source SHA-256, copied parameter names, preserved action-encoder
 names, and dropped optimizer-state count in the train report/checkpoint record.
 

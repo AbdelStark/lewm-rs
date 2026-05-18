@@ -10,8 +10,9 @@ The ONNX exporter and verifier are ready for a valid full-layout PushT
 checkpoint, but the checked-in PushT training job still cannot produce one.
 Rerunning `jobs/train_pusht.yaml` would produce another bounded
 `PushtFullLewmCore` artifact, not a trained `lewm_core::Jepa` checkpoint.
-The checked-in bounded PushT jobs now publish under `pusht-bounded-module-lewm`
-labels so new artifacts cannot be mistaken for full Burn/Jepa checkpoints.
+The checked-in bounded PushT jobs and checkpoints now use
+`pusht-bounded-module-lewm` labels so new artifacts cannot be mistaken for full
+Burn/Jepa checkpoints.
 
 This is the root implementation gap behind the current F1 blocker.
 

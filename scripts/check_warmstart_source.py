@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 DEFAULT_CONFIG = Path("configs/pusht.toml")
-EXPECTED_KIND = "lewm-rs-pusht-full-module-lewm-record"
+EXPECTED_KIND = "lewm-rs-pusht-bounded-module-lewm-record"
 EXPECTED_SCHEMA_VERSION = "1.1.0"
 IMAGE_CHANNELS = 3
 

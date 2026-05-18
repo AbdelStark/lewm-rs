@@ -69,11 +69,13 @@ ViT:
 
 | Mode | Description |
 |------|-------------|
-| `pusht-minimal-lewm` | `PushtFullLewmCore` (14-parameter Rust core); the current PushT 50 k-step result was produced here. |
+| `pusht-minimal-lewm` | Legacy bounded `PushtFullLewmCore` label used by the current historical PushT 50 k-step Hub artifact. |
+| `pusht-bounded-module-lewm` | Current checked-in `PushtFullLewmCore` bounded host-module train path; future PushT bounded artifacts use this label. |
 | `so100-full-lewm` | Same `PushtFullLewmCore` adapted to 6-DOF action; SO-100 result. |
 | `pusht-full-burn-jepa` | Full `lewm_core::Jepa` (303 params); wire-up pending. |
 
-The mode is selected by the config; see `configs/pusht.toml`.
+The current PushT `train` path selects the bounded host-module mode. The full
+Burn/Jepa mode remains pending and must not share bounded artifact labels.
 
 ## Dependencies
 

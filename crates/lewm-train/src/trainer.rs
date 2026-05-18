@@ -13,8 +13,9 @@ use crate::checkpoint::{
 use crate::config::{DatasetConfig, DatasetSplit, RootConfig, So100DatasetConfig};
 use crate::optim::OptimConfig;
 use crate::pusht_full::{
-    PUSHT_FULL_LEWM_RUN_ID, PushtFullLewmCore, PushtFullLewmError, PushtFullLewmExample,
-    PushtFullLewmImageFeatures, SO100_FULL_LEWM_RUN_ID,
+    PUSHT_BOUNDED_LEWM_MODE, PUSHT_BOUNDED_LEWM_RECORD_KIND, PUSHT_BOUNDED_LEWM_RUN_ID,
+    PUSHT_LEGACY_FULL_LEWM_RECORD_KIND, PUSHT_LEGACY_FULL_LEWM_RUN_ID, PushtFullLewmCore,
+    PushtFullLewmError, PushtFullLewmExample, PushtFullLewmImageFeatures, SO100_FULL_LEWM_RUN_ID,
 };
 use crate::resume::{
     RUN_ID_FILE, RestoredRngStreams, StartupMode, detect_resume, encode_rng, restore_rng_streams,
@@ -1257,7 +1258,7 @@ fn write_pusht_train_artifacts(
     let mut previous_losses = Vec::new();
     let start = match startup {
         StartupMode::Fresh => {
-            write_train_run_id(output_dir, PUSHT_FULL_LEWM_RUN_ID)?;
+            write_train_run_id(output_dir, PUSHT_BOUNDED_LEWM_RUN_ID)?;
             PushtFullLewmTrainingStart::fresh(request.root, request.seed)?
         },
         StartupMode::Resume(plan) => {
@@ -1284,7 +1285,7 @@ fn write_pusht_train_artifacts(
             &paths,
             start.batch_size,
             start.grad_explosion_events,
-            "pusht-full-module-lewm",
+            PUSHT_BOUNDED_LEWM_MODE,
             start.warmstart,
         );
     }
@@ -1307,7 +1308,7 @@ fn write_pusht_train_artifacts(
         &paths,
         outcome.batch_size,
         outcome.grad_explosion_events,
-        "pusht-full-module-lewm",
+        PUSHT_BOUNDED_LEWM_MODE,
         outcome.warmstart,
     )
 }
@@ -1751,7 +1752,7 @@ fn validate_warmstart_source_record(
     record: &PushtFullLewmRecord,
     source_model: &PushtFullLewmCore,
 ) -> Result<(), TrainerError> {
-    if record.kind != "lewm-rs-pusht-full-module-lewm-record" {
+    if !is_supported_pusht_bounded_record_kind(&record.kind) {
         return Err(TrainerError::ResumeCheckpointInvalid {
             reason: format!(
                 "warm-start source has unexpected record kind {:?}",
@@ -1782,6 +1783,20 @@ fn validate_warmstart_source_record(
         });
     }
     Ok(())
+}
+
+fn is_supported_pusht_bounded_record_kind(kind: &str) -> bool {
+    matches!(
+        kind,
+        PUSHT_BOUNDED_LEWM_RECORD_KIND | PUSHT_LEGACY_FULL_LEWM_RECORD_KIND
+    )
+}
+
+fn is_supported_pusht_bounded_run_id(run_id: &str) -> bool {
+    matches!(
+        run_id,
+        PUSHT_BOUNDED_LEWM_RUN_ID | PUSHT_LEGACY_FULL_LEWM_RUN_ID
+    )
 }
 
 fn full_lewm_train_state(model: &PushtFullLewmCore) -> Result<TrainStateRecord, TrainerError> {
@@ -1859,10 +1874,10 @@ fn restore_pusht_full_lewm_start(
     seed: u64,
     previous_losses: &[TrainLossPoint],
 ) -> Result<PushtFullLewmTrainingStart, TrainerError> {
-    if plan.run_id != PUSHT_FULL_LEWM_RUN_ID {
+    if !is_supported_pusht_bounded_run_id(&plan.run_id) {
         return Err(TrainerError::ResumeCheckpointInvalid {
             reason: format!(
-                "expected run_id {PUSHT_FULL_LEWM_RUN_ID:?}, found {:?}",
+                "expected bounded PushT run_id {PUSHT_BOUNDED_LEWM_RUN_ID:?}, found {:?}",
                 plan.run_id
             ),
         });
@@ -2035,7 +2050,7 @@ fn validate_pusht_full_lewm_record(
     sidecar_step: u64,
     max_steps: u64,
 ) -> Result<(), TrainerError> {
-    if record.kind != "lewm-rs-pusht-full-module-lewm-record" {
+    if !is_supported_pusht_bounded_record_kind(&record.kind) {
         return Err(TrainerError::ResumeCheckpointInvalid {
             reason: format!("unexpected record kind {:?}", record.kind),
         });
@@ -2866,8 +2881,8 @@ fn write_pusht_full_lewm_checkpoint(
         seed,
         scheduler_total_steps,
         outcome,
-        PUSHT_FULL_LEWM_RUN_ID,
-        "lewm-rs-pusht-full-module-lewm-record",
+        PUSHT_BOUNDED_LEWM_RUN_ID,
+        PUSHT_BOUNDED_LEWM_RECORD_KIND,
     )
 }
 
@@ -3214,7 +3229,7 @@ mod tests {
         })?;
 
         assert_eq!(report.kind, "lewm-rs-train-report");
-        assert_eq!(report.mode, "pusht-full-module-lewm");
+        assert_eq!(report.mode, PUSHT_BOUNDED_LEWM_MODE);
         assert!(report.data_source.starts_with("pusht-compatible-fixture"));
         assert_eq!(report.steps_completed, 10);
         assert_eq!(report.checkpoint_step, 10);
@@ -3237,7 +3252,7 @@ mod tests {
         let loaded = crate::checkpoint::load_checkpoint(dir.path().join("step_0000010.json"))?;
         assert_eq!(loaded.sidecar.step, 10);
         assert_eq!(loaded.sidecar.rng_state.global_seed, 7);
-        assert_eq!(loaded.sidecar.run_id, PUSHT_FULL_LEWM_RUN_ID);
+        assert_eq!(loaded.sidecar.run_id, PUSHT_BOUNDED_LEWM_RUN_ID);
         assert!(
             loaded
                 .sidecar
@@ -3251,6 +3266,26 @@ mod tests {
                 .contains_key("loss/sigreg_proxy")
         );
         Ok(())
+    }
+
+    #[test]
+    fn pusht_bounded_labels_accept_legacy_resume_contract() {
+        assert!(is_supported_pusht_bounded_run_id(PUSHT_BOUNDED_LEWM_RUN_ID));
+        assert!(is_supported_pusht_bounded_run_id(
+            PUSHT_LEGACY_FULL_LEWM_RUN_ID
+        ));
+        assert!(is_supported_pusht_bounded_record_kind(
+            PUSHT_BOUNDED_LEWM_RECORD_KIND
+        ));
+        assert!(is_supported_pusht_bounded_record_kind(
+            PUSHT_LEGACY_FULL_LEWM_RECORD_KIND
+        ));
+        assert!(!is_supported_pusht_bounded_run_id(
+            "pusht-full-burn-jepa-v1"
+        ));
+        assert!(!is_supported_pusht_bounded_record_kind(
+            "lewm-rs-pusht-full-burn-jepa-record"
+        ));
     }
 
     #[test]
@@ -3398,7 +3433,7 @@ mod tests {
     ) -> Result<(), Box<dyn std::error::Error>> {
         let record = PushtFullLewmRecord {
             schema_version: "1.1.0".to_owned(),
-            kind: "lewm-rs-pusht-full-module-lewm-record".to_owned(),
+            kind: PUSHT_BOUNDED_LEWM_RECORD_KIND.to_owned(),
             step: 42,
             params: model.flat_parameters().to_vec(),
             adamw_step: 42,

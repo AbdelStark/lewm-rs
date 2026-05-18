@@ -9,8 +9,20 @@ use core::fmt;
 
 use lewm_core::JepaConfig;
 
-/// Run id stored in checkpoint sidecars for the full-module bounded path.
-pub(crate) const PUSHT_FULL_LEWM_RUN_ID: &str = "pusht-full-module-lewm-v1";
+/// Mode stored in future `PushT` train reports for the bounded host-module path.
+pub(crate) const PUSHT_BOUNDED_LEWM_MODE: &str = "pusht-bounded-module-lewm";
+
+/// Run id stored in checkpoint sidecars for the bounded host-module `PushT` path.
+pub(crate) const PUSHT_BOUNDED_LEWM_RUN_ID: &str = "pusht-bounded-module-lewm-v1";
+
+/// `JSON` record kind stored in bounded host-module `PushT` checkpoints.
+pub(crate) const PUSHT_BOUNDED_LEWM_RECORD_KIND: &str = "lewm-rs-pusht-bounded-module-lewm-record";
+
+/// Legacy run id accepted for resume-only compatibility with pre-labeling runs.
+pub(crate) const PUSHT_LEGACY_FULL_LEWM_RUN_ID: &str = "pusht-full-module-lewm-v1";
+
+/// Legacy record kind accepted for resume-only compatibility with pre-labeling runs.
+pub(crate) const PUSHT_LEGACY_FULL_LEWM_RECORD_KIND: &str = "lewm-rs-pusht-full-module-lewm-record";
 
 /// Run id stored in checkpoint sidecars for the SO-100 full-module path.
 pub(crate) const SO100_FULL_LEWM_RUN_ID: &str = "so100-full-module-lewm-v1";

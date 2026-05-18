@@ -65,9 +65,10 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   303-key full Burn/Jepa checkpoint and lists the implementation gates needed
   before ONNX export can be marked complete.
 - **Bounded PushT job labeling**: checked-in PushT train jobs now use
-  `pusht-bounded-module-lewm` TrackIO/upload labels, and `scripts/check_jobs.py`
-  rejects bounded PushT jobs that publish under `pusht-full*` paths before the
-  full Burn/Jepa training mode exists.
+  `pusht-bounded-module-lewm` TrackIO/upload labels, future bounded PushT
+  checkpoints use bounded run IDs / record kinds / train-report modes, and
+  `scripts/check_jobs.py` rejects bounded PushT jobs that publish under
+  `pusht-full*` paths before the full Burn/Jepa training mode exists.
 - **`lewm-train` eval adapter**: new `lewm_train::eval` module provides
   `JepaCemCostModel<B>`, a `lewm_plan::CemCostModel` adapter that
   tensorises CEM batches and forwards to the parity-verified
