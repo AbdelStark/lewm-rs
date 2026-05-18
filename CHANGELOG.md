@@ -95,7 +95,10 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   for the legacy bounded PushT artifact. F1 handoff docs now use a shell-safe
   `REPLACE_WITH_UTC_TIMESTAMP` token, and `scripts/f1_export_pusht_onnx.py`
   rejects placeholders or non-`YYYYMMDDTHHMMSSZ` Hub run suffixes before any
-  download, export, or upload command runs.
+  download, export, or upload command runs. `reports/phase_a_approval.json`
+  and `scripts/check_phase_a_approval.py` now pin the paid approval packet and
+  make explicit that F1 ($18.00) plus F3 ($9.00) exceeds the $20.00 session cap
+  if approved together.
 - **Model-card accuracy**: local PushT and SO-100 Hub cards now label the
   current uploads as bounded trainer artifacts instead of full release
   checkpoints, and `scripts/upload_model_cards.py --dry-run` no longer requires

@@ -76,6 +76,9 @@ make accept
 - `scripts/check_phase_a_handoff.py`; this keeps the F1/F3 operator handoff
   aligned with the release blockers and prevents dry-run / execute / upload
   commands from drifting into the wrong stage.
+- `scripts/check_phase_a_approval.py`; this validates the paid Phase A
+  approval packet and catches the F1+F3 combined cost exceeding the $20
+  session cap.
 - `scripts/check_pusht_warmstart_hub_audit_report.py`; this validates the
   committed public-Hub `.mpk` audit that currently keeps F3 blocked.
 - Future hooks for hub-artifact verification and release inventory.

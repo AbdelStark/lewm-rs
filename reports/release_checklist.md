@@ -40,6 +40,7 @@ This document tracks all items needed before tagging a public release.
 | ONNX artifacts (onnxruntime) | ⚠️ Reference only | Root `encoder.onnx` + `.data` + `predictor.onnx` + `.data` exist, but not under the F1-required `onnx-full/` trained-checkpoint path |
 | ONNX artifacts (Tract-compat) | ⚠️ Reference only | `tract-compat/encoder.onnx` + `predictor.onnx` exist, but not under the F1-required `onnx-full/` trained-checkpoint path |
 | Phase A handoff | ✅ Local gate | `reports/phase_a_handoff.json` records the ordered F1/F3 commands, human-approval gates, source prefixes, and acceptance evidence; `scripts/check_phase_a_handoff.py` validates it in `make check` |
+| Phase A paid approval packet | ✅ Local gate | `reports/phase_a_approval.json` records F1 worst-case `$18.00`, F3 worst-case `$9.00`, and the `$27.00` combined spend exceeding the `$20.00` session cap; `scripts/check_phase_a_approval.py` validates it in `make check` |
 | Demo Space live | ✅ Done | `abdelstark/lewm-rs-demo` |
 | Parity dumps on Hub | ✅ Done | `AbdelStark/lewm-rs-parity-dumps` |
 | SO-100 dataset on Hub | ✅ Done | `abdelstark/so100-pickplace-lewm-ready` |

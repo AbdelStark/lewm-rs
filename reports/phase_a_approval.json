@@ -1,0 +1,82 @@
+{
+  "schema_version": "1.0.0",
+  "updated": "2026-05-18",
+  "phase": "A",
+  "status": "blocked_pending_human_approval",
+  "session_cap_usd": "20.00",
+  "total_worst_case_usd": "27.00",
+  "combined_requires_separate_approval_sessions": true,
+  "summary": "F1 and F3 are both approval-gated paid HF Jobs. Each fits the $20 per-session cap alone, but their combined worst-case spend is $27.00, so they must not be approved together in one $20 session.",
+  "tasks": [
+    {
+      "id": "F1",
+      "issue": 243,
+      "title": "Export trained full PushT ONNX artifacts",
+      "job": "jobs/train_pusht.yaml",
+      "hardware": "a10g-large",
+      "timeout": "12h",
+      "price_usd_per_hour": "1.50",
+      "worst_case_usd": "18.00",
+      "requires_human_approval": true,
+      "dry_run_command": [
+        "python3",
+        "scripts/launch_hf_job.py",
+        "jobs/train_pusht.yaml",
+        "--dry-run",
+        "--allow-approval-required"
+      ],
+      "approval_command": [
+        "scripts/launch_hf_job.py",
+        "jobs/train_pusht.yaml",
+        "--allow-approval-required"
+      ],
+      "blocked_on": [
+        "Human approval for the paid PushT full Burn/Jepa production run.",
+        "A successful upload under train/pusht-full-burn-jepa-YYYYMMDDTHHMMSSZ/."
+      ],
+      "evidence": [
+        "jobs/train_pusht.yaml",
+        ".ml-intern/cli_agent_config.json",
+        "reports/full_pusht_contract_smoke.json",
+        "reports/full_burn_jepa_training_gap.md",
+        "scripts/f1_export_pusht_onnx.py"
+      ]
+    },
+    {
+      "id": "F3",
+      "issue": 245,
+      "title": "Launch SO-100 warm-start ablation",
+      "job": "jobs/train_so100_warmstart.yaml",
+      "hardware": "a10g-large",
+      "timeout": "6h",
+      "price_usd_per_hour": "1.50",
+      "worst_case_usd": "9.00",
+      "requires_human_approval": true,
+      "dry_run_command": [
+        "LEWM_PUSHT_WARMSTART_MPK=train/REPLACE_WITH_COMPATIBLE_BOUNDED_RUN/step_0050000.mpk",
+        "python3",
+        "scripts/launch_hf_job.py",
+        "jobs/train_so100_warmstart.yaml",
+        "--dry-run",
+        "--allow-approval-required"
+      ],
+      "approval_command": [
+        "LEWM_PUSHT_WARMSTART_MPK=train/REPLACE_WITH_COMPATIBLE_BOUNDED_RUN/step_0050000.mpk",
+        "scripts/launch_hf_job.py",
+        "jobs/train_so100_warmstart.yaml",
+        "--allow-approval-required"
+      ],
+      "blocked_on": [
+        "A compatible current bounded-core PushT .mpk source path for LEWM_PUSHT_WARMSTART_MPK.",
+        "Human approval for the paid SO-100 warm-start launch."
+      ],
+      "evidence": [
+        "jobs/train_so100_warmstart.yaml",
+        ".ml-intern/cli_agent_config.json",
+        "reports/pusht_warmstart_source_smoke.json",
+        "reports/pusht_warmstart_hub_audit.json",
+        "scripts/check_warmstart_source.py"
+      ]
+    }
+  ]
+}
