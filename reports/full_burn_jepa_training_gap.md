@@ -96,6 +96,12 @@ uv run --project python --extra parity python python/export_onnx.py \
 
 uv run --project python --extra parity python python/verify_onnx.py \
   --dir /tmp/pusht-onnx-full
+
+python3 python/upload_checkpoints.py \
+  --src /tmp/pusht-onnx-full \
+  --dst abdelstark/lewm-rs-pusht \
+  --path-prefix onnx-full/ \
+  --dry-run
 ```
 
 ## Acceptance Gate
@@ -107,6 +113,7 @@ Do not mark F1 resolved until all of these are true:
 - Both `onnxruntime` and `tract-compat` variants are generated under
   `onnx-full/`.
 - `python/verify_onnx.py --dir <onnx-full-root>` passes.
-- The verified ONNX variants are uploaded to `abdelstark/lewm-rs-pusht`.
+- The verified ONNX variants are uploaded to `abdelstark/lewm-rs-pusht`; the
+  local `--dry-run` upload check is only a preflight and does not resolve F1.
 - `conformance/release_blockers.json` marks F1 resolved only after the evidence
   above is in place.

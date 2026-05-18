@@ -44,7 +44,9 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   keys for trained-checkpoint ONNX export. The exporter now fails that
   mismatch up front with a checkpoint contract diagnostic instead of surfacing
   a raw missing-key error, and that invalid-checkpoint preflight no longer
-  requires `torch`.
+  requires `torch`. `python/upload_checkpoints.py --dry-run` now validates the
+  final `onnx-full/` upload command without requiring `HF_TOKEN` or the `hf`
+  CLI, while real uploads still require both.
 - **SO-100 warm-start wiring + preflight**: `lewm-train` now consumes
   `training.warmstart_from` for fresh SO-100 full-module training starts,
   transfers shared PushT modules through the RFC 0012 warm-start boundary,
@@ -61,8 +63,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   stale `schema_version = 1.0.0` / minimal records fail before paid training
   begins. The checker now makes the current boundary explicit: full Burn/Jepa
   `NamedMpk` records are not accepted by the bounded-core SO-100 warm-start
-  path. Reproduction/result docs now use the checked-in `train_*.yaml` job names
-  and describe the PushT 50k artifact as a bounded 14-tensor host-core
+  path. Reproduction/result docs now use the checked-in `train_*.yaml` job
+  names and describe the PushT 50k artifact as a bounded 14-tensor host-core
   checkpoint rather than a trained 255-tensor Burn/Jepa mirror.
 - **Release blocker gate**: new `conformance/release_blockers.json` and
   `scripts/check_release_blockers.py` keep `make check` schema-validating known

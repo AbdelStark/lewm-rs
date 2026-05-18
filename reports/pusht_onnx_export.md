@@ -176,6 +176,9 @@ The Python edge tooling is ready for a valid full PushT checkpoint:
 - `python/export_onnx.py --check-contract-only` is available for job gates
   that need to validate the exact 255 Burn destination / 303 PyTorch source
   full-checkpoint contract before upload without exporting ONNX.
+- `python/upload_checkpoints.py --dry-run` validates the final `onnx-full/`
+  Hub upload command locally without requiring `HF_TOKEN` or the `hf` CLI;
+  actual uploads still require both.
 
 Focused validation:
 
@@ -185,6 +188,9 @@ uv run --project python pytest python/tests/test_export_onnx.py python/tests/tes
 
 uv run --project python ruff check python/export_onnx.py python/verify_onnx.py python/tests/test_export_onnx.py python/pyproject.toml
 All checks passed
+
+uv run --project python --frozen pytest python/tests/test_upload_checkpoints.py
+3 passed
 ```
 
 Positive full-layout smoke, using the converted locked upstream reference

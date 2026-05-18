@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -74,13 +75,13 @@ def has_payload(path: Path) -> bool:
 
 
 def validate(args: argparse.Namespace) -> str | None:
-    if shutil.which("hf") is None:
+    if not args.dry_run and shutil.which("hf") is None:
         return "hf CLI is required in PATH"
     if not args.src.exists():
         return f"--src does not exist: {args.src}"
     if not args.dst or "/" not in args.dst:
         return "--dst must be a Hub repo id in namespace/name form"
-    if not os.environ.get("HF_TOKEN"):
+    if not args.dry_run and not os.environ.get("HF_TOKEN"):
         return "HF_TOKEN is required for Hub upload"
     if not args.allow_empty and not has_payload(args.src):
         return f"--src contains no uploadable files: {args.src}"
@@ -96,7 +97,7 @@ def main(argv: list[str] | None = None) -> int:
 
     command = upload_command(args)
     if args.dry_run:
-        print(" ".join(command))
+        print(shlex.join(command))
         return 0
 
     result = subprocess.run(command, check=False)

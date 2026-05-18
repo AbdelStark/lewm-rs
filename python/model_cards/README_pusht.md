@@ -145,6 +145,13 @@ uv run --extra parity python python/export_onnx.py \
 
 # Verify both ONNX layouts before upload.
 uv run --extra parity python python/verify_onnx.py --dir /tmp/lewm-onnx-full
+
+# Preflight the Hub upload command locally before the approved upload.
+python3 python/upload_checkpoints.py \
+  --src /tmp/lewm-onnx-full \
+  --dst abdelstark/lewm-rs-pusht \
+  --path-prefix onnx-full/ \
+  --dry-run
 ```
 
 ## Repository
