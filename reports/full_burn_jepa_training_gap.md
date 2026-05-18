@@ -13,7 +13,10 @@ checkpoint. `lewm-train` now has an opt-in CPU full Burn/Jepa mode
 Safetensors layout. The approval-gated PushT production job now selects this
 CPU-backed mode, reports `--device cpu`, and uploads under
 `train/pusht-full-burn-jepa-*`, but no approved production run has produced or
-uploaded a 50k full-JEPA checkpoint yet. The
+uploaded a 50k full-JEPA checkpoint yet. Before upload, that job runs the
+exporter's safetensors-only checkpoint contract check so another bounded or
+otherwise non-exportable checkpoint cannot be published under the full
+checkpoint path. The
 checked-in bounded PushT smoke/short jobs and checkpoints use
 `pusht-bounded-module-lewm` labels so new artifacts cannot be mistaken for full
 Burn/Jepa checkpoints.
@@ -37,6 +40,13 @@ lewm-train train \
 ```
 
 It uploads to `train/pusht-full-burn-jepa-$(date -u +%Y%m%dT%H%M%SZ)`.
+Before the upload, it validates the produced checkpoint with:
+
+```text
+python python/export_onnx.py \
+  --safetensors /tmp/out/step_${checkpoint_step}.safetensors \
+  --check-contract-only
+```
 
 `crates/lewm-train/src/trainer.rs` now dispatches PushT training by
 `experimental.pusht_train_mode`. The default `bounded_module` path initializes
@@ -73,10 +83,7 @@ F1 still needs a production PushT training run that produces a real trained
 
 1. With human approval, run `jobs/train_pusht.yaml` against the production
    PushT data/config long enough to produce `step_0050000.safetensors`.
-2. Add a local or CI smoke that proves the full Burn/Jepa path writes a
-   checkpoint whose safetensors recover all 303 expected PyTorch keys for the
-   production config.
-3. Only after a real full-layout 50k PushT checkpoint exists, run:
+2. Only after a real full-layout 50k PushT checkpoint exists, run:
 
 ```text
 uv run --project python --extra parity python python/export_onnx.py \

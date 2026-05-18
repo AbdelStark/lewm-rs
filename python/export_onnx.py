@@ -155,6 +155,16 @@ def burn_safetensors_to_state_dict(
     return {k: torch.from_numpy(v.astype(np.float32)) for k, v in pt_numpy.items()}
 
 
+def print_contract_summary(burn_path: Path, recovered: dict[str, np.ndarray]) -> None:
+    """Print a concise full-checkpoint contract summary."""
+    print(
+        "Checkpoint contract ok: "
+        f"recovered {len(recovered)} of {len(pnm.expected_source_keys())} "
+        f"expected PyTorch keys from {burn_path}"
+    )
+    print(f"Safetensors SHA-256: {sha256_file(burn_path)}")
+
+
 def checkpoint_contract_error(burn_keys: set[str], recovered_keys: set[str]) -> str | None:
     """Return a human-readable contract error, or None when export can proceed."""
     expected_keys = set(pnm.expected_source_keys())
@@ -633,8 +643,16 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        required=True,
+        default=None,
         help="Directory to write encoder.onnx, predictor.onnx, and onnx_export.json.",
+    )
+    parser.add_argument(
+        "--check-contract-only",
+        action="store_true",
+        help=(
+            "Validate that --safetensors satisfies the full Burn/Jepa ONNX "
+            "export contract and exit before requiring torch or writing ONNX."
+        ),
     )
     parser.add_argument(
         "--variant",
@@ -665,15 +683,17 @@ def main(argv: list[str] | None = None) -> int:
         print(f"ERROR: safetensors file not found: {args.safetensors}", file=sys.stderr)
         return 1
 
+    if not args.check_contract_only and args.output_dir is None:
+        print("ERROR: --output-dir is required unless --check-contract-only is set.", file=sys.stderr)
+        return 1
+
     meta_path = args.meta
     if meta_path is None:
         script_dir = Path(__file__).resolve().parent
         meta_path = script_dir.parent / "tests" / "fixtures" / "reference_model.meta.json"
-    if not meta_path.exists():
+    if not args.check_contract_only and not meta_path.exists():
         print(f"ERROR: reference_model.meta.json not found: {meta_path}", file=sys.stderr)
         return 1
-
-    args.output_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"Loading Burn safetensors: {args.safetensors}", flush=True)
     try:
@@ -682,9 +702,16 @@ def main(argv: list[str] | None = None) -> int:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
 
+    if args.check_contract_only:
+        print_contract_summary(args.safetensors, recovered_numpy)
+        return 0
+
     if not _TORCH_OK or torch is None:
         print("ERROR: 'torch' is not installed.", file=sys.stderr)
         return 1
+
+    assert args.output_dir is not None
+    args.output_dir.mkdir(parents=True, exist_ok=True)
 
     state = {k: torch.from_numpy(v) for k, v in recovered_numpy.items()}
     print(f"Recovered {len(state)} PyTorch keys from Burn checkpoint.")

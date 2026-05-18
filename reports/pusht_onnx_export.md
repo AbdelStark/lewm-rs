@@ -151,6 +151,9 @@ The Python edge tooling is ready for a valid full PushT checkpoint:
   falling through to a raw missing-key error.
 - Invalid-checkpoint preflight is safetensors-only: `torch` is required only
   after the source checkpoint has passed the full-layout contract.
+- `python/export_onnx.py --check-contract-only` is available for job gates
+  that need to validate the 303-key full-checkpoint contract before upload
+  without exporting ONNX.
 
 Focused validation:
 

@@ -23,6 +23,10 @@ command: |
       --output-dir /tmp/out \
       --resume-if-present \
       --max-steps ${LEWM_MAX_STEPS:-50000} &&
+    checkpoint_step=$(printf '%07d' ${LEWM_MAX_STEPS:-50000}) &&
+    python python/export_onnx.py \
+      --safetensors /tmp/out/step_${checkpoint_step}.safetensors \
+      --check-contract-only &&
     python python/upload_checkpoints.py \
       --src /tmp/out \
       --dst abdelstark/lewm-rs-pusht \

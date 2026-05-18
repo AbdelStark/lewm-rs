@@ -80,6 +80,10 @@ JOB_SPECS = {
             "--output-dir /tmp/out",
             "--resume-if-present",
             "--max-steps ${LEWM_MAX_STEPS:-50000}",
+            "checkpoint_step=$(printf '%07d' ${LEWM_MAX_STEPS:-50000})",
+            "python python/export_onnx.py",
+            "--safetensors /tmp/out/step_${checkpoint_step}.safetensors",
+            "--check-contract-only",
             "python python/upload_checkpoints.py",
             "--path-prefix train/pusht-full-burn-jepa-$(date -u +%Y%m%dT%H%M%SZ)",
         ],
@@ -259,6 +263,7 @@ def validate_image_contract(failures: list[str]) -> None:
             "FROM rust:1.95.0-bookworm AS builder",
             "cargo build --locked --release -p lewm-train",
             "huggingface_hub==",
+            "safetensors==",
             'org.opencontainers.image.source="https://github.com/AbdelStark/lewm-rs"',
             "COPY python ./python",
             "CMD [\"lewm-train\", \"--help\"]",
@@ -376,11 +381,17 @@ def validate_full_pusht_contract(
         "TRACKIO_RUN: pusht-full-burn-jepa",
         "experimental.pusht_train_mode=\\\"full_burn_jepa\\\"",
         "--device cpu",
+        "--check-contract-only",
         "--path-prefix train/pusht-full-burn-jepa",
         "--max-steps ${LEWM_MAX_STEPS:-50000}",
     ):
         if token not in combined:
             failures.append(f"{path}: full PushT job missing {token!r}")
+
+    contract_pos = command.find("--check-contract-only")
+    upload_pos = command.find("python python/upload_checkpoints.py")
+    if contract_pos < 0 or upload_pos < 0 or contract_pos > upload_pos:
+        failures.append(f"{path}: full PushT checkpoint contract check must run before upload")
 
 
 def validate_intern_config(failures: list[str]) -> None:

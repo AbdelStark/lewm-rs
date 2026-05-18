@@ -74,6 +74,7 @@ RUN apt-get update \
     && python3 -m pip install --break-system-packages --no-cache-dir \
         "huggingface_hub==${HF_CLI_VERSION}" \
         "hdf5plugin==${HDF5PLUGIN_VERSION}" \
+        "safetensors==0.5.3" \
     && ln -sf /usr/bin/python3 /usr/local/bin/python \
     && rm -rf /var/lib/apt/lists/*
 

@@ -120,3 +120,42 @@ def test_recover_pytorch_numpy_reports_bounded_core_before_torch(tmp_path: Path)
     message = str(exc_info.value)
     assert "source safetensors tensor count: 14" in message
     assert "bounded PushtFullLewmCore training artifact" in message
+
+
+def test_check_contract_only_accepts_full_layout_without_torch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    safetensors_numpy = pytest.importorskip("safetensors.numpy")
+    checkpoint = tmp_path / "step_0050000.safetensors"
+    tensors = {}
+    for rule in export.pnm.parameter_rules():
+        if rule.transform == export.pnm.Transform.QKV_LINEAR_CONCAT_TRANSPOSE:
+            tensors[rule.destination] = np.zeros((1, len(rule.sources)), dtype=np.float32)
+        elif rule.transform == export.pnm.Transform.QKV_BIAS_CONCAT:
+            tensors[rule.destination] = np.zeros((len(rule.sources),), dtype=np.float32)
+        elif rule.transform == export.pnm.Transform.LINEAR_TRANSPOSE:
+            tensors[rule.destination] = np.zeros((1, 1), dtype=np.float32)
+        else:
+            tensors[rule.destination] = np.zeros((1,), dtype=np.float32)
+    safetensors_numpy.save_file(tensors, checkpoint)
+    monkeypatch.setattr(export, "_TORCH_OK", False)
+    monkeypatch.setattr(export, "torch", None)
+
+    result = export.main(["--safetensors", str(checkpoint), "--check-contract-only"])
+
+    assert result == 0
+    captured = capsys.readouterr()
+    assert "Checkpoint contract ok: recovered 303 of 303 expected PyTorch keys" in captured.out
+    assert "Safetensors SHA-256:" in captured.out
+
+
+def test_export_requires_output_dir_unless_check_only(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    checkpoint = tmp_path / "step_0050000.safetensors"
+    checkpoint.write_bytes(b"not used")
+
+    result = export.main(["--safetensors", str(checkpoint)])
+
+    assert result == 1
+    assert "--output-dir is required unless --check-contract-only is set" in capsys.readouterr().err

@@ -76,7 +76,10 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - **PushT job selection**: the approval-gated production PushT job now selects
   CPU-backed `experimental.pusht_train_mode = "full_burn_jepa"`, reports
   `--device cpu`, defaults to 50k steps, and uploads to
-  `train/pusht-full-burn-jepa-*`. Bounded PushT smoke/short jobs keep
+  `train/pusht-full-burn-jepa-*` only after `python/export_onnx.py
+  --check-contract-only` verifies the produced safetensors recovers the full
+  303-key export contract. The training image now includes `safetensors` for
+  that pre-upload gate. Bounded PushT smoke/short jobs keep
   `pusht-bounded-module-lewm` TrackIO/upload labels, future bounded PushT
   checkpoints use bounded run IDs / record kinds / train-report modes, and
   `scripts/check_jobs.py` rejects bounded PushT jobs that publish under

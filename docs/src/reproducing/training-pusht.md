@@ -53,7 +53,9 @@ scripts/launch_hf_job.py jobs/train_pusht.yaml --allow-approval-required
 
 The job uploads the trainer output directory to
 `abdelstark/lewm-rs-pusht/train/pusht-full-burn-jepa-<UTC timestamp>/`
-after the train command completes.
+after the train command completes and after `python/export_onnx.py
+--check-contract-only` verifies that the produced safetensors recovers the
+full 303-key ONNX export contract.
 
 ## 4. Monitoring
 
