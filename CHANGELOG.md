@@ -86,6 +86,9 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   validator also cross-checks `conformance/release_blockers.json` so F1/F3
   cannot drift away from their blocked Phase A release status, and enforces
   that dry-run, execute, and upload commands stay in their intended stages.
+  README, conformance, and quality-gate docs now describe the Phase A handoff
+  gate and no longer present `jobs/train_pusht.yaml` as a reproduction command
+  for the legacy bounded PushT artifact.
 - **Model-card accuracy**: local PushT and SO-100 Hub cards now label the
   current uploads as bounded trainer artifacts instead of full release
   checkpoints, and `scripts/upload_model_cards.py --dry-run` no longer requires

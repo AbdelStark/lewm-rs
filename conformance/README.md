@@ -1,9 +1,13 @@
 # Conformance Inputs
 
 `make check` validates `conformance/release_blockers.json` with
-`scripts/check_release_blockers.py --allow-open`. `make accept` runs the same
-validator without `--allow-open`, so release acceptance fails while any listed
-blocker has status `blocked`, `pending`, or `open`.
+`scripts/check_release_blockers.py --allow-open`. It also validates
+`reports/phase_a_handoff.json` with `scripts/check_phase_a_handoff.py`, which
+pins the ordered F1/F3 operator commands and cross-checks that those Phase A
+blockers remain blocked until their human-approved jobs and uploads complete.
+`make accept` runs the release blocker validator without `--allow-open`, so
+release acceptance fails while any listed blocker has status `blocked`,
+`pending`, or `open`.
 
 `make accept` also looks for `conformance/hub_artifacts.json` and verifies every
 listed artifact with `scripts/check_hub_artifacts.py`. The manifest is
@@ -35,6 +39,33 @@ Release blocker shape:
       "status": "blocked",
       "evidence": ["reports/pusht_onnx_export.md"],
       "required_resolution": ["Upload verified onnx-full artifacts."]
+    }
+  ]
+}
+```
+
+Phase A handoff shape:
+
+```json
+{
+  "schema_version": "1.0.0",
+  "updated": "2026-05-18",
+  "phase": "A",
+  "status": "blocked",
+  "tasks": [
+    {
+      "id": "F1",
+      "issue": 243,
+      "status": "blocked",
+      "requires_human_approval": true,
+      "source_prefix": "train/pusht-full-burn-jepa-",
+      "rejected_source_prefixes": ["train/pusht-full-lewm-"],
+      "commands": {
+        "preflight": [["python3", "scripts/check_full_pusht_contract_smoke_report.py"]],
+        "after_full_checkpoint_exists": [
+          ["scripts/f1_export_pusht_onnx.py", "--run-prefix", "train/pusht-full-burn-jepa-<UTC timestamp>"]
+        ]
+      }
     }
   ]
 }

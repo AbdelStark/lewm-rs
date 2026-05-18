@@ -46,7 +46,7 @@
 
 - **Pure-Rust LeWM** across 8 Cargo crates on [Burn 0.21.0](https://github.com/tracel-ai/burn) + [Tract 0.22.1](https://github.com/sonos/tract); no Python at training or inference time.
 - **Numerical parity** with the published `quentinll/lewm-pusht` reference: all 10 activation-level tests pass with L∞ < 1e-4 ([`reports/gpu_inference.md`](reports/gpu_inference.md)).
-- **PushT** trained end-to-end on a single A10G-large in **318 min / 50k steps**, loss 0.4912 → 3.17e-06; artifacts at [`abdelstark/lewm-rs-pusht`](https://huggingface.co/abdelstark/lewm-rs-pusht). **SO-100** trained in **864 s / 5k steps**, loss 0.5002 → 9.56e-05; artifacts at [`abdelstark/lewm-rs-so100`](https://huggingface.co/abdelstark/lewm-rs-so100).
+- **PushT** bounded trainer run completed on a single A10G-large in **318 min / 50k steps**, loss 0.4912 → 3.17e-06; artifacts at [`abdelstark/lewm-rs-pusht`](https://huggingface.co/abdelstark/lewm-rs-pusht). The full Burn/Jepa ONNX release checkpoint is still blocked on the approval-gated `train/pusht-full-burn-jepa-*` rerun ([`reports/pusht_onnx_export.md`](reports/pusht_onnx_export.md)). **SO-100** trained in **864 s / 5k steps**, loss 0.5002 → 9.56e-05; artifacts at [`abdelstark/lewm-rs-so100`](https://huggingface.co/abdelstark/lewm-rs-so100).
 - **Tract CPU planning** at **4.08 s/episode (p50)** on Apple M3 release build, 5 CEM iterations × 1024 candidates ([`reports/inference.md`](reports/inference.md)).
 - **One install**, four commands: `cargo build --release --workspace --locked`.
 
@@ -183,12 +183,20 @@ CEM planning success rate on the standard PushT eval is **not** measured in this
 - **Determinism.** Substream-keyed `ChaCha20Rng` for all sampling (RFC 0013); `thread_rng` is lint-banned by `scripts/check_nondet.py`. Model-init seed, dataloader seed, and planning seed are recorded in every checkpoint sidecar.
 - **Hardware used for published results.** A10G-large (HF Jobs, $1.50/hr) for both training runs; Apple M3 (8-core ARM, `cargo build --release`) for the Tract CPU benchmark.
 - **Datasets.** PushT mirror at `quentinll/lewm-pusht` (HDF5 + Blosc); SO-100 mirror at `abdelstark/so100-pickplace-lewm-ready` (HDF5 re-encode of `lerobot/svla_so100_pickplace`).
-- **Quality gate.** `CARGO_INCREMENTAL=0 make check` runs fmt + clippy `-D warnings` + Ruff + `cargo check` + spec / layer / non-determinism validators + `cargo deny` + `cargo audit`.
+- **Quality gate.** `CARGO_INCREMENTAL=0 make check` runs fmt + clippy `-D warnings` + Ruff + `cargo check` + spec / layer / non-determinism validators + release blocker / Phase A handoff validators + `cargo deny` + `cargo audit`.
 
-Single-command reproduction of the published PushT artifact (HF account required, ≈ $8 of A10G time):
+Approval-gated full PushT production run (HF account required; cost must be approved before launch):
 
 ```bash
-scripts/launch_hf_job.py jobs/train_pusht.yaml      # human-approval-gated
+scripts/launch_hf_job.py jobs/train_pusht.yaml --allow-approval-required
+```
+
+After that job publishes `train/pusht-full-burn-jepa-<UTC timestamp>/`, dry-run
+the F1 ONNX handoff before executing or uploading:
+
+```bash
+scripts/f1_export_pusht_onnx.py \
+  --run-prefix train/pusht-full-burn-jepa-<UTC timestamp>
 ```
 
 ## Project structure

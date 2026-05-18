@@ -73,6 +73,9 @@ make accept
 - `python/Makefile` Python gate.
 - `scripts/check_release_blockers.py` without `--allow-open`; this fails while
   any release blocker in `conformance/release_blockers.json` is still open.
+- `scripts/check_phase_a_handoff.py`; this keeps the F1/F3 operator handoff
+  aligned with the release blockers and prevents dry-run / execute / upload
+  commands from drifting into the wrong stage.
 - Future hooks for hub-artifact verification and release inventory.
 
 This is the gate the maintainer runs before tagging a release. See
