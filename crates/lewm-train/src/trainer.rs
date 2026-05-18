@@ -10,8 +10,8 @@ use crate::checkpoint::{
     CHECKPOINT_SCHEMA_VERSION, CheckpointError, CheckpointPaths, CheckpointRngState,
     CheckpointWriteRequest, ParameterTensor, ParityProbe, load_checkpoint, save_checkpoint,
 };
-use crate::config::{DatasetConfig, DatasetSplit, RootConfig, So100DatasetConfig};
-use crate::optim::OptimConfig;
+use crate::config::{DatasetConfig, DatasetSplit, PushtTrainMode, RootConfig, So100DatasetConfig};
+use crate::optim::{ADAMW_EPSILON, OptimConfig};
 use crate::pusht_full::{
     PUSHT_BOUNDED_LEWM_MODE, PUSHT_BOUNDED_LEWM_RECORD_KIND, PUSHT_BOUNDED_LEWM_RUN_ID,
     PUSHT_LEGACY_FULL_LEWM_RECORD_KIND, PUSHT_LEGACY_FULL_LEWM_RUN_ID, PushtFullLewmCore,
@@ -28,14 +28,19 @@ use crate::step::{
 use crate::warmstart::{
     TrainError as WarmstartError, TrainStateRecord, WarmstartProvenance, load_warmstart,
 };
+use burn_core::module::{AutodiffModule, Module};
+use burn_core::record::{FullPrecisionSettings, NamedMpkBytesRecorder, Recorder};
+use burn_core::tensor::{Tensor, TensorData, backend::Backend as BurnBackend};
+use burn_optim::{AdamWConfig, GradientsParams, Optimizer};
 use lewm_core::{
-    CEM_STREAM, DATA_SHUFFLE_STREAM, DROPOUT_STREAM, MODEL_INIT_STREAM, SIGREG_SKETCH_STREAM,
+    CEM_STREAM, DATA_SHUFFLE_STREAM, DROPOUT_STREAM, Jepa, MODEL_INIT_STREAM, SIGREG_SKETCH_STREAM,
+    export::{ExportDType, ExportedTensor, collect_parameters},
     substream_rng,
 };
 use lewm_data::{
-    DataError, PushtConfig as DataPushtConfig, PushtDataset, Sample as PushtSample,
-    SampleMeta as PushtSampleMeta, So100Config as DataSo100Config, So100Dataset,
-    Split as DataSplit,
+    DataError, ImagePreprocessor, PushtConfig as DataPushtConfig, PushtDataset,
+    Sample as PushtSample, SampleMeta as PushtSampleMeta, So100Config as DataSo100Config,
+    So100Dataset, Split as DataSplit,
 };
 use rand::Rng;
 use safetensors::tensor::{Dtype, SafeTensors};
@@ -56,6 +61,11 @@ const SMOKE_MAX_BATCH_SIZE: u64 = 1_024;
 const PUSHT_FIXTURE_FRAME_SIZE: usize = 16;
 const PUSHT_FIXTURE_SAMPLE_COUNT: usize = 128;
 const PUSHT_ACTION_DIM: usize = 2;
+const PUSHT_FULL_BURN_JEPA_MODE: &str = "pusht-full-burn-jepa";
+const PUSHT_FULL_BURN_JEPA_RUN_ID: &str = "pusht-full-burn-jepa-v1";
+
+type PushtBurnCpuBackend = burn_ndarray::NdArray<f32>;
+type PushtBurnAutodiffBackend = burn_autodiff::Autodiff<PushtBurnCpuBackend>;
 
 /// Error returned by trainer state-machine helpers.
 #[derive(Debug)]
@@ -86,6 +96,16 @@ pub enum TrainerError {
     Core {
         /// Original core error.
         source: lewm_core::LewmCoreError,
+    },
+    /// Core Safetensors export failed.
+    Export {
+        /// Original export error.
+        source: lewm_core::export::ExportError,
+    },
+    /// Burn record serialization failed.
+    BurnRecord {
+        /// Original recorder error.
+        source: burn_core::record::RecorderError,
     },
     /// Inner step primitive failed.
     Step {
@@ -203,6 +223,7 @@ pub enum TrainerError {
 }
 
 impl fmt::Display for TrainerError {
+    #[allow(clippy::too_many_lines)]
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Io { path, source } => {
@@ -216,6 +237,10 @@ impl fmt::Display for TrainerError {
             Self::Checkpoint { source } => write!(formatter, "trainer checkpoint error: {source}"),
             Self::Resume { source } => write!(formatter, "trainer resume error: {source}"),
             Self::Core { source } => write!(formatter, "trainer core error: {source}"),
+            Self::Export { source } => write!(formatter, "trainer export error: {source}"),
+            Self::BurnRecord { source } => {
+                write!(formatter, "trainer Burn record error: {source}")
+            },
             Self::Step { source } => write!(formatter, "trainer step error: {source}"),
             Self::Data { source } => write!(formatter, "trainer data error: {source}"),
             Self::Warmstart { source } => {
@@ -312,6 +337,8 @@ impl std::error::Error for TrainerError {
             Self::Checkpoint { source } => Some(source),
             Self::Resume { source } => Some(source),
             Self::Core { source } => Some(source),
+            Self::Export { source } => Some(source),
+            Self::BurnRecord { source } => Some(source),
             Self::Step { source } => Some(source),
             Self::Data { source } => Some(source),
             Self::Warmstart { source } => Some(source),
@@ -358,6 +385,18 @@ impl From<crate::resume::ResumeError> for TrainerError {
 impl From<lewm_core::LewmCoreError> for TrainerError {
     fn from(source: lewm_core::LewmCoreError) -> Self {
         Self::Core { source }
+    }
+}
+
+impl From<lewm_core::export::ExportError> for TrainerError {
+    fn from(source: lewm_core::export::ExportError) -> Self {
+        Self::Export { source }
+    }
+}
+
+impl From<burn_core::record::RecorderError> for TrainerError {
+    fn from(source: burn_core::record::RecorderError) -> Self {
+        Self::BurnRecord { source }
     }
 }
 
@@ -1247,6 +1286,15 @@ pub fn write_train_artifacts(
 fn write_pusht_train_artifacts(
     request: TrainArtifactRequest<'_>,
 ) -> Result<TrainRunReport, TrainerError> {
+    match request.root.experimental.pusht_train_mode {
+        PushtTrainMode::BoundedModule => write_pusht_bounded_train_artifacts(request),
+        PushtTrainMode::FullBurnJepa => write_pusht_burn_jepa_train_artifacts(request),
+    }
+}
+
+fn write_pusht_bounded_train_artifacts(
+    request: TrainArtifactRequest<'_>,
+) -> Result<TrainRunReport, TrainerError> {
     let output_dir = request.output_dir;
 
     let source = open_pusht_training_source(request.root, request.data_dir)?;
@@ -1310,6 +1358,52 @@ fn write_pusht_train_artifacts(
         outcome.grad_explosion_events,
         PUSHT_BOUNDED_LEWM_MODE,
         outcome.warmstart,
+    )
+}
+
+fn write_pusht_burn_jepa_train_artifacts(
+    request: TrainArtifactRequest<'_>,
+) -> Result<TrainRunReport, TrainerError> {
+    let output_dir = request.output_dir;
+
+    let source = open_pusht_training_source(request.root, request.data_dir)?;
+    let startup = detect_resume(
+        output_dir,
+        request.resume_if_present,
+        option_env!("LEWM_GIT_SHA").unwrap_or("unknown"),
+    )?;
+    match startup {
+        StartupMode::Fresh => write_train_run_id(output_dir, PUSHT_FULL_BURN_JEPA_RUN_ID)?,
+        StartupMode::Resume(plan) => {
+            return Err(TrainerError::ResumeCheckpointInvalid {
+                reason: format!(
+                    "full Burn/Jepa PushT resume is not implemented yet; found checkpoint step {} in {}",
+                    plan.step,
+                    plan.sidecar_path.display()
+                ),
+            });
+        },
+    }
+
+    let outcome = run_pusht_burn_jepa_training(&source, request.root, request.max_steps)?;
+    let paths = write_pusht_burn_jepa_checkpoint(
+        output_dir,
+        request.config_hash,
+        request.seed,
+        request.max_steps,
+        &outcome,
+    )?;
+    write_train_report(
+        output_dir,
+        request,
+        source.description(),
+        source.len(),
+        outcome.losses.clone(),
+        &paths,
+        outcome.batch_size,
+        outcome.grad_explosion_events,
+        PUSHT_FULL_BURN_JEPA_MODE,
+        None,
     )
 }
 
@@ -1565,6 +1659,17 @@ struct PushtFullLewmOutcome {
     optimizer: PushtFullLewmAdamWState,
     rng_streams: RestoredRngStreams,
     warmstart: Option<WarmstartReport>,
+    step: u64,
+    batch_size: usize,
+    samples_seen: u64,
+    grad_explosion_events: u64,
+}
+
+#[derive(Clone, Debug)]
+struct PushtBurnJepaOutcome {
+    losses: Vec<TrainLossPoint>,
+    model: Jepa<PushtBurnAutodiffBackend>,
+    rng_streams: RestoredRngStreams,
     step: u64,
     batch_size: usize,
     samples_seen: u64,
@@ -2447,6 +2552,111 @@ fn run_pusht_full_lewm_training(
     })
 }
 
+#[allow(clippy::too_many_lines)]
+fn run_pusht_burn_jepa_training(
+    source: &PushtTrainingSource,
+    root: &RootConfig,
+    max_steps: u64,
+) -> Result<PushtBurnJepaOutcome, TrainerError> {
+    let DatasetConfig::Pusht(dataset_config) = &root.dataset else {
+        return Err(TrainerError::UnsupportedTrainDataset {
+            kind: dataset_kind_name(&root.dataset).to_owned(),
+        });
+    };
+    validate_pusht_burn_jepa_config(root)?;
+
+    let total_steps = train_steps_as_u32(max_steps)?;
+    let batch_size = train_batch_size(root)?;
+    let batch_size_u32 = train_batch_size_as_u32(batch_size)?;
+    let device = burn_ndarray::NdArrayDevice::default();
+    PushtBurnAutodiffBackend::seed(&device, root.training.seed);
+    let mut model = Jepa::<PushtBurnAutodiffBackend>::init_with_seed(
+        root.model.clone(),
+        root.training.seed,
+        &device,
+    )?;
+    let mut optimizer = AdamWConfig::new()
+        .with_beta_1(f32_from_f64(root.training.betas.0))
+        .with_beta_2(f32_from_f64(root.training.betas.1))
+        .with_epsilon(f32_from_f64(ADAMW_EPSILON))
+        .with_weight_decay(f32_from_f64(root.training.weight_decay))
+        .init::<PushtBurnAutodiffBackend, Jepa<PushtBurnAutodiffBackend>>();
+    let schedule = CosineWarmup::from_parts(
+        root.training.lr_peak,
+        root.training.lr_min,
+        root.training.warmup_steps,
+        total_steps.max(root.training.warmup_steps.saturating_add(1)),
+    );
+    let mut rng_streams = fresh_pusht_full_lewm_rng_streams(root.training.seed)?;
+    let mut losses = Vec::with_capacity(usize::try_from(total_steps).unwrap_or_default());
+    let mut samples_seen = 0_u64;
+    let image_preproc = pusht_burn_jepa_image_preprocessor(root)?;
+    let train_start = Instant::now(); // determinism-lint: allow Instant::now (wall-clock ETA only)
+
+    for step in 1..=total_steps {
+        PushtBurnAutodiffBackend::seed(&device, rng_streams.dropout.next_u64());
+        let (pixels, actions) = pusht_burn_jepa_batch(
+            source,
+            dataset_config,
+            &root.model,
+            &image_preproc,
+            step,
+            batch_size,
+            &mut rng_streams,
+            device,
+        )?;
+        let losses_this_step = model.criterion(
+            pixels,
+            actions,
+            root.loss.lambda_sigreg,
+            &mut rng_streams.sigreg_sketch,
+        )?;
+        let total_loss = burn_scalar(&losses_this_step.total.clone().inner())?;
+        let pred_loss = burn_scalar(&losses_this_step.pred.clone().inner())?;
+        let sigreg_proxy_loss = burn_scalar(&losses_this_step.sigreg.clone().inner())?;
+        let step_u64 = u64::from(step);
+        if !total_loss.is_finite() {
+            return Err(TrainerError::TrainGuardRejected {
+                step: step_u64,
+                reason: format!("full Burn/Jepa loss is non-finite: {total_loss}"),
+            });
+        }
+        let gradients = GradientsParams::from_grads(losses_this_step.total.backward(), &model);
+        let learning_rate = schedule.lr(step);
+        model = optimizer.step(learning_rate, model, gradients);
+        samples_seen = samples_seen.saturating_add(u64::from(batch_size_u32));
+        losses.push(TrainLossPoint {
+            step: step_u64,
+            loss: total_loss,
+            pred_loss,
+            sigreg_proxy_loss,
+            grad_norm_pre: 0.0,
+            grad_norm_post: 0.0,
+            learning_rate,
+            samples_seen,
+        });
+        if step == 1 || step % 100 == 0 || step == total_steps {
+            let elapsed_s = train_start.elapsed().as_secs_f64();
+            let eta_s = elapsed_s / f64::from(step) * f64::from(total_steps - step);
+            eprintln!(
+                "[pusht-burn-jepa step {step}/{total_steps}] loss={total_loss:.6} \
+                 pred={pred_loss:.6} sigreg={sigreg_proxy_loss:.6} lr={learning_rate:.2e} \
+                 elapsed={elapsed_s:.0}s eta={eta_s:.0}s",
+            );
+        }
+    }
+
+    Ok(PushtBurnJepaOutcome {
+        losses,
+        model,
+        rng_streams,
+        step: max_steps,
+        batch_size,
+        samples_seen,
+        grad_explosion_events: 0,
+    })
+}
+
 fn run_so100_full_lewm_training(
     source: &So100TrainingSource,
     root: &RootConfig,
@@ -2461,6 +2671,263 @@ fn run_so100_full_lewm_training(
     run_full_lewm_training(source, root, max_steps, start, "so100", |sample| {
         full_lewm_example_from_so100_sample(sample, dataset_config, &root.model)
     })
+}
+
+fn validate_pusht_burn_jepa_config(root: &RootConfig) -> Result<(), TrainerError> {
+    if !root.loss.lambda_sigreg.is_finite() {
+        return Err(TrainerError::Data {
+            source: DataError::InvalidTransform(
+                "full Burn/Jepa lambda_sigreg must be finite".to_owned(),
+            ),
+        });
+    }
+    if root.model.encoder.num_channels != 3 {
+        return Err(TrainerError::Data {
+            source: DataError::InvalidTransform(format!(
+                "full Burn/Jepa PushT requires RGB encoder input, found {} channels",
+                root.model.encoder.num_channels
+            )),
+        });
+    }
+    let DatasetConfig::Pusht(dataset) = &root.dataset else {
+        return Err(TrainerError::UnsupportedTrainDataset {
+            kind: dataset_kind_name(&root.dataset).to_owned(),
+        });
+    };
+    let expected_action_dim = dataset
+        .raw_action_dim
+        .checked_mul(dataset.frameskip)
+        .ok_or_else(|| TrainerError::Data {
+            source: DataError::InvalidTransform(
+                "PushT full Burn/Jepa action packing overflow".to_owned(),
+            ),
+        })?;
+    if root.model.action_encoder.input_dim != expected_action_dim {
+        return Err(TrainerError::Data {
+            source: DataError::InvalidTransform(format!(
+                "full Burn/Jepa PushT action dim must be raw_action_dim * frameskip = {expected_action_dim}, found {}",
+                root.model.action_encoder.input_dim
+            )),
+        });
+    }
+    Ok(())
+}
+
+fn pusht_burn_jepa_image_preprocessor(
+    root: &RootConfig,
+) -> Result<ImagePreprocessor, TrainerError> {
+    let target_size =
+        u32::try_from(root.model.encoder.image_size).map_err(|_| TrainerError::Data {
+            source: DataError::InvalidTransform(format!(
+                "encoder image_size {} does not fit u32",
+                root.model.encoder.image_size
+            )),
+        })?;
+    Ok(ImagePreprocessor {
+        target_size,
+        ..ImagePreprocessor::default()
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn pusht_burn_jepa_batch(
+    source: &PushtTrainingSource,
+    dataset: &crate::config::PushtDatasetConfig,
+    model: &lewm_core::JepaConfig,
+    image_preproc: &ImagePreprocessor,
+    step: u32,
+    batch_size: usize,
+    rng_streams: &mut RestoredRngStreams,
+    device: burn_ndarray::NdArrayDevice,
+) -> Result<
+    (
+        Tensor<PushtBurnAutodiffBackend, 5>,
+        Tensor<PushtBurnAutodiffBackend, 3>,
+    ),
+    TrainerError,
+> {
+    let image_size = model.encoder.image_size;
+    let pixel_count = batch_size
+        .checked_mul(model.horizon)
+        .and_then(|value| value.checked_mul(model.encoder.num_channels))
+        .and_then(|value| value.checked_mul(image_size))
+        .and_then(|value| value.checked_mul(image_size))
+        .ok_or_else(|| TrainerError::Data {
+            source: DataError::InvalidTransform(
+                "full Burn/Jepa pixel batch shape overflow".to_owned(),
+            ),
+        })?;
+    let action_count = batch_size
+        .checked_mul(model.horizon)
+        .and_then(|value| value.checked_mul(model.action_encoder.input_dim))
+        .ok_or_else(|| TrainerError::Data {
+            source: DataError::InvalidTransform(
+                "full Burn/Jepa action batch shape overflow".to_owned(),
+            ),
+        })?;
+    let mut pixels = Vec::with_capacity(pixel_count);
+    let mut actions = Vec::with_capacity(action_count);
+
+    for sample_offset in 0..batch_size {
+        let dataset_index =
+            training_sample_index(step, sample_offset, batch_size, source.len(), rng_streams)?;
+        let sample = source.get(dataset_index)?;
+        let (sample_pixels, sample_actions) =
+            pusht_burn_jepa_sample_tensors(&sample, dataset, model, image_preproc)?;
+        pixels.extend(sample_pixels);
+        actions.extend(sample_actions);
+    }
+
+    let pixels = Tensor::<PushtBurnAutodiffBackend, 5>::from_data(
+        TensorData::new(
+            pixels,
+            [
+                batch_size,
+                model.horizon,
+                model.encoder.num_channels,
+                image_size,
+                image_size,
+            ],
+        ),
+        &device,
+    );
+    let actions = Tensor::<PushtBurnAutodiffBackend, 3>::from_data(
+        TensorData::new(
+            actions,
+            [batch_size, model.horizon, model.action_encoder.input_dim],
+        ),
+        &device,
+    );
+    Ok((pixels, actions))
+}
+
+fn pusht_burn_jepa_sample_tensors(
+    sample: &PushtSample,
+    dataset: &crate::config::PushtDatasetConfig,
+    model: &lewm_core::JepaConfig,
+    image_preproc: &ImagePreprocessor,
+) -> Result<(Vec<f32>, Vec<f32>), TrainerError> {
+    validate_pusht_burn_jepa_sample(sample, dataset, model)?;
+    let mut pixels = Vec::with_capacity(
+        model
+            .horizon
+            .saturating_mul(model.encoder.num_channels)
+            .saturating_mul(model.encoder.image_size)
+            .saturating_mul(model.encoder.image_size),
+    );
+    for frame_index in 0..model.horizon {
+        pixels.extend(pusht_burn_jepa_frame_pixels(
+            sample,
+            frame_index,
+            image_preproc,
+        )?);
+    }
+
+    let mut actions =
+        Vec::with_capacity(model.horizon.saturating_mul(model.action_encoder.input_dim));
+    for action_index in 0..model.horizon {
+        actions.extend(
+            full_lewm_packed_action(
+                sample,
+                action_index,
+                dataset.raw_action_dim,
+                dataset.frameskip,
+                model.action_encoder.input_dim,
+            )?
+            .into_iter()
+            .map(f32_from_f64),
+        );
+    }
+    Ok((pixels, actions))
+}
+
+fn validate_pusht_burn_jepa_sample(
+    sample: &PushtSample,
+    dataset: &crate::config::PushtDatasetConfig,
+    model: &lewm_core::JepaConfig,
+) -> Result<(), TrainerError> {
+    validate_full_lewm_sample(sample, dataset)?;
+    if sample.frame_shape.0 < model.horizon {
+        return Err(TrainerError::Data {
+            source: DataError::InvalidTransform(format!(
+                "full Burn/Jepa PushT requires {} frames, found {}",
+                model.horizon, sample.frame_shape.0
+            )),
+        });
+    }
+    if sample.action_shape.0 < model.horizon {
+        return Err(TrainerError::Data {
+            source: DataError::InvalidTransform(format!(
+                "full Burn/Jepa PushT requires {} action steps, found {}",
+                model.horizon, sample.action_shape.0
+            )),
+        });
+    }
+    Ok(())
+}
+
+fn pusht_burn_jepa_frame_pixels(
+    sample: &PushtSample,
+    frame_index: usize,
+    image_preproc: &ImagePreprocessor,
+) -> Result<Vec<f32>, TrainerError> {
+    let frame_stride = sample
+        .frame_shape
+        .1
+        .checked_mul(sample.frame_shape.2)
+        .and_then(|value| value.checked_mul(sample.frame_shape.3))
+        .ok_or_else(|| TrainerError::Data {
+            source: DataError::InvalidTransform("full Burn/Jepa frame shape overflow".to_owned()),
+        })?;
+    let start = frame_index
+        .checked_mul(frame_stride)
+        .ok_or_else(|| TrainerError::Data {
+            source: DataError::InvalidTransform("full Burn/Jepa frame offset overflow".to_owned()),
+        })?;
+    let end = start
+        .checked_add(frame_stride)
+        .ok_or_else(|| TrainerError::Data {
+            source: DataError::InvalidTransform("full Burn/Jepa frame range overflow".to_owned()),
+        })?;
+    let frame = sample
+        .frames_t
+        .get(start..end)
+        .ok_or_else(|| TrainerError::Data {
+            source: DataError::InvalidTransform(format!(
+                "full Burn/Jepa frame {frame_index} exceeds frame shape {:?}",
+                sample.frame_shape
+            )),
+        })?;
+    let src_h = u32::try_from(sample.frame_shape.1).map_err(|_| TrainerError::Data {
+        source: DataError::InvalidTransform(format!(
+            "frame height {} does not fit u32",
+            sample.frame_shape.1
+        )),
+    })?;
+    let src_w = u32::try_from(sample.frame_shape.2).map_err(|_| TrainerError::Data {
+        source: DataError::InvalidTransform(format!(
+            "frame width {} does not fit u32",
+            sample.frame_shape.2
+        )),
+    })?;
+    image_preproc
+        .apply(frame, src_h, src_w)
+        .map_err(TrainerError::from)
+}
+
+fn burn_scalar<B: BurnBackend>(tensor: &Tensor<B, 1>) -> Result<f64, TrainerError> {
+    let values = tensor
+        .to_data()
+        .to_vec::<f32>()
+        .map_err(|source| TrainerError::Data {
+            source: DataError::InvalidTransform(format!(
+                "Burn scalar tensor conversion failed: {source}"
+            )),
+        })?;
+    let value = values.first().copied().ok_or_else(|| TrainerError::Data {
+        source: DataError::InvalidTransform("Burn scalar tensor was empty".to_owned()),
+    })?;
+    Ok(f64::from(value))
 }
 
 #[allow(clippy::needless_pass_by_value)]
@@ -2815,6 +3282,111 @@ fn apply_pusht_full_lewm_adamw(
     }
 }
 
+fn write_pusht_burn_jepa_checkpoint(
+    output_dir: &Path,
+    config_hash: &str,
+    seed: u64,
+    scheduler_total_steps: u64,
+    outcome: &PushtBurnJepaOutcome,
+) -> Result<CheckpointPaths, TrainerError> {
+    let valid_model = outcome.model.valid();
+    let parameters = collect_parameters(&valid_model)?
+        .into_iter()
+        .map(parameter_tensor_from_export)
+        .collect::<Result<Vec<_>, _>>()?;
+    let burn_record = burn_jepa_record_bytes(&valid_model)?;
+    let parity = ParityProbe {
+        encoder_cls_l_inf: outcome.losses.last().map_or(0.0, |point| point.pred_loss),
+        predictor_l_inf: last_train_loss(&outcome.losses),
+        sigreg_value: outcome
+            .losses
+            .last()
+            .map_or(0.0, |point| point.sigreg_proxy_loss),
+    };
+    let request = CheckpointWriteRequest {
+        output_dir,
+        run_id: PUSHT_FULL_BURN_JEPA_RUN_ID,
+        step: outcome.step,
+        epoch: 0,
+        wall_time_s: 0.0,
+        git_short_sha: option_env!("LEWM_GIT_SHA").unwrap_or("unknown"),
+        config_hash,
+        rng_state: checkpoint_rng_state(seed, outcome.step, &outcome.rng_streams),
+        metrics_last_step: burn_jepa_checkpoint_metrics(outcome, scheduler_total_steps),
+        burn_record: &burn_record,
+        parameters: &parameters,
+        parity: &parity,
+    };
+
+    save_checkpoint(&request).map_err(TrainerError::from)
+}
+
+fn burn_jepa_record_bytes(model: &Jepa<PushtBurnCpuBackend>) -> Result<Vec<u8>, TrainerError> {
+    let recorder = NamedMpkBytesRecorder::<FullPrecisionSettings>::default();
+    recorder
+        .record(model.clone().into_record(), ())
+        .map_err(TrainerError::from)
+}
+
+fn parameter_tensor_from_export(tensor: ExportedTensor) -> Result<ParameterTensor, TrainerError> {
+    match tensor.dtype {
+        ExportDType::F32 => {
+            let values = checked_f32_values(tensor.bytes())?;
+            Ok(ParameterTensor::f32(tensor.name, tensor.shape, values)?)
+        },
+        ExportDType::I64 => {
+            let values = i64_values(tensor.bytes())?;
+            Ok(ParameterTensor::i64(tensor.name, tensor.shape, values)?)
+        },
+    }
+}
+
+fn burn_jepa_checkpoint_metrics(
+    outcome: &PushtBurnJepaOutcome,
+    scheduler_total_steps: u64,
+) -> BTreeMap<String, f64> {
+    let mut metrics = BTreeMap::new();
+    metrics.insert("loss/train".to_owned(), last_train_loss(&outcome.losses));
+    metrics.insert(
+        "loss/prediction".to_owned(),
+        outcome.losses.last().map_or(0.0, |point| point.pred_loss),
+    );
+    metrics.insert(
+        "loss/sigreg_proxy".to_owned(),
+        outcome
+            .losses
+            .last()
+            .map_or(0.0, |point| point.sigreg_proxy_loss),
+    );
+    metrics.insert(
+        "optim/grad_norm_pre".to_owned(),
+        outcome
+            .losses
+            .last()
+            .map_or(0.0, |point| point.grad_norm_pre),
+    );
+    metrics.insert(
+        "optim/grad_norm_post".to_owned(),
+        outcome
+            .losses
+            .last()
+            .map_or(0.0, |point| point.grad_norm_post),
+    );
+    metrics.insert(
+        "train/samples_seen".to_owned(),
+        smoke_step_as_f64(outcome.samples_seen).unwrap_or(0.0),
+    );
+    metrics.insert(
+        "train/grad_explosion_events".to_owned(),
+        smoke_step_as_f64(outcome.grad_explosion_events).unwrap_or(0.0),
+    );
+    metrics.insert(
+        "train/scheduler_total_steps".to_owned(),
+        smoke_step_as_f64(scheduler_total_steps).unwrap_or(0.0),
+    );
+    metrics
+}
+
 fn write_full_lewm_checkpoint(
     output_dir: &Path,
     config_hash: &str,
@@ -2990,6 +3562,37 @@ fn f32_values(bytes: &[u8]) -> Vec<f32> {
         .chunks_exact(4)
         .map(|chunk| f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))
         .collect()
+}
+
+fn checked_f32_values(bytes: &[u8]) -> Result<Vec<f32>, TrainerError> {
+    if !bytes.len().is_multiple_of(std::mem::size_of::<f32>()) {
+        return Err(TrainerError::Data {
+            source: DataError::InvalidTransform(format!(
+                "F32 tensor payload has {} bytes, not a multiple of 4",
+                bytes.len()
+            )),
+        });
+    }
+    Ok(f32_values(bytes))
+}
+
+fn i64_values(bytes: &[u8]) -> Result<Vec<i64>, TrainerError> {
+    if !bytes.len().is_multiple_of(std::mem::size_of::<i64>()) {
+        return Err(TrainerError::Data {
+            source: DataError::InvalidTransform(format!(
+                "I64 tensor payload has {} bytes, not a multiple of 8",
+                bytes.len()
+            )),
+        });
+    }
+    Ok(bytes
+        .chunks_exact(8)
+        .map(|chunk| {
+            i64::from_le_bytes([
+                chunk[0], chunk[1], chunk[2], chunk[3], chunk[4], chunk[5], chunk[6], chunk[7],
+            ])
+        })
+        .collect())
 }
 
 fn pusht_fixture_samples(horizon: usize) -> Result<Vec<PushtSample>, TrainerError> {
@@ -3269,6 +3872,38 @@ mod tests {
     }
 
     #[test]
+    fn pusht_full_burn_jepa_mode_writes_jepa_checkpoint() -> Result<(), Box<dyn std::error::Error>>
+    {
+        let dir = TestDir::new("pusht-burn-jepa")?;
+        let root = compact_pusht_burn_jepa_root(dir.path().join("missing-pusht"));
+
+        let report = write_train_artifacts(TrainArtifactRequest {
+            output_dir: dir.path(),
+            root: &root,
+            config_hash: "abc123",
+            data_dir: None,
+            max_steps: 1,
+            seed: 11,
+            device: "cpu",
+            resume_if_present: false,
+        })?;
+
+        assert_eq!(report.mode, PUSHT_FULL_BURN_JEPA_MODE);
+        assert_eq!(report.steps_completed, 1);
+        assert_eq!(report.batch_size, 1);
+        assert!(report.checkpoint_complete);
+        let loaded = crate::checkpoint::load_checkpoint(dir.path().join("step_0000001.json"))?;
+        assert_eq!(loaded.sidecar.run_id, PUSHT_FULL_BURN_JEPA_RUN_ID);
+        assert_eq!(loaded.sidecar.rng_state.global_seed, 11);
+        assert!(loaded.burn_record.len() > 1024);
+        let tensors = SafeTensors::deserialize(&loaded.safetensors_bytes)?;
+        assert!(tensors.names().len() > 14);
+        assert!(tensors.tensor("encoder.embeddings.cls_token").is_ok());
+        assert!(tensors.tensor("predictor.pos_embed").is_ok());
+        Ok(())
+    }
+
+    #[test]
     fn pusht_bounded_labels_accept_legacy_resume_contract() {
         assert!(is_supported_pusht_bounded_run_id(PUSHT_BOUNDED_LEWM_RUN_ID));
         assert!(is_supported_pusht_bounded_run_id(
@@ -3320,6 +3955,85 @@ mod tests {
             other => return Err(format!("unexpected error: {other}").into()),
         }
         Ok(())
+    }
+
+    fn compact_pusht_burn_jepa_root(root_path: PathBuf) -> crate::config::RootConfig {
+        use lewm_core::{
+            EmbedderConfig, GeluVariant, JepaConfig, MlpConfig, NormVariant, PredictorConfig,
+            VitConfig, VitSize,
+        };
+
+        let mut root = crate::config::RootConfig::default();
+        root.experimental.pusht_train_mode = crate::config::PushtTrainMode::FullBurnJepa;
+        root.model = JepaConfig {
+            encoder: VitConfig {
+                size: VitSize::Tiny,
+                image_size: 16,
+                patch_size: 8,
+                num_channels: 3,
+                hidden_size: 8,
+                num_hidden_layers: 1,
+                num_attention_heads: 2,
+                intermediate_size: 16,
+                hidden_act: GeluVariant::TanhApprox,
+                attention_probs_dropout_prob: 0.0,
+                hidden_dropout_prob: 0.0,
+                layer_norm_eps: 1.0e-12,
+                use_cls_token: true,
+                interpolate_pos_encoding: false,
+                use_mask_token: false,
+                pretrained: false,
+            },
+            action_encoder: EmbedderConfig {
+                input_dim: 2,
+                smoothed_dim: 2,
+                emb_dim: 8,
+                mlp_scale: 2,
+            },
+            predictor: PredictorConfig {
+                num_frames: 3,
+                depth: 1,
+                heads: 2,
+                mlp_dim: 16,
+                dim_head: 4,
+                input_dim: 8,
+                hidden_dim: 8,
+                output_dim: 8,
+                action_emb_dim: 8,
+                dropout: 0.0,
+                emb_dropout: 0.0,
+            },
+            projector: MlpConfig {
+                input_dim: 8,
+                hidden_dim: 16,
+                output_dim: 8,
+                norm: NormVariant::None,
+            },
+            pred_proj: MlpConfig {
+                input_dim: 8,
+                hidden_dim: 16,
+                output_dim: 8,
+                norm: NormVariant::None,
+            },
+            history_size: 2,
+            horizon: 4,
+        };
+        root.training.history_size = 2;
+        root.training.horizon = 4;
+        root.training.batch_size = 1;
+        root.training.grad_accum_steps = 1;
+        root.training.lr_peak = 1.0e-4;
+        root.training.lr_min = 1.0e-4;
+        root.training.warmup_steps = 0;
+        root.loss.lambda_sigreg = 0.0;
+        if let crate::config::DatasetConfig::Pusht(config) = &mut root.dataset {
+            config.root_path = root_path;
+            config.horizon = 4;
+            config.history_size = 2;
+            config.raw_action_dim = 2;
+            config.frameskip = 1;
+        }
+        root
     }
 
     #[test]

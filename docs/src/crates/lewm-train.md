@@ -72,15 +72,15 @@ ViT:
 | `pusht-minimal-lewm` | Legacy bounded `PushtFullLewmCore` label used by the current historical PushT 50 k-step Hub artifact. |
 | `pusht-bounded-module-lewm` | Current checked-in `PushtFullLewmCore` bounded host-module train path; future PushT bounded artifacts use this label. |
 | `so100-full-lewm` | Same `PushtFullLewmCore` adapted to 6-DOF action; SO-100 result. |
-| `pusht-full-burn-jepa` | Full `lewm_core::Jepa` (303 params); wire-up pending. |
+| `pusht-full-burn-jepa` | Opt-in CPU Burn autodiff path selected with `experimental.pusht_train_mode = "full_burn_jepa"`; writes full `lewm_core::Jepa` Burn records and safetensors. |
 
-The current PushT `train` path selects the bounded host-module mode. The full
-Burn/Jepa mode remains pending and must not share bounded artifact labels.
+The default PushT `train` path selects the bounded host-module mode. The full
+Burn/Jepa mode is explicit and must not share bounded artifact labels.
 
 ## Dependencies
 
 - `lewm-core`, `lewm-data`, `lewm-telemetry`, `lewm-hub`
-- `burn`, `burn-autodiff`, `burn-cuda` (feature-gated)
+- `burn-core`, `burn-ndarray`, `burn-autodiff`, `burn-optim`
 - `clap`, `toml`, `serde`
 - (no dep on `lewm-infer`, `lewm-plan` for the training-only path)
 

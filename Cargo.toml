@@ -38,6 +38,7 @@ burn-cuda = { version = "=0.21.0" }
 burn-ndarray = { version = "=0.21.0" }
 burn-autodiff = { version = "=0.21.0", default-features = false }
 burn-import = { version = "=0.21.0" }
+burn-optim = { version = "=0.21.0", default-features = false }
 burn-train = { version = "=0.21.0", default-features = false }
 
 # Inference

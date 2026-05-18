@@ -25,6 +25,14 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ### Added
 
+- **Opt-in full Burn/Jepa PushT checkpoint path**: `lewm-train` now supports
+  `experimental.pusht_train_mode = "full_burn_jepa"` for CPU Burn autodiff
+  PushT runs that train `lewm_core::Jepa` directly and write a real Burn
+  `NamedMpk` record plus full safetensors mirror. Checkpoint safetensors now
+  preserve both F32 and I64 tensors, covering BatchNorm `num_batches_tracked`
+  keys required by the ONNX exporter contract. The checked-in PushT jobs still
+  default to the bounded trainer until the production 50k full-JEPA run is
+  launched under the release leash.
 - **PushT ONNX export gate**: `python/export_onnx.py` now has an explicit
   `--variant {both,onnxruntime,tract-compat}` path that writes
   `onnxruntime/` (opset 18, dynamic batch) and `tract-compat/` (opset 17,

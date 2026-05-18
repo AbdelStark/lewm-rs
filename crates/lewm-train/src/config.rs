@@ -736,10 +736,32 @@ pub struct InferConfig {
     pub model_path: Option<PathBuf>,
 }
 
+/// Explicit `PushT` train-loop implementation selector.
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum PushtTrainMode {
+    /// Existing bounded host-core trainer used by the checked-in `PushT` jobs.
+    #[default]
+    BoundedModule,
+    /// Opt-in CPU Burn autodiff trainer for `lewm_core::Jepa` checkpoints.
+    FullBurnJepa,
+}
+
+impl PushtTrainMode {
+    #[allow(clippy::trivially_copy_pass_by_ref)]
+    fn is_default(&self) -> bool {
+        *self == Self::default()
+    }
+}
+
 /// Reserved config section for explicit experimental overlays.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Validate, Default)]
 #[serde(default, deny_unknown_fields)]
-pub struct ExperimentalConfig {}
+pub struct ExperimentalConfig {
+    /// Opt-in `PushT` train loop implementation.
+    #[serde(default, skip_serializing_if = "PushtTrainMode::is_default")]
+    pub pusht_train_mode: PushtTrainMode,
+}
 
 /// Error type for loading, merging, validating, and hashing root configs.
 #[derive(Debug)]
@@ -1209,6 +1231,26 @@ batch_size = 64
         assert!((loaded.root.training.lr_peak - 1.0e-4).abs() <= f64::EPSILON);
         assert_eq!(loaded.root.training.batch_size, 32);
 
+        Ok(())
+    }
+
+    #[test]
+    fn cli_set_selects_full_burn_jepa_pusht_mode() -> TestResult {
+        let loaded = load_fixture(
+            r#"
+schema_version = "1.0.0"
+"#,
+            &EnvOverrides::default(),
+            &[(
+                "experimental.pusht_train_mode".to_string(),
+                "\"full_burn_jepa\"".to_string(),
+            )],
+        )?;
+
+        assert_eq!(
+            loaded.root.experimental.pusht_train_mode,
+            PushtTrainMode::FullBurnJepa
+        );
         Ok(())
     }
 

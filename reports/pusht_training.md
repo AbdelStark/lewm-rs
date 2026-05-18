@@ -8,8 +8,8 @@
 
 **Naming note:** this historical Hub path predates the bounded-artifact
 correction; checked-in PushT jobs and future bounded checkpoints now use
-`pusht-bounded-module-lewm` labels until the full Burn/Jepa training path is
-implemented.
+`pusht-bounded-module-lewm` labels until a production full Burn/Jepa run is
+approved, launched, and uploaded under a separate full-checkpoint path.
 
 ## Dataset
 

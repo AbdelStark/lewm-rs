@@ -3172,8 +3172,10 @@ name = "lewm-train"
 version = "0.1.0"
 dependencies = [
  "blake3",
+ "burn-autodiff",
  "burn-core",
  "burn-ndarray",
+ "burn-optim",
  "clap",
  "insta",
  "lewm-core",

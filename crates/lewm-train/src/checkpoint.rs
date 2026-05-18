@@ -219,15 +219,65 @@ pub struct CheckpointSidecar {
     pub checkpoint_files: CheckpointFiles,
 }
 
-/// F32 model-parameter tensor to mirror into safetensors.
+/// Model-parameter tensor dtype mirrored into safetensors.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ParameterTensorDtype {
+    /// IEEE-754 single precision float.
+    F32,
+    /// Signed 64-bit integer.
+    I64,
+}
+
+impl ParameterTensorDtype {
+    fn safetensors_dtype(self) -> Dtype {
+        match self {
+            Self::F32 => Dtype::F32,
+            Self::I64 => Dtype::I64,
+        }
+    }
+}
+
+/// Flat model-parameter values mirrored into safetensors.
+#[derive(Clone, Debug, PartialEq)]
+pub enum ParameterTensorValues {
+    /// IEEE-754 single precision values.
+    F32(Vec<f32>),
+    /// Signed 64-bit integer values.
+    I64(Vec<i64>),
+}
+
+impl ParameterTensorValues {
+    fn dtype(&self) -> ParameterTensorDtype {
+        match self {
+            Self::F32(_) => ParameterTensorDtype::F32,
+            Self::I64(_) => ParameterTensorDtype::I64,
+        }
+    }
+
+    fn len(&self) -> usize {
+        match self {
+            Self::F32(values) => values.len(),
+            Self::I64(values) => values.len(),
+        }
+    }
+
+    fn bytes(&self) -> Vec<u8> {
+        match self {
+            Self::F32(values) => f32_bytes(values),
+            Self::I64(values) => i64_bytes(values),
+        }
+    }
+}
+
+/// Model-parameter tensor to mirror into safetensors.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ParameterTensor {
     /// Stable parameter name from the model walker.
     pub name: String,
     /// Tensor shape in row-major order.
     pub shape: Vec<usize>,
-    /// Flat F32 parameter values.
-    pub data: Vec<f32>,
+    /// Flat parameter values.
+    pub values: ParameterTensorValues,
 }
 
 impl ParameterTensor {
@@ -246,7 +296,28 @@ impl ParameterTensor {
         let tensor = Self {
             name: name.into(),
             shape,
-            data,
+            values: ParameterTensorValues::F32(data),
+        };
+        tensor.validate()?;
+        Ok(tensor)
+    }
+
+    /// Create a validated I64 parameter tensor.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`CheckpointError::EmptyTensorName`] when `name` is empty, or
+    /// [`CheckpointError::TensorShapeMismatch`] when `shape` does not match the
+    /// flat data length.
+    pub fn i64(
+        name: impl Into<String>,
+        shape: Vec<usize>,
+        data: Vec<i64>,
+    ) -> Result<Self, CheckpointError> {
+        let tensor = Self {
+            name: name.into(),
+            shape,
+            values: ParameterTensorValues::I64(data),
         };
         tensor.validate()?;
         Ok(tensor)
@@ -257,11 +328,11 @@ impl ParameterTensor {
             return Err(CheckpointError::EmptyTensorName);
         }
         let expected = element_count(&self.shape, &self.name)?;
-        if expected != self.data.len() {
+        if expected != self.values.len() {
             return Err(CheckpointError::TensorShapeMismatch {
                 name: self.name.clone(),
                 expected,
-                found: self.data.len(),
+                found: self.values.len(),
             });
         }
         Ok(())
@@ -521,15 +592,16 @@ fn serialize_parameters_to_safetensors(
                 (
                     parameter.name.clone(),
                     parameter.shape.clone(),
-                    f32_bytes(&parameter.data),
+                    parameter.values.dtype(),
+                    parameter.values.bytes(),
                 )
             })
         })
         .collect::<Result<Vec<_>, _>>()?;
 
     let mut views = Vec::with_capacity(owned.len());
-    for (name, shape, bytes) in &owned {
-        let view = TensorView::new(Dtype::F32, shape.clone(), bytes)?;
+    for (name, shape, dtype, bytes) in &owned {
+        let view = TensorView::new(dtype.safetensors_dtype(), shape.clone(), bytes)?;
         views.push((name.as_str(), view));
     }
 
@@ -610,6 +682,13 @@ fn f32_bytes(values: &[f32]) -> Vec<u8> {
         .collect()
 }
 
+fn i64_bytes(values: &[i64]) -> Vec<u8> {
+    values
+        .iter()
+        .flat_map(|value| value.to_le_bytes())
+        .collect()
+}
+
 fn hex_12(bytes: &[u8; 32]) -> String {
     const HEX: &[u8; 16] = b"0123456789abcdef";
     let mut output = String::with_capacity(12);
@@ -676,6 +755,9 @@ mod tests {
         assert_eq!(tensor.dtype(), Dtype::F32);
         assert_eq!(tensor.shape(), [2, 2]);
         assert_eq!(f32_values(tensor.data()), vec![1.0, 2.0, 3.0, 4.0]);
+        let int_tensor = tensors.tensor("projector.norm.num_batches_tracked")?;
+        assert_eq!(int_tensor.dtype(), Dtype::I64);
+        assert_eq!(int_tensor.shape(), [1]);
         assert!(tensors.tensor("predictor.bias").is_ok());
         Ok(())
     }
@@ -773,6 +855,7 @@ mod tests {
         Ok(vec![
             ParameterTensor::f32("encoder.weight", vec![2, 2], vec![1.0, 2.0, 3.0, 4.0])?,
             ParameterTensor::f32("predictor.bias", vec![2], vec![0.5, -0.5])?,
+            ParameterTensor::i64("projector.norm.num_batches_tracked", vec![1], vec![7])?,
         ])
     }
 
