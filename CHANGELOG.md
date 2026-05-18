@@ -18,7 +18,9 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   placeholder image tags before rendering an HF Jobs command. It also verifies
   the pinned GHCR tag's OCI source and revision labels before paid PushT
   submission. Added a manual `runtime-image` workflow for publishing concrete
-  pre-release runtime tags without pushing `latest`.
+  pre-release runtime tags without pushing `latest`. The release blocker gate
+  now requires the runtime image verifier/workflow evidence and preserves the
+  F1 GHCR tag verification criteria in `required_resolution`.
 - **Burn 0.20.1 → 0.21.0** (per ADR 0003). Updated all seven workspace
   Burn dependencies (`burn`, `burn-core`, `burn-cuda`, `burn-ndarray`,
   `burn-autodiff`, `burn-import`, `burn-train`). Migrated five

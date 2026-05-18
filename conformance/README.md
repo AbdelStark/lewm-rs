@@ -8,6 +8,9 @@ blockers remain blocked until their human-approved jobs and uploads complete.
 For F1, `make check` validates `reports/pusht_full_safetensors_hub_audit.json`
 with `scripts/check_pusht_full_safetensors_hub_audit_report.py` so the public
 Hub safetensors audit stays aligned with the full Burn/Jepa source blocker.
+The release blocker validator also requires the F1 runtime image verifier and
+pre-release image workflow evidence, and requires the F1 resolution text to
+retain the GHCR tag verification and `onnx-full/` acceptance criteria.
 For F3, `make check` also validates `reports/pusht_warmstart_hub_audit.json`
 with `scripts/check_pusht_warmstart_hub_audit_report.py` so the committed
 public-Hub source audit stays structurally aligned with the warm-start blocker.

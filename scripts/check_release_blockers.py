@@ -32,6 +32,8 @@ REQUIRED_EVIDENCE_BY_ID: dict[str, tuple[str, ...]] = {
         "scripts/f1_export_pusht_onnx.py",
         "scripts/audit_pusht_full_safetensors.py",
         "scripts/check_pusht_full_safetensors_hub_audit_report.py",
+        "scripts/verify_runtime_image.py",
+        ".github/workflows/runtime-image.yml",
         "reports/phase_a_handoff.json",
         "reports/phase_a_approval.json",
         "scripts/check_phase_a_approval.py",
@@ -51,6 +53,19 @@ REQUIRED_EVIDENCE_BY_ID: dict[str, tuple[str, ...]] = {
     ),
     "F13": (
         "conformance/release_blockers.json",
+    ),
+}
+REQUIRED_RESOLUTION_SUBSTRINGS_BY_ID: dict[str, tuple[str, ...]] = {
+    "F1": (
+        "GHCR runtime image tag",
+        "scripts/verify_runtime_image.py",
+        "255-tensor Burn/Jepa safetensors layout",
+        "onnx-full/",
+    ),
+    "F11": (
+        "ghcr.io/abdelstark/lewm-rs",
+        "container job passes",
+        "latest GHCR image",
     ),
 }
 
@@ -196,6 +211,7 @@ def load_blockers(path: Path) -> list[dict[str, Any]]:
     validate_dependency_order(blockers, path)
     validate_evidence_paths(blockers, path)
     validate_required_evidence(blockers, path)
+    validate_required_resolutions(blockers, path)
     return blockers
 
 
@@ -222,6 +238,24 @@ def validate_backlog_contract(blockers: list[dict[str, Any]], path: Path) -> Non
         if issue != expected_issue:
             raise BlockerError(
                 f"{path}: {blocker_id} must map to issue #{expected_issue}, got #{issue}"
+            )
+
+
+def validate_required_resolutions(blockers: list[dict[str, Any]], path: Path) -> None:
+    """Require high-risk blockers to retain specific resolution criteria."""
+    resolution_by_id = {
+        entry["id"]: "\n".join(entry["required_resolution"])
+        for entry in blockers
+    }
+    for blocker_id, substrings in REQUIRED_RESOLUTION_SUBSTRINGS_BY_ID.items():
+        resolution = resolution_by_id.get(blocker_id)
+        if resolution is None:
+            raise BlockerError(f"{path}: missing blocker {blocker_id}")
+        missing = [substring for substring in substrings if substring not in resolution]
+        if missing:
+            raise BlockerError(
+                f"{path}: {blocker_id} required_resolution missing required text: "
+                f"{', '.join(missing)}"
             )
 
 

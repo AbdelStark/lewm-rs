@@ -15,6 +15,8 @@
         "reports/pusht_full_safetensors_hub_audit.json",
         "scripts/audit_pusht_full_safetensors.py",
         "scripts/check_pusht_full_safetensors_hub_audit_report.py",
+        "scripts/verify_runtime_image.py",
+        ".github/workflows/runtime-image.yml",
         "scripts/f1_export_pusht_onnx.py",
         "reports/phase_a_handoff.json",
         "reports/phase_a_approval.json",
@@ -23,6 +25,8 @@
         "reports/release_checklist.md"
       ],
       "required_resolution": [
+        "Publish a concrete non-latest GHCR runtime image tag from the intended git commit.",
+        "Verify the runtime image tag with scripts/verify_runtime_image.py before paid HF Job launch.",
         "Produce and upload a PushT checkpoint with the exact 255-tensor Burn/Jepa safetensors layout expected by python/export_onnx.py, or formally change the release acceptance criteria.",
         "Export both onnxruntime and tract-compat variants under onnx-full/.",
         "Verify the exported graphs with python/verify_onnx.py.",
@@ -209,6 +213,7 @@
       "status": "pending",
       "evidence": [
         ".github/workflows/release.yml",
+        ".github/workflows/runtime-image.yml",
         "reports/release_checklist.md"
       ],
       "required_resolution": [

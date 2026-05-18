@@ -15,6 +15,8 @@ REQUIRED_EVIDENCE_BY_ID = {
         "scripts/f1_export_pusht_onnx.py",
         "scripts/audit_pusht_full_safetensors.py",
         "scripts/check_pusht_full_safetensors_hub_audit_report.py",
+        "scripts/verify_runtime_image.py",
+        ".github/workflows/runtime-image.yml",
         "reports/phase_a_handoff.json",
         "reports/phase_a_approval.json",
         "scripts/check_phase_a_approval.py",
@@ -34,6 +36,19 @@ REQUIRED_EVIDENCE_BY_ID = {
     ],
     "F13": [
         "conformance/release_blockers.json",
+    ],
+}
+REQUIRED_RESOLUTION_BY_ID = {
+    "F1": [
+        "Publish a concrete non-latest GHCR runtime image tag from the intended git commit.",
+        "Verify the runtime image tag with scripts/verify_runtime_image.py before paid HF Job launch.",
+        "Produce and upload a PushT checkpoint with the exact 255-tensor Burn/Jepa safetensors layout expected by python/export_onnx.py.",
+        "Export both onnxruntime and tract-compat variants under onnx-full/.",
+    ],
+    "F11": [
+        "Grant write access to the ghcr.io/abdelstark/lewm-rs package settings.",
+        "Trigger release.yml and verify the container job passes.",
+        "Verify the latest GHCR image is published and signed.",
     ],
 }
 
@@ -62,7 +77,10 @@ def blocker_manifest(
                         else []
                     ),
                 ],
-                "required_resolution": ["resolve"],
+                "required_resolution": [
+                    "resolve",
+                    *REQUIRED_RESOLUTION_BY_ID.get(f"F{index}", []),
+                ],
             }
             for index in range(1, 14)
         ],
@@ -159,3 +177,22 @@ def test_release_blocker_manifest_requires_phase_a_gate_evidence(tmp_path: Path)
     assert result.returncode == 1
     assert "F1 evidence missing required path(s)" in result.stderr
     assert "scripts/f1_export_pusht_onnx.py" in result.stderr
+
+
+def test_release_blocker_manifest_requires_f1_runtime_image_resolution(
+    tmp_path: Path,
+) -> None:
+    manifest = tmp_path / "release_blockers.json"
+    payload = blocker_manifest()
+    blockers = payload["blockers"]
+    assert isinstance(blockers, list)
+    f1 = blockers[0]
+    assert isinstance(f1, dict)
+    f1["required_resolution"] = ["resolve"]
+    manifest.write_text(json.dumps(payload), encoding="utf-8")
+
+    result = run_check(manifest)
+
+    assert result.returncode == 1
+    assert "F1 required_resolution missing required text" in result.stderr
+    assert "scripts/verify_runtime_image.py" in result.stderr
