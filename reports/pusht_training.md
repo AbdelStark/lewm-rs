@@ -98,7 +98,7 @@ The exporter is ready for a compatible full checkpoint:
 
 ```bash
 uv run --extra parity python python/export_onnx.py \
-  --safetensors train/pusht-full-lewm-20260515T100908Z/step_0050000.safetensors \
+  --safetensors train/pusht-full-burn-jepa-YYYYMMDDTHHMMSSZ/step_0050000.safetensors \
   --meta tests/fixtures/reference_model.meta.json \
   --output-dir /tmp/pusht-onnx \
   --variant both \

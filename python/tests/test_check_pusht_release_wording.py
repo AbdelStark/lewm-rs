@@ -39,7 +39,7 @@ def write_valid_docs(root: Path) -> None:
         ),
         "docs/src/training/observability.md": "PushT bounded-core training report\n",
         "paper/lewm-rs.md": (
-            "50k-step historical PushT bounded-core run\n"
+            "Historical 50k-step bounded-core PushT training\n"
             "F1 full Burn/Jepa\n"
         ),
         "reports/release_checklist.md": (
@@ -85,7 +85,7 @@ def test_valid_release_wording_passes(tmp_path: Path) -> None:
 def test_rejects_stale_full_pusht_claim(tmp_path: Path) -> None:
     write_valid_docs(tmp_path)
     (tmp_path / "docs/src/status.md").write_text(
-        "PushT 50 k-step full run\ntrain/pusht-full-burn-jepa-*\n",
+        "Full 50k-step PushT training\ntrain/pusht-full-burn-jepa-*\n",
         encoding="utf-8",
     )
 
@@ -93,7 +93,7 @@ def test_rejects_stale_full_pusht_claim(tmp_path: Path) -> None:
 
     assert result.returncode == 1
     assert "stale PushT wording" in result.stderr
-    assert "PushT 50 k-step full run" in result.stderr
+    assert "Full 50k-step PushT training" in result.stderr
 
 
 def test_rejects_missing_bounded_core_correction(tmp_path: Path) -> None:

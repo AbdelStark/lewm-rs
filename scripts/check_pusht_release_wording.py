@@ -25,6 +25,8 @@ FORBIDDEN_PHRASES = (
     "50k-step PushT full run",
     "PushT full training",
     "full PushT training",
+    "Full 50k-step PushT training",
+    "Full 50 k-step PushT training",
     "PushT full run",
     "Full Burn-Jepa end-to-end training",
     "from PushT epoch-10",
@@ -58,7 +60,7 @@ REQUIRED_TOKENS_BY_FILE = {
         "PushT bounded-core training report",
     ),
     Path("paper/lewm-rs.md"): (
-        "50k-step historical PushT bounded-core run",
+        "Historical 50k-step bounded-core PushT training",
         "F1 full Burn/Jepa",
     ),
     Path("reports/release_checklist.md"): (

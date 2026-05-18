@@ -234,9 +234,11 @@ Activation dumps are stored in `AbdelStark/lewm-rs-parity-dumps` and the CI
 
 ### 6.1 Training curves
 
-Full 50k-step PushT training on HF A10G-large completed (job
+Historical 50k-step bounded-core PushT training on HF A10G-large completed (job
 `6a06f0c43308d79117b90276`, wall time 318 min, mode `pusht-minimal-lewm`,
 batch size 64, device cuda:0, seed 0, 0 gradient explosions).
+This is the bounded-core training report, not the F1 full Burn/Jepa release
+checkpoint required for `onnx-full/` export.
 
 | Step | Total loss | SIGReg | Pred loss | LR |
 |-----:|-----------|--------|-----------|-----|
