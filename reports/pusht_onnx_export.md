@@ -126,6 +126,34 @@ uv run --project python ruff check python/export_onnx.py python/verify_onnx.py p
 All checks passed
 ```
 
+Positive full-layout smoke, using the converted locked upstream reference
+checkpoint at `/tmp/lewm-parity-dumps/reference_model.safetensors`:
+
+```text
+uv run --project python --extra parity python python/export_onnx.py \
+  --safetensors /tmp/lewm-parity-dumps/reference_model.safetensors \
+  --meta tests/fixtures/reference_model.meta.json \
+  --output-dir /tmp/lewm-reference-onnx-contract-check \
+  --variant both \
+  --action-dim 10
+
+Recovered 303 PyTorch keys from Burn checkpoint.
+Encoder ONNX written: /tmp/lewm-reference-onnx-contract-check/onnxruntime/encoder.onnx (opset=18, dynamic_batch=True)
+Predictor ONNX written: /tmp/lewm-reference-onnx-contract-check/onnxruntime/predictor.onnx (action_dim=10, opset=18, dynamic_batch=True)
+Encoder ONNX written: /tmp/lewm-reference-onnx-contract-check/tract-compat/encoder.onnx (opset=17, dynamic_batch=False)
+Predictor ONNX written: /tmp/lewm-reference-onnx-contract-check/tract-compat/predictor.onnx (action_dim=10, opset=17, dynamic_batch=False)
+
+uv run --project python --extra parity python python/verify_onnx.py \
+  --dir /tmp/lewm-reference-onnx-contract-check
+
+onnx verify: variant=onnxruntime ok=true batches=1,2 encoder_shape=(2, 192) predictor_shape=(2, 3, 192) action_dim=10
+onnx verify: variant=tract-compat ok=true batches=1 encoder_shape=(1, 192) predictor_shape=(1, 3, 192) action_dim=10
+```
+
+This validates the exporter against a valid full-layout checkpoint. It does not
+complete F1 because the source is the locked upstream reference conversion, not
+the missing lewm-rs 50k PushT training checkpoint.
+
 ## Required Resolution
 
 F1 can be completed only after one of these is true:
