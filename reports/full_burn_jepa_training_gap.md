@@ -129,6 +129,20 @@ scripts/launch_hf_job.py jobs/train_pusht.yaml \
   --image-tag REPLACE_WITH_RUNTIME_IMAGE_TAG
 ```
 
+   If GHCR package permissions are still blocked, the approval-gated
+   `jobs/train_pusht_source.yaml` fallback can build the same code from a
+   concrete source revision inside HF Jobs:
+
+```text
+LEWM_SOURCE_REVISION="$(git rev-parse HEAD)" \
+  python3 scripts/launch_hf_job.py jobs/train_pusht_source.yaml \
+    --dry-run \
+    --allow-approval-required
+```
+
+   This is still a paid A10G-large production job; remove `--dry-run` only
+   after explicit human approval.
+
 2. Only after a real full-layout 50k PushT checkpoint exists, run the F1
    post-job handoff wrapper. It downloads the named Hub run, checks the
    safetensors contract, exports both ONNX variants, verifies them, and

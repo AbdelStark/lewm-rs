@@ -43,6 +43,20 @@ launcher refuses approval-required PushT runs that would silently use mutable
 `latest` or a GHCR tag whose OCI revision label does not match the expected
 git commit.
 
+If GHCR package permissions are still blocking runtime-image publication,
+`jobs/train_pusht_source.yaml` is the approval-gated fallback. It builds from a
+full git SHA inside the HF Job instead of pulling GHCR:
+
+```sh
+LEWM_SOURCE_REVISION="$(git rev-parse HEAD)" \
+  python3 scripts/launch_hf_job.py jobs/train_pusht_source.yaml \
+    --dry-run \
+    --allow-approval-required
+```
+
+This is still a paid A10G-large production job. Remove `--dry-run` only after
+explicit human approval.
+
 `jobs/train_pusht.yaml` declares:
 
 - Image: `ghcr.io/abdelstark/lewm-rs:latest` in YAML, overridden at launch

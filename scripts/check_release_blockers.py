@@ -29,6 +29,7 @@ REQUIRED_EVIDENCE_BY_ID: dict[str, tuple[str, ...]] = {
         "reports/full_burn_jepa_training_gap.md",
         "reports/full_pusht_contract_smoke.json",
         "reports/pusht_full_safetensors_hub_audit.json",
+        "jobs/train_pusht_source.yaml",
         "scripts/f1_export_pusht_onnx.py",
         "scripts/audit_pusht_full_safetensors.py",
         "scripts/check_pusht_full_safetensors_hub_audit_report.py",
@@ -64,6 +65,7 @@ REQUIRED_RESOLUTION_SUBSTRINGS_BY_ID: dict[str, tuple[str, ...]] = {
     "F1": (
         "GHCR runtime image tag",
         "scripts/verify_runtime_image.py",
+        "LEWM_SOURCE_REVISION",
         "255-tensor Burn/Jepa safetensors layout",
         "onnx-full/",
     ),

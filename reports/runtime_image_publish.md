@@ -42,3 +42,25 @@ python3 scripts/verify_runtime_image.py --image-tag f1-runtime-97880d0
 
 F1 must not launch `jobs/train_pusht.yaml` until the verifier passes for a
 concrete non-`latest` runtime tag.
+
+## Source-Build Fallback
+
+The repository also carries `jobs/train_pusht_source.yaml` as a no-GHCR fallback
+for F1. It uses `rust:1.95.0-bookworm`, requires the caller to provide a full
+40-character `LEWM_SOURCE_REVISION`, fetches exactly that git commit, builds
+`lewm-train`, runs the same full Burn/Jepa PushT command, checks the safetensors
+ONNX export contract before upload, and remains listed under
+`jobs_human_approval_required`.
+
+Dry-run preflight:
+
+```bash
+LEWM_SOURCE_REVISION="$(git rev-parse HEAD)" \
+  python3 scripts/launch_hf_job.py jobs/train_pusht_source.yaml \
+    --dry-run \
+    --allow-approval-required
+```
+
+The rendered command is still a paid 12h A10G-large job and must not be launched
+without explicit human approval. This fallback does not resolve F11; the final
+release container still requires GHCR package write access.

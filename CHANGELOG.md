@@ -23,6 +23,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   F1 GHCR tag verification criteria in `required_resolution`. A runtime-image
   attempt for `f1-runtime-97880d0` now documents the current GHCR package
   permission blocker (`write_package`) in `reports/runtime_image_publish.md`.
+  Added `jobs/train_pusht_source.yaml` as a human-approval-required no-GHCR F1
+  fallback that builds from an explicit `LEWM_SOURCE_REVISION`.
 - **Burn 0.20.1 → 0.21.0** (per ADR 0003). Updated all seven workspace
   Burn dependencies (`burn`, `burn-core`, `burn-cuda`, `burn-ndarray`,
   `burn-autodiff`, `burn-import`, `burn-train`). Migrated five

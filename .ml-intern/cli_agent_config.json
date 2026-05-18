@@ -19,6 +19,7 @@
   ],
   "jobs_human_approval_required": [
     "train_pusht.yaml",
+    "train_pusht_source.yaml",
     "train_so100.yaml",
     "train_so100_warmstart.yaml"
   ],

@@ -32,6 +32,12 @@ python3 scripts/verify_runtime_image.py --image-tag "${image_tag}"
 Run the workflow only after the selected ref points at the commit you intend to
 launch; the verifier defaults to local `HEAD`.
 
+When GHCR package permissions are unavailable, F1 can use
+`jobs/train_pusht_source.yaml` as an approval-gated fallback. That job builds
+from `LEWM_SOURCE_REVISION` inside HF Jobs and does not push or pull GHCR, but
+it is still a paid production run and does not replace the final release
+container requirement.
+
 ## 2. Building locally
 
 ```sh
@@ -50,6 +56,7 @@ HF Jobs spec files live under `jobs/`:
 | `jobs/smoke_pusht.yaml` | 50-step smoke train on PushT, CPU. |
 | `jobs/short_pusht.yaml` | 10-step "real" train path on PushT. |
 | `jobs/train_pusht.yaml` | Approval-gated 50 k-step PushT train on A10G-large. |
+| `jobs/train_pusht_source.yaml` | Approval-gated 50 k-step PushT fallback that builds from `LEWM_SOURCE_REVISION` instead of GHCR. |
 | `jobs/train_so100.yaml` | Approval-gated 5 k-step SO-100 train on A10G-large. |
 | `jobs/train_so100_warmstart.yaml` | Approval-gated 5 k-step SO-100 warm-start from PushT; requires a compatible `.mpk` source path. |
 

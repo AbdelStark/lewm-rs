@@ -12,6 +12,7 @@ REQUIRED_EVIDENCE_BY_ID = {
         "reports/full_burn_jepa_training_gap.md",
         "reports/full_pusht_contract_smoke.json",
         "reports/pusht_full_safetensors_hub_audit.json",
+        "jobs/train_pusht_source.yaml",
         "scripts/f1_export_pusht_onnx.py",
         "scripts/audit_pusht_full_safetensors.py",
         "scripts/check_pusht_full_safetensors_hub_audit_report.py",
@@ -46,7 +47,7 @@ REQUIRED_EVIDENCE_BY_ID = {
 REQUIRED_RESOLUTION_BY_ID = {
     "F1": [
         "Publish a concrete non-latest GHCR runtime image tag from the intended git commit.",
-        "Verify the runtime image tag with scripts/verify_runtime_image.py before paid HF Job launch.",
+        "Verify the runtime image tag with scripts/verify_runtime_image.py before paid HF Job launch, or use the approval-gated source-build fallback with a concrete LEWM_SOURCE_REVISION.",
         "Produce and upload a PushT checkpoint with the exact 255-tensor Burn/Jepa safetensors layout expected by python/export_onnx.py.",
         "Export both onnxruntime and tract-compat variants under onnx-full/.",
     ],

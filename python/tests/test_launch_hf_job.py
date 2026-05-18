@@ -276,3 +276,60 @@ class TestValidatePaidRuntimeImage:
             None,
             False,
         )
+
+
+class TestValidateSourceRevisionEnv:
+    """Source-building paid jobs must pin the exact git commit they build."""
+
+    JOB_PATH = PROJECT_ROOT / "jobs" / "train_pusht_source.yaml"
+    LEASH_PATH = PROJECT_ROOT / ".ml-intern" / "cli_agent_config.json"
+
+    def _job(self) -> dict[str, object]:
+        return launch_hf_job.parse_job(self.JOB_PATH)
+
+    def _leash(self) -> dict[str, object]:
+        return json.loads(self.LEASH_PATH.read_text(encoding="utf-8"))
+
+    def test_source_build_requires_approval_flag(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("LEWM_SOURCE_REVISION", "a" * 40)
+
+        with pytest.raises(launch_hf_job.LaunchError, match="requires --allow"):
+            launch_hf_job.validate_job(self.JOB_PATH, self._job(), self._leash(), False)
+
+    def test_source_build_requires_source_revision(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.delenv("LEWM_SOURCE_REVISION", raising=False)
+
+        with pytest.raises(launch_hf_job.LaunchError, match="LEWM_SOURCE_REVISION"):
+            launch_hf_job.validate_job(self.JOB_PATH, self._job(), self._leash(), True)
+
+    def test_source_build_rejects_short_revision(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("LEWM_SOURCE_REVISION", "abc123")
+
+        with pytest.raises(launch_hf_job.LaunchError, match="40-character"):
+            launch_hf_job.validate_job(self.JOB_PATH, self._job(), self._leash(), True)
+
+    def test_source_build_rejects_placeholder_revision(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("LEWM_SOURCE_REVISION", "REPLACE_WITH_SOURCE_REVISION")
+
+        with pytest.raises(launch_hf_job.LaunchError, match="real git SHA"):
+            launch_hf_job.validate_job(self.JOB_PATH, self._job(), self._leash(), True)
+
+    def test_source_build_accepts_full_revision(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("LEWM_SOURCE_REVISION", "a" * 40)
+
+        launch_hf_job.validate_job(self.JOB_PATH, self._job(), self._leash(), True)

@@ -1,0 +1,68 @@
+name: pusht-full-source-train
+hardware: a10g-large
+timeout: 12h
+namespace: abdelstark
+image: rust:1.95.0-bookworm
+env:
+  CARGO_INCREMENTAL: "0"
+  DEBIAN_FRONTEND: noninteractive
+  RUST_LOG: lewm=info,burn=info
+  HF_TOKEN: ${HF_TOKEN}
+  HF_HOME: /tmp/hf
+  HDF5_DIR: /tmp/hdf5-compat
+  HDF5_SYS_STATIC: "0"
+  PKG_CONFIG_PATH: /usr/lib/x86_64-linux-gnu/pkgconfig
+  RUSTFLAGS: -C link-args=-Wl,-rpath,/usr/lib/x86_64-linux-gnu/hdf5/serial
+  TRACKIO_PROJECT: lewm-rs
+  TRACKIO_RUN: pusht-full-burn-jepa-source
+  OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_ENDPOINT:-}
+  LEWM_SOURCE_REVISION: ${LEWM_SOURCE_REVISION:-}
+  LEWM_MAX_STEPS: "50000"
+command: |
+  bash -lc "
+    set -euo pipefail
+    : \"\${LEWM_SOURCE_REVISION:?set LEWM_SOURCE_REVISION to the approved full git SHA}\"
+    if ! printf '%s' \"\$LEWM_SOURCE_REVISION\" | grep -Eq '^[0-9a-f]{40}$'; then
+      echo 'LEWM_SOURCE_REVISION must be a full 40-character lowercase git SHA' >&2
+      exit 2
+    fi
+    export PATH=/usr/local/cargo/bin:\$PATH
+    apt-get update -qq
+    apt-get install -y --no-install-recommends build-essential clang cmake git ca-certificates curl python3-pip libhdf5-serial-dev pkg-config libzstd-dev zstd
+    pip3 install --break-system-packages \
+      huggingface_hub==1.8.0 \
+      hdf5plugin==6.0.0 \
+      safetensors==0.5.3
+    mkdir -p /tmp/hdf5-compat /tmp/data /tmp/out /src
+    ln -sf /usr/include/hdf5/serial /tmp/hdf5-compat/include
+    ln -sf /usr/lib/x86_64-linux-gnu/hdf5/serial /tmp/hdf5-compat/lib
+    ln -sf /usr/lib/x86_64-linux-gnu/pkgconfig/hdf5-serial.pc /usr/lib/x86_64-linux-gnu/pkgconfig/hdf5.pc 2>/dev/null || true
+    git init /src
+    cd /src
+    git remote add origin https://github.com/AbdelStark/lewm-rs.git
+    git fetch --depth 1 origin \"\$LEWM_SOURCE_REVISION\"
+    git checkout --detach FETCH_HEAD
+    test \"\$(git rev-parse HEAD)\" = \"\$LEWM_SOURCE_REVISION\"
+    cargo build --locked --release -p lewm-train
+    hf download quentinll/lewm-pusht pusht_expert_train.h5.zst \
+      --repo-type dataset \
+      --local-dir /tmp/data
+    zstd -f -d /tmp/data/pusht_expert_train.h5.zst -o /tmp/data/pusht_expert_train.h5
+    export HDF5_PLUGIN_PATH=\$(python3 -c 'import hdf5plugin; print(hdf5plugin.PLUGIN_PATH)')
+    ./target/release/lewm-train train \
+      --config configs/pusht.toml \
+      --set 'experimental.pusht_train_mode=\"full_burn_jepa\"' \
+      --device cpu \
+      --data-dir /tmp/data \
+      --output-dir /tmp/out \
+      --resume-if-present \
+      --max-steps \${LEWM_MAX_STEPS:-50000}
+    checkpoint_step=\$(printf '%07d' \${LEWM_MAX_STEPS:-50000})
+    python3 python/export_onnx.py \
+      --safetensors /tmp/out/step_\${checkpoint_step}.safetensors \
+      --check-contract-only
+    python3 python/upload_checkpoints.py \
+      --src /tmp/out \
+      --dst abdelstark/lewm-rs-pusht \
+      --path-prefix train/pusht-full-burn-jepa-\$(date -u +%Y%m%dT%H%M%SZ)
+  "

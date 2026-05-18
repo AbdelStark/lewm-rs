@@ -19,6 +19,7 @@ EXPECTED_NAMESPACE = "abdelstark"
 EXPECTED_IMAGE = "ghcr.io/abdelstark/lewm-rs:latest"
 OPTIONAL_OTEL_ENDPOINT_VALUE = "${OTEL_ENDPOINT:-}"
 BOUNDED_PUSHT_JOBS = {"short_pusht.yaml"}
+FULL_PUSHT_JOBS = {"train_pusht.yaml", "train_pusht_source.yaml"}
 BOUNDED_PUSHT_FORBIDDEN_TOKENS = (
     "TRACKIO_RUN: pusht-full",
     "--path-prefix train/pusht-full",
@@ -86,6 +87,39 @@ JOB_SPECS = {
             "--check-contract-only",
             "python python/upload_checkpoints.py",
             "--path-prefix train/pusht-full-burn-jepa-$(date -u +%Y%m%dT%H%M%SZ)",
+        ],
+    },
+    "train_pusht_source.yaml": {
+        "hardware": "a10g-large",
+        "timeout": "12h",
+        "image": "rust:1.95.0-bookworm",
+        "env_values": {
+            "TRACKIO_RUN": "pusht-full-burn-jepa-source",
+        },
+        "command_tokens": [
+            "LEWM_SOURCE_REVISION:?set LEWM_SOURCE_REVISION",
+            "grep -Eq '^[0-9a-f]{40}$'",
+            "LEWM_SOURCE_REVISION must be a full 40-character lowercase git SHA",
+            "git fetch --depth 1 origin",
+            "git checkout --detach FETCH_HEAD",
+            "cargo build --locked --release -p lewm-train",
+            "hf download quentinll/lewm-pusht pusht_expert_train.h5.zst",
+            "zstd -f -d /tmp/data/pusht_expert_train.h5.zst -o /tmp/data/pusht_expert_train.h5",
+            "export HDF5_PLUGIN_PATH=\\$(python3 -c 'import hdf5plugin; print(hdf5plugin.PLUGIN_PATH)')",
+            "./target/release/lewm-train train",
+            "--config configs/pusht.toml",
+            "--set 'experimental.pusht_train_mode=\\\"full_burn_jepa\\\"'",
+            "--device cpu",
+            "--data-dir /tmp/data",
+            "--output-dir /tmp/out",
+            "--resume-if-present",
+            "--max-steps \\${LEWM_MAX_STEPS:-50000}",
+            "checkpoint_step=\\$(printf '%07d' \\${LEWM_MAX_STEPS:-50000})",
+            "python3 python/export_onnx.py",
+            "--safetensors /tmp/out/step_\\${checkpoint_step}.safetensors",
+            "--check-contract-only",
+            "python3 python/upload_checkpoints.py",
+            "--path-prefix train/pusht-full-burn-jepa-\\$(date -u +%Y%m%dT%H%M%SZ)",
         ],
     },
     "train_so100_warmstart.yaml": {
@@ -391,7 +425,7 @@ def validate_full_pusht_contract(
     command: str,
     failures: list[str],
 ) -> None:
-    if name != "train_pusht.yaml":
+    if name not in FULL_PUSHT_JOBS:
         return
 
     combined = f"{text}\n{command}"
@@ -406,14 +440,24 @@ def validate_full_pusht_contract(
         "experimental.pusht_train_mode=\\\"full_burn_jepa\\\"",
         "--device cpu",
         "--check-contract-only",
-        "--path-prefix train/pusht-full-burn-jepa",
-        "--max-steps ${LEWM_MAX_STEPS:-50000}",
     ):
         if token not in combined:
             failures.append(f"{path}: full PushT job missing {token!r}")
+    if "--path-prefix train/pusht-full-burn-jepa" not in combined:
+        failures.append(f"{path}: full PushT job missing '--path-prefix train/pusht-full-burn-jepa'")
+    if (
+        "--max-steps ${LEWM_MAX_STEPS:-50000}" not in combined
+        and "--max-steps \\${LEWM_MAX_STEPS:-50000}" not in combined
+    ):
+        failures.append(
+            f"{path}: full PushT job missing '--max-steps ${{LEWM_MAX_STEPS:-50000}}'"
+        )
 
     contract_pos = command.find("--check-contract-only")
-    upload_pos = command.find("python python/upload_checkpoints.py")
+    upload_pos = max(
+        command.find("python python/upload_checkpoints.py"),
+        command.find("python3 python/upload_checkpoints.py"),
+    )
     if contract_pos < 0 or upload_pos < 0 or contract_pos > upload_pos:
         failures.append(f"{path}: full PushT checkpoint contract check must run before upload")
 
@@ -437,6 +481,10 @@ def validate_intern_config(failures: list[str]) -> None:
         failures.append(f"{path}: train_pusht.yaml must require human approval")
     if "train_pusht.yaml" in jobs_allowed:
         failures.append(f"{path}: train_pusht.yaml must not be pre-approved")
+    if "train_pusht_source.yaml" not in approval_required:
+        failures.append(f"{path}: train_pusht_source.yaml must require human approval")
+    if "train_pusht_source.yaml" in jobs_allowed:
+        failures.append(f"{path}: train_pusht_source.yaml must not be pre-approved")
     if "train_so100_warmstart.yaml" not in approval_required:
         failures.append(f"{path}: train_so100_warmstart.yaml must require human approval")
     if "train_so100_warmstart.yaml" in jobs_allowed:

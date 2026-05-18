@@ -347,6 +347,9 @@ def validate_job(
 
 def validate_job_env_contract(path: Path, job: dict[str, object]) -> None:
     """Validate job-specific environment values that must be known before launch."""
+    if path.name == "train_pusht_source.yaml":
+        validate_source_revision_env(path, job)
+        return
     if path.name != "train_so100_warmstart.yaml":
         return
 
@@ -378,6 +381,26 @@ def validate_job_env_contract(path: Path, job: dict[str, object]) -> None:
         raise LaunchError("LEWM_PUSHT_WARMSTART_MPK must be a literal Hub path, not a glob")
     if not source.endswith(".mpk"):
         raise LaunchError("LEWM_PUSHT_WARMSTART_MPK must end in .mpk")
+
+
+def validate_source_revision_env(path: Path, job: dict[str, object]) -> None:
+    """Require source-building paid jobs to pin an immutable git revision."""
+    env = job.get("env", {})
+    if not isinstance(env, dict):
+        raise LaunchError(f"{path.relative_to(ROOT)} env must be a mapping")
+    raw_revision = env.get("LEWM_SOURCE_REVISION")
+    if raw_revision is None:
+        raise LaunchError(f"{path.relative_to(ROOT)} must define LEWM_SOURCE_REVISION in env")
+    revision = resolve_env_value(str(raw_revision))
+    if not revision:
+        raise LaunchError(
+            "train_pusht_source.yaml requires LEWM_SOURCE_REVISION to name the exact "
+            "approved git commit"
+        )
+    if PLACEHOLDER_RE.search(revision):
+        raise LaunchError("LEWM_SOURCE_REVISION must be replaced with a real git SHA")
+    if not re.fullmatch(r"[0-9a-f]{40}", revision):
+        raise LaunchError("LEWM_SOURCE_REVISION must be a full 40-character lowercase git SHA")
 
 
 def render_command(job: dict[str, object], *, detach: bool) -> list[str]:

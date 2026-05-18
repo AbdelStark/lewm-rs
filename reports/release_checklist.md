@@ -31,7 +31,7 @@ This document tracks all items needed before tagging a public release.
 
 | Item | Status | Notes |
 |------|--------|-------|
-| PushT training artifacts on Hub | ⚠️ Bounded-core only | Job `6a06f0c43308d79117b90276` completed (50k steps, 318 min), but the uploaded checkpoint is the 14-tensor `pusht-minimal-lewm` / `PushtFullLewmCore` bounded host path, not a 255-tensor full Burn/Jepa mirror. `reports/pusht_full_safetensors_hub_audit.json` now confirms all six public PushT `.safetensors` files fail the F1 full-run source preflight, with zero ready `train/pusht-full-burn-jepa-*` candidates. The approval-gated production PushT job now selects CPU-backed `experimental.pusht_train_mode = "full_burn_jepa"`, runs a safetensors-only ONNX contract check before upload, and uploads to `train/pusht-full-burn-jepa-*`, but it has not been launched or remeasured. Local pre-launch evidence in `reports/full_pusht_contract_smoke.json` proves the release-config writer can produce the 255-tensor / 303-key export contract. |
+| PushT training artifacts on Hub | ⚠️ Bounded-core only | Job `6a06f0c43308d79117b90276` completed (50k steps, 318 min), but the uploaded checkpoint is the 14-tensor `pusht-minimal-lewm` / `PushtFullLewmCore` bounded host path, not a 255-tensor full Burn/Jepa mirror. `reports/pusht_full_safetensors_hub_audit.json` now confirms all six public PushT `.safetensors` files fail the F1 full-run source preflight, with zero ready `train/pusht-full-burn-jepa-*` candidates. The approval-gated production PushT job now selects CPU-backed `experimental.pusht_train_mode = "full_burn_jepa"`, runs a safetensors-only ONNX contract check before upload, and uploads to `train/pusht-full-burn-jepa-*`, but it has not been launched or remeasured. `jobs/train_pusht_source.yaml` is an approval-gated no-GHCR fallback that builds from an explicit `LEWM_SOURCE_REVISION`. Local pre-launch evidence in `reports/full_pusht_contract_smoke.json` proves the release-config writer can produce the 255-tensor / 303-key export contract. |
 | PushT CEM planning eval | 🚫 Blocked | F1 export failed because no trained full Burn/Jepa safetensors exists under `abdelstark/lewm-rs-pusht`; see `reports/pusht_onnx_export.md` and `reports/full_burn_jepa_training_gap.md` |
 | PushT model card with metrics | ⏳ Pending | Needs eval results |
 | SO-100 training artifacts on Hub | ⚠️ Bounded-core run complete | `abdelstark/lewm-rs-so100/train/so100-full-20260515T122820Z/`; see `reports/so100_training.md` for the current bounded trainer scope |
@@ -76,7 +76,7 @@ This document tracks all items needed before tagging a public release.
 | Soft cap | ✅ Set | $100 USD — triggers notification |
 | Per-job default timeout | ✅ Set | 30 min default |
 | A100/H100 hardware denied | ✅ Set | Only cpu/l4/a10g allowed |
-| High-cost jobs require human approval | ✅ Set | `train_pusht.yaml`, `train_so100.yaml`, `train_so100_warmstart.yaml` |
+| High-cost jobs require human approval | ✅ Set | `train_pusht.yaml`, `train_pusht_source.yaml`, `train_so100.yaml`, `train_so100_warmstart.yaml` |
 
 ## Required user actions before release
 
