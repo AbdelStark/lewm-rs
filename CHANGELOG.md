@@ -46,10 +46,12 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   refuses to run unless `LEWM_PUSHT_WARMSTART_MPK` names a compatible PushT
   `.mpk` source, downloads SO-100 data, runs the warm-start config with an
   explicit `training.warmstart_from` override, and uploads to
-  `train/so100-warmstart-*`. Reproduction/result docs now use the checked-in
-  `train_*.yaml` job names and describe the PushT 50k artifact as a bounded
-  14-tensor host-core checkpoint rather than a trained 303-tensor Burn/Jepa
-  checkpoint.
+  `train/so100-warmstart-*`. The job now runs
+  `scripts/check_warmstart_source.py` after downloading the PushT `.mpk`, so
+  stale `schema_version = 1.0.0` / minimal records fail before paid training
+  begins. Reproduction/result docs now use the checked-in `train_*.yaml` job
+  names and describe the PushT 50k artifact as a bounded 14-tensor host-core
+  checkpoint rather than a trained 303-tensor Burn/Jepa checkpoint.
 - **Release blocker gate**: new `conformance/release_blockers.json` and
   `scripts/check_release_blockers.py` keep `make check` schema-validating known
   blockers while making `make accept` fail until the F1 ONNX and F3 warm-start

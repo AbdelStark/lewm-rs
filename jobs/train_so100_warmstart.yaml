@@ -46,6 +46,9 @@ command: |
       --local-dir /tmp/checkpoints/pusht
     export WARMSTART_LOCAL=\"/tmp/checkpoints/pusht/\${LEWM_PUSHT_WARMSTART_MPK}\"
     test -f \"\$WARMSTART_LOCAL\"
+    python3 scripts/check_warmstart_source.py \
+      --path \"\$WARMSTART_LOCAL\" \
+      --config configs/pusht.toml
     ./target/release/lewm-train train \
       --config configs/so100_warmstart.toml \
       --output-dir /tmp/out/so100-warmstart \

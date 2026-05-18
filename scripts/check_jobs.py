@@ -76,6 +76,7 @@ JOB_SPECS = {
             "LEWM_PUSHT_WARMSTART_REPO:-abdelstark/lewm-rs-pusht",
             "--repo-type model",
             "--local-dir /tmp/checkpoints/pusht",
+            "python3 scripts/check_warmstart_source.py",
             "./target/release/lewm-train train",
             "--config configs/so100_warmstart.toml",
             "training.warmstart_from=",

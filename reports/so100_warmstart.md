@@ -36,6 +36,32 @@ The job spec also fails closed inside the shell command unless
 source model repo. This prevents accidentally launching against the stale
 `configs/so100_warmstart.toml` default.
 
+The job now runs a local source-check before training:
+
+```text
+python3 scripts/check_warmstart_source.py \
+  --path "$WARMSTART_LOCAL" \
+  --config configs/pusht.toml
+```
+
+That verifier requires the current bounded PushT warm-start record contract:
+`schema_version == "1.1.0"`, `kind ==
+"lewm-rs-pusht-full-module-lewm-record"`, and the `41,856`-parameter layout
+derived from `configs/pusht.toml`. The currently published 50k PushT `.mpk`
+is rejected immediately:
+
+```text
+hf download abdelstark/lewm-rs-pusht \
+  --include 'train/pusht-full-lewm-20260515T100908Z/step_0050000.mpk' \
+  --local-dir /tmp/pusht-warmstart-source-check
+
+python3 scripts/check_warmstart_source.py \
+  --path /tmp/pusht-warmstart-source-check/train/pusht-full-lewm-20260515T100908Z/step_0050000.mpk \
+  --config configs/pusht.toml
+
+check_warmstart_source.py: .../step_0050000.mpk: schema_version must be '1.1.0', got '1.0.0'
+```
+
 The config exists:
 
 ```text
@@ -72,6 +98,12 @@ python3 scripts/check_jobs.py
 ```
 
 Result: `check_jobs: HF Jobs specs ok`.
+
+```text
+uv run --project python pytest python/tests/test_check_warmstart_source.py
+```
+
+Result: 3 passed.
 
 ## Required Resolution
 
