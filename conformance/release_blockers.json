@@ -11,6 +11,7 @@
       "evidence": [
         "reports/pusht_onnx_export.md",
         "reports/full_burn_jepa_training_gap.md",
+        "reports/full_pusht_contract_smoke.json",
         "reports/pusht_training.md",
         "reports/release_checklist.md"
       ],

@@ -65,6 +65,26 @@ def checkpoint_path(output_dir: Path, steps: int) -> Path:
     return output_dir / f"step_{steps:07d}.safetensors"
 
 
+def report_path(path: Path) -> str:
+    try:
+        return str(path.relative_to(repo_root()))
+    except ValueError:
+        return str(path)
+
+
+def report_command(command: object) -> object:
+    root_prefix = f"{repo_root()}/"
+    if not isinstance(command, list):
+        return command
+    normalized = []
+    for item in command:
+        if isinstance(item, str) and item.startswith(root_prefix):
+            normalized.append(item.removeprefix(root_prefix))
+        else:
+            normalized.append(item)
+    return normalized
+
+
 def train_command(config: Path, output_dir: Path, steps: int) -> list[str]:
     return [
         "cargo",
@@ -148,13 +168,13 @@ def write_report(
     payload = {
         "schema_version": "1.0.0",
         "generated_at": datetime.now(UTC).replace(microsecond=0).isoformat(),
-        "config": str(config),
+        "config": report_path(config),
         "output_dir": str(output_dir),
         "steps": steps,
         "checkpoint": str(checkpoint),
         "checkpoint_size_bytes": checkpoint.stat().st_size,
-        "train_command": train.args,
-        "contract_command": contract.args,
+        "train_command": report_command(train.args),
+        "contract_command": report_command(contract.args),
         "contract": contract_summary,
     }
     path.parent.mkdir(parents=True, exist_ok=True)

@@ -1,0 +1,47 @@
+{
+  "checkpoint": "/var/folders/7_/2x53c05j5_998t02j0ftc0lr0000gn/T/lewm-pusht-full-contract-xto1xbhl/step_0000001.safetensors",
+  "checkpoint_size_bytes": 72195968,
+  "config": "configs/pusht.toml",
+  "contract": {
+    "burn_destination_tensors": 255,
+    "expected_pytorch_keys": 303,
+    "recovered_pytorch_keys": 303,
+    "safetensors_sha256": "b9cbd30771c4f35725fe8ea8ec54660fd18df59e8aade45c06e2d111e60bb3eb"
+  },
+  "contract_command": [
+    "uv",
+    "run",
+    "--project",
+    "python",
+    "--frozen",
+    "python",
+    "python/export_onnx.py",
+    "--safetensors",
+    "/var/folders/7_/2x53c05j5_998t02j0ftc0lr0000gn/T/lewm-pusht-full-contract-xto1xbhl/step_0000001.safetensors",
+    "--check-contract-only"
+  ],
+  "generated_at": "2026-05-18T11:15:09+00:00",
+  "output_dir": "/var/folders/7_/2x53c05j5_998t02j0ftc0lr0000gn/T/lewm-pusht-full-contract-xto1xbhl",
+  "schema_version": "1.0.0",
+  "steps": 1,
+  "train_command": [
+    "cargo",
+    "run",
+    "-p",
+    "lewm-train",
+    "--bin",
+    "lewm-train",
+    "--",
+    "--config",
+    "configs/pusht.toml",
+    "--set",
+    "experimental.pusht_train_mode=\"full_burn_jepa\"",
+    "--device",
+    "cpu",
+    "--output-dir",
+    "/var/folders/7_/2x53c05j5_998t02j0ftc0lr0000gn/T/lewm-pusht-full-contract-xto1xbhl",
+    "--max-steps",
+    "1",
+    "train"
+  ]
+}
