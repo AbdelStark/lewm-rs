@@ -12,6 +12,7 @@ from typing import Any
 DEFAULT_BLOCKERS = Path("conformance/release_blockers.json")
 OPEN_STATUSES = {"blocked", "pending", "open"}
 RESOLVED_STATUS = "resolved"
+EXPECTED_BACKLOG_ISSUES = {f"F{index}": 242 + index for index in range(1, 14)}
 
 
 class BlockerError(RuntimeError):
@@ -100,7 +101,36 @@ def load_blockers(path: Path) -> list[dict[str, Any]]:
     raw_blockers = payload.get("blockers")
     if not isinstance(raw_blockers, list):
         raise BlockerError(f"{path}: blockers must be a list")
-    return [validate_blocker(entry, index) for index, entry in enumerate(raw_blockers)]
+
+    blockers = [validate_blocker(entry, index) for index, entry in enumerate(raw_blockers)]
+    validate_backlog_contract(blockers, path)
+    return blockers
+
+
+def validate_backlog_contract(blockers: list[dict[str, Any]], path: Path) -> None:
+    """Validate that the release gate tracks the complete F1-F13 backlog."""
+    seen: dict[str, int] = {}
+    for entry in blockers:
+        blocker_id = entry["id"]
+        if blocker_id in seen:
+            raise BlockerError(f"{path}: duplicate blocker id {blocker_id!r}")
+        seen[blocker_id] = entry["issue"]
+
+    expected_ids = set(EXPECTED_BACKLOG_ISSUES)
+    actual_ids = set(seen)
+    missing = sorted(expected_ids - actual_ids, key=lambda item: int(item[1:]))
+    unexpected = sorted(actual_ids - expected_ids)
+    if missing:
+        raise BlockerError(f"{path}: missing release backlog blocker(s): {', '.join(missing)}")
+    if unexpected:
+        raise BlockerError(f"{path}: unexpected release backlog blocker(s): {', '.join(unexpected)}")
+
+    for blocker_id, expected_issue in EXPECTED_BACKLOG_ISSUES.items():
+        issue = seen[blocker_id]
+        if issue != expected_issue:
+            raise BlockerError(
+                f"{path}: {blocker_id} must map to issue #{expected_issue}, got #{issue}"
+            )
 
 
 def main() -> int:

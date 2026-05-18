@@ -22,6 +22,25 @@
       ]
     },
     {
+      "id": "F2",
+      "issue": 244,
+      "phase": "B",
+      "title": "Run PushT CEM planning success-rate evaluation",
+      "status": "blocked",
+      "evidence": [
+        "reports/pusht_onnx_export.md",
+        "reports/release_checklist.md",
+        "paper/lewm-rs.md",
+        "docs/src/planning/pusht-eval.md"
+      ],
+      "required_resolution": [
+        "Run 50 scored PushT CEM evaluation episodes against the F1 full-training ONNX artifacts.",
+        "Document success rate, p50/p95 latency, and per-episode results in reports/pusht_eval.md.",
+        "Record whether the success rate reaches the 87 percent target or document the deviation with root-cause analysis.",
+        "Use the measured results to unblock F4 and F7."
+      ]
+    },
+    {
       "id": "F3",
       "issue": 245,
       "phase": "A",
@@ -37,6 +56,183 @@
         "Update the agent safety leash so train_so100_warmstart.yaml is listed under jobs_human_approval_required.",
         "Obtain explicit human approval for the paid HF Job launch.",
         "Upload the resulting SO-100 warm-start artifacts and compute the warm-start delta."
+      ]
+    },
+    {
+      "id": "F4",
+      "issue": 246,
+      "phase": "C",
+      "title": "Finalize PushT model card with CEM metrics",
+      "status": "blocked",
+      "evidence": [
+        "python/model_cards/README_pusht.md",
+        "reports/pusht_onnx_export.md",
+        "reports/release_checklist.md",
+        "CHANGELOG.md"
+      ],
+      "required_resolution": [
+        "Update the live abdelstark/lewm-rs-pusht model card with training metrics, CEM success rate, p50/p95 latency, ONNX artifact links, reproduce commands, and citations.",
+        "Update CHANGELOG.md for the finalized PushT model card.",
+        "Cross-link the finalized card from README.md and paper/lewm-rs.md."
+      ]
+    },
+    {
+      "id": "F5",
+      "issue": 247,
+      "phase": "C",
+      "title": "Finalize SO-100 model card with warm-start delta",
+      "status": "blocked",
+      "evidence": [
+        "python/model_cards/README_so100.md",
+        "reports/so100_warmstart.md",
+        "reports/so100_training.md",
+        "reports/release_checklist.md"
+      ],
+      "required_resolution": [
+        "Update the live abdelstark/lewm-rs-so100 model card with from-scratch vs warm-start training comparison.",
+        "Document the Spearman correlation delta and warm-start loss delta.",
+        "Update CHANGELOG.md and cross-link the finalized card from README.md and paper/lewm-rs.md."
+      ]
+    },
+    {
+      "id": "F6",
+      "issue": 248,
+      "phase": "B",
+      "title": "Verify demo Space end-to-end",
+      "status": "blocked",
+      "evidence": [
+        "docs/src/inference/demo.md",
+        "reports/inference.md",
+        "reports/release_checklist.md"
+      ],
+      "required_resolution": [
+        "Verify https://huggingface.co/spaces/abdelstark/lewm-rs-demo is green with no build errors.",
+        "Run one CEM planning demo episode end-to-end and confirm the visualization renders.",
+        "Point the Space at the F1 full-training ONNX artifacts after they exist.",
+        "Update the Space description with the F2 success-rate result."
+      ]
+    },
+    {
+      "id": "F7",
+      "issue": 249,
+      "phase": "C",
+      "title": "Complete paper section 6.2 CEM eval results",
+      "status": "blocked",
+      "evidence": [
+        "paper/lewm-rs.md",
+        "reports/pusht_onnx_export.md",
+        "reports/release_checklist.md"
+      ],
+      "required_resolution": [
+        "Replace the paper section 6.2 TBD with measured PushT success rate and CEM latency from reports/pusht_eval.md.",
+        "Generate and commit paper/figures/pusht_eval.pdf.",
+        "Verify the paper or docsite build succeeds without errors."
+      ]
+    },
+    {
+      "id": "F8",
+      "issue": 250,
+      "phase": "C",
+      "title": "Complete paper section 7.3 SO-100 warm-start results",
+      "status": "blocked",
+      "evidence": [
+        "paper/lewm-rs.md",
+        "reports/so100_warmstart.md",
+        "reports/so100_training.md",
+        "reports/release_checklist.md"
+      ],
+      "required_resolution": [
+        "Replace the paper section 7.3 TBD with measured warm-start Spearman delta and training comparison.",
+        "Generate and commit paper/figures/so100_warmstart.pdf.",
+        "Verify the paper or docsite build succeeds without errors."
+      ]
+    },
+    {
+      "id": "F9",
+      "issue": 251,
+      "phase": "D",
+      "title": "Publish HF Hub blog post",
+      "status": "blocked",
+      "evidence": [
+        "README.md",
+        "python/model_cards/README_pusht.md",
+        "python/model_cards/README_so100.md",
+        "reports/release_checklist.md"
+      ],
+      "required_resolution": [
+        "Publish the HF Hub blog post and record the live URL.",
+        "Cross-link the post from README.md, model cards, and the demo Space.",
+        "Update CHANGELOG.md with the blog link."
+      ]
+    },
+    {
+      "id": "F10",
+      "issue": 252,
+      "phase": "D",
+      "title": "Prepare and submit paper to arXiv",
+      "status": "blocked",
+      "evidence": [
+        "paper/lewm-rs.md",
+        "CITATION.cff",
+        "README.md",
+        "reports/release_checklist.md"
+      ],
+      "required_resolution": [
+        "Render the final PDF after F7 and F8 remove all TBD result sections.",
+        "Submit the paper to arXiv and record the submission/arXiv identifier.",
+        "Update README.md, CITATION.cff, and CHANGELOG.md with the arXiv link."
+      ]
+    },
+    {
+      "id": "F11",
+      "issue": 253,
+      "phase": "E",
+      "title": "Fix GHCR package permissions",
+      "status": "pending",
+      "evidence": [
+        ".github/workflows/release.yml",
+        "reports/release_checklist.md"
+      ],
+      "required_resolution": [
+        "Grant AbdelStark/lewm-rs Write access to the ghcr.io/abdelstark/lewm-rs package settings.",
+        "Trigger release.yml and verify the container job passes.",
+        "Verify the latest GHCR image is published and signed."
+      ]
+    },
+    {
+      "id": "F12",
+      "issue": 254,
+      "phase": "E",
+      "title": "Rotate HF_TOKEN before public release",
+      "status": "pending",
+      "evidence": [
+        "RELEASE.md",
+        "reports/release_checklist.md",
+        "reports/cost.md"
+      ],
+      "required_resolution": [
+        "Revoke the old Hugging Face token and create a fine-grained replacement with minimal required scopes.",
+        "Update the GitHub Actions HF_TOKEN secret.",
+        "Verify CI passes with the rotated token and log the rotation in reports/cost.md."
+      ]
+    },
+    {
+      "id": "F13",
+      "issue": 255,
+      "phase": "E",
+      "title": "Tag and publish v1.0.0 release",
+      "status": "blocked",
+      "evidence": [
+        "CHANGELOG.md",
+        "reports/release_checklist.md",
+        ".github/workflows/release.yml",
+        "conformance/release_blockers.json"
+      ],
+      "required_resolution": [
+        "Resolve F1 through F12 and complete reports/release_checklist.md.",
+        "Run CARGO_INCREMENTAL=0 make accept on main.",
+        "Move CHANGELOG.md Unreleased content to a dated 1.0.0 release section.",
+        "Create and push the signed v1.0.0 tag, then verify release.yml and the GitHub Release artifacts pass."
       ]
     }
   ]

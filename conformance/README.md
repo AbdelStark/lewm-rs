@@ -10,6 +10,12 @@ listed artifact with `scripts/check_hub_artifacts.py`. The manifest is
 intentionally absent until the Hub publication milestone provides stable
 artifact hashes.
 
+The release blocker manifest is intentionally a complete mirror of the
+production backlog: F1 through F13 must all be present and must map to GitHub
+issues #243 through #255. The checker rejects missing, duplicate, unexpected,
+or mis-numbered blocker IDs so the release gate cannot pass by silently
+dropping a later backlog item.
+
 Release blocker shape:
 
 ```json
