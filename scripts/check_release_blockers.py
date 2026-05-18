@@ -29,6 +29,7 @@ REQUIRED_EVIDENCE_BY_ID: dict[str, tuple[str, ...]] = {
         "reports/full_burn_jepa_training_gap.md",
         "reports/full_pusht_contract_smoke.json",
         "scripts/f1_export_pusht_onnx.py",
+        "reports/phase_a_handoff.json",
     ),
     "F3": (
         "jobs/train_so100_warmstart.yaml",
@@ -36,6 +37,7 @@ REQUIRED_EVIDENCE_BY_ID: dict[str, tuple[str, ...]] = {
         "reports/pusht_warmstart_source_smoke.json",
         "scripts/pusht_warmstart_source_smoke.py",
         "scripts/check_pusht_warmstart_source_smoke_report.py",
+        "reports/phase_a_handoff.json",
     ),
     "F13": (
         "conformance/release_blockers.json",

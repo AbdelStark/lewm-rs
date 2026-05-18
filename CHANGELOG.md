@@ -79,7 +79,10 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - **Release blocker gate**: new `conformance/release_blockers.json` and
   `scripts/check_release_blockers.py` keep `make check` schema-validating known
   blockers while making `make accept` fail until the F1 ONNX and F3 warm-start
-  blockers are resolved.
+  blockers are resolved. `reports/phase_a_handoff.json` and
+  `scripts/check_phase_a_handoff.py` now pin the ordered F1/F3 handoff
+  commands, human-approval gates, accepted/rejected PushT source prefixes, and
+  warm-start source requirements in one machine-checked artifact.
 - **Model-card accuracy**: local PushT and SO-100 Hub cards now label the
   current uploads as bounded trainer artifacts instead of full release
   checkpoints, and `scripts/upload_model_cards.py --dry-run` no longer requires

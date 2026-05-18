@@ -1,0 +1,226 @@
+#!/usr/bin/env python3
+"""Validate the Phase A release handoff contract."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+from typing import Any
+
+DEFAULT_HANDOFF = Path("reports/phase_a_handoff.json")
+EXPECTED_TASKS = (
+    {
+        "id": "F1",
+        "issue": 243,
+        "source_prefix": "train/pusht-full-burn-jepa-",
+        "rejected_source_prefix": "train/pusht-full-lewm-",
+        "required_tokens": (
+            "jobs/train_pusht.yaml",
+            "--allow-approval-required",
+            "scripts/f1_export_pusht_onnx.py",
+            "--run-prefix",
+            "train/pusht-full-burn-jepa-<UTC timestamp>",
+            "--execute",
+            "--upload",
+        ),
+    },
+    {
+        "id": "F3",
+        "issue": 245,
+        "source_env": "LEWM_PUSHT_WARMSTART_MPK",
+        "source_verifier": "scripts/check_warmstart_source.py",
+        "required_tokens": (
+            "LEWM_PUSHT_WARMSTART_MPK=train/<compatible-bounded-run>/step_0050000.mpk",
+            "jobs/train_so100_warmstart.yaml",
+            "--allow-approval-required",
+            "scripts/check_pusht_warmstart_source_smoke_report.py",
+        ),
+    },
+)
+
+
+class HandoffError(RuntimeError):
+    """Raised when the Phase A handoff file is malformed."""
+
+
+def repo_root() -> Path:
+    return Path(__file__).resolve().parents[1]
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--path",
+        type=Path,
+        default=DEFAULT_HANDOFF,
+        help=f"Phase A handoff file ({DEFAULT_HANDOFF})",
+    )
+    return parser.parse_args()
+
+
+def resolve_path(path: Path) -> Path:
+    if path.is_absolute():
+        return path
+    return repo_root() / path
+
+
+def require_str(payload: dict[str, Any], key: str, path: Path) -> str:
+    value = payload.get(key)
+    if not isinstance(value, str) or not value:
+        raise HandoffError(f"{path}: {key} must be a non-empty string")
+    return value
+
+
+def require_bool(payload: dict[str, Any], key: str, path: Path) -> bool:
+    value = payload.get(key)
+    if not isinstance(value, bool):
+        raise HandoffError(f"{path}: {key} must be a boolean")
+    return value
+
+
+def require_str_list(payload: dict[str, Any], key: str, path: Path) -> list[str]:
+    value = payload.get(key)
+    if not isinstance(value, list) or not value:
+        raise HandoffError(f"{path}: {key} must be a non-empty string list")
+    if not all(isinstance(item, str) and item for item in value):
+        raise HandoffError(f"{path}: {key} must contain only non-empty strings")
+    return value
+
+
+def require_commands(payload: dict[str, Any], path: Path) -> dict[str, list[list[str]]]:
+    value = payload.get("commands")
+    if not isinstance(value, dict) or not value:
+        raise HandoffError(f"{path}: commands must be a non-empty object")
+    commands: dict[str, list[list[str]]] = {}
+    for name, raw_group in value.items():
+        if not isinstance(name, str) or not name:
+            raise HandoffError(f"{path}: command group names must be non-empty strings")
+        if not isinstance(raw_group, list) or not raw_group:
+            raise HandoffError(f"{path}: commands.{name} must be a non-empty command list")
+        group: list[list[str]] = []
+        for index, raw_command in enumerate(raw_group):
+            if not isinstance(raw_command, list) or not raw_command:
+                raise HandoffError(f"{path}: commands.{name}[{index}] must be a non-empty list")
+            if not all(isinstance(item, str) and item for item in raw_command):
+                raise HandoffError(f"{path}: commands.{name}[{index}] must contain strings")
+            group.append(raw_command)
+        commands[name] = group
+    return commands
+
+
+def flatten_commands(commands: dict[str, list[list[str]]]) -> list[str]:
+    return [token for group in commands.values() for command in group for token in command]
+
+
+def validate_evidence_paths(paths: list[str], context: str, handoff_path: Path) -> None:
+    root = repo_root()
+    for evidence in paths:
+        evidence_path = Path(evidence)
+        if evidence_path.is_absolute():
+            raise HandoffError(f"{handoff_path}: {context} evidence {evidence!r} must be relative")
+        candidate = (root / evidence_path).resolve()
+        try:
+            candidate.relative_to(root)
+        except ValueError as exc:
+            raise HandoffError(
+                f"{handoff_path}: {context} evidence {evidence!r} must stay in repo"
+            ) from exc
+        if not candidate.exists():
+            raise HandoffError(
+                f"{handoff_path}: {context} evidence {evidence!r} does not exist"
+            )
+
+
+def validate_task(task: Any, expected: dict[str, Any], handoff_path: Path) -> None:
+    if not isinstance(task, dict):
+        raise HandoffError(f"{handoff_path}: task must be an object")
+
+    task_id = require_str(task, "id", handoff_path)
+    if task_id != expected["id"]:
+        raise HandoffError(f"{handoff_path}: expected task {expected['id']}, got {task_id}")
+    issue = task.get("issue")
+    if issue != expected["issue"]:
+        raise HandoffError(f"{handoff_path}: {task_id}.issue must be #{expected['issue']}")
+    if require_str(task, "status", handoff_path) != "blocked":
+        raise HandoffError(f"{handoff_path}: {task_id}.status must stay blocked")
+    if not require_bool(task, "requires_human_approval", handoff_path):
+        raise HandoffError(f"{handoff_path}: {task_id} must require human approval")
+
+    validate_evidence_paths(require_str_list(task, "evidence", handoff_path), task_id, handoff_path)
+    require_str_list(task, "blocked_on", handoff_path)
+    require_str_list(task, "acceptance", handoff_path)
+    tokens = flatten_commands(require_commands(task, handoff_path))
+
+    for token in expected["required_tokens"]:
+        if token not in tokens:
+            raise HandoffError(f"{handoff_path}: {task_id} commands missing {token!r}")
+    if "source_prefix" in expected:
+        if task.get("source_prefix") != expected["source_prefix"]:
+            raise HandoffError(
+                f"{handoff_path}: {task_id}.source_prefix must be {expected['source_prefix']!r}"
+            )
+        rejected = require_str_list(task, "rejected_source_prefixes", handoff_path)
+        if expected["rejected_source_prefix"] not in rejected:
+            raise HandoffError(
+                f"{handoff_path}: {task_id} must reject {expected['rejected_source_prefix']!r}"
+            )
+    if "source_env" in expected:
+        if task.get("source_env") != expected["source_env"]:
+            raise HandoffError(
+                f"{handoff_path}: {task_id}.source_env must be {expected['source_env']!r}"
+            )
+        if task.get("source_verifier") != expected["source_verifier"]:
+            raise HandoffError(
+                f"{handoff_path}: {task_id}.source_verifier must be "
+                f"{expected['source_verifier']!r}"
+            )
+
+
+def load_handoff(path: Path) -> dict[str, Any]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:
+        raise HandoffError(f"missing Phase A handoff file: {path}") from exc
+    except json.JSONDecodeError as exc:
+        raise HandoffError(f"{path}: invalid JSON: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise HandoffError(f"{path}: root must be an object")
+    return payload
+
+
+def validate_handoff(payload: dict[str, Any], path: Path) -> None:
+    if payload.get("schema_version") != "1.0.0":
+        raise HandoffError(f"{path}: schema_version must be '1.0.0'")
+    require_str(payload, "updated", path)
+    if payload.get("phase") != "A":
+        raise HandoffError(f"{path}: phase must be 'A'")
+    if payload.get("status") != "blocked":
+        raise HandoffError(f"{path}: status must be 'blocked'")
+    require_str(payload, "summary", path)
+
+    tasks = payload.get("tasks")
+    if not isinstance(tasks, list):
+        raise HandoffError(f"{path}: tasks must be a list")
+    if len(tasks) != len(EXPECTED_TASKS):
+        raise HandoffError(f"{path}: expected {len(EXPECTED_TASKS)} Phase A task(s)")
+    for task, expected in zip(tasks, EXPECTED_TASKS, strict=True):
+        validate_task(task, expected, path)
+
+
+def main() -> int:
+    path = resolve_path(parse_args().path)
+    try:
+        payload = load_handoff(path)
+        validate_handoff(payload, path)
+    except HandoffError as exc:
+        print(f"check_phase_a_handoff.py: {exc}", file=sys.stderr)
+        return 1
+
+    print("Phase A handoff ok: F1 and F3 remain blocked behind explicit human gates")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

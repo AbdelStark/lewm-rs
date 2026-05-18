@@ -13,6 +13,7 @@
         "reports/full_burn_jepa_training_gap.md",
         "reports/full_pusht_contract_smoke.json",
         "scripts/f1_export_pusht_onnx.py",
+        "reports/phase_a_handoff.json",
         "reports/pusht_training.md",
         "reports/release_checklist.md"
       ],
@@ -55,6 +56,7 @@
         "reports/pusht_warmstart_source_smoke.json",
         "scripts/pusht_warmstart_source_smoke.py",
         "scripts/check_pusht_warmstart_source_smoke_report.py",
+        "reports/phase_a_handoff.json",
         "reports/release_checklist.md"
       ],
       "required_resolution": [
