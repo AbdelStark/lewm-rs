@@ -201,7 +201,7 @@ docs/        mdBook docsite — Concepts > Architecture > Training > Inference >
 paper/       Long-form writeup (CC-BY-4.0 intended)
 reports/     pusht_training, so100_training, inference, gpu_inference, cost ledger
 python/      Edge helpers: export_onnx, convert_reference, eval_compare, Hub upload
-jobs/        Hugging Face Jobs YAML — smoke / short / full / eval, cost-bounded
+jobs/        Hugging Face Jobs YAML — smoke / short / bounded train / eval, cost-bounded
 scripts/     Local validators — check_specs / check_layers / check_jobs / check_nondet
 ```
 

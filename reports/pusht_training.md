@@ -6,6 +6,10 @@
 **Wall time:** 318 min (~5h18m)
 **Artifacts:** `abdelstark/lewm-rs-pusht/train/pusht-full-lewm-20260515T100908Z/`
 
+**Naming note:** this historical Hub path predates the bounded-artifact
+correction; checked-in PushT jobs now use `pusht-bounded-module-lewm` labels
+until the full Burn/Jepa training path is implemented.
+
 ## Dataset
 
 | Property | Value |

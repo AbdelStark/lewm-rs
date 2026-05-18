@@ -7,7 +7,7 @@ env:
   HF_TOKEN: ${HF_TOKEN}
   HF_HOME: /tmp/hf
   TRACKIO_PROJECT: lewm-rs
-  TRACKIO_RUN: pusht-full-module-lewm-short
+  TRACKIO_RUN: pusht-bounded-module-lewm-short
   OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_ENDPOINT:-}
 command: |
   bash -lc "
@@ -24,5 +24,5 @@ command: |
     python python/upload_checkpoints.py \
       --src /tmp/out \
       --dst abdelstark/lewm-rs-pusht \
-      --path-prefix train/pusht-full-module-lewm-short-$(date -u +%Y%m%dT%H%M%SZ)
+      --path-prefix train/pusht-bounded-module-lewm-short-$(date -u +%Y%m%dT%H%M%SZ)
   "

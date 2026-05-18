@@ -9,7 +9,7 @@
 | 2026-05-14 12:39    | train | —                 | a10g-large   | 5m     | 0.13       | 0.26            | PushT tiny-jepa short run (pusht-tiny-jepa-short-20260514T123936Z; job ID not recorded) |
 | 2026-05-14 12:42    | train | —                 | a10g-large   | 5m     | 0.13       | 0.39            | PushT tiny-jepa short run (pusht-tiny-jepa-short-20260514T124237Z; job ID not recorded) |
 | 2026-05-14 13:34    | smoke | 6a05cf0ee48bea4538b9ccd6 | a10g-large | 10m    | 0.25       | 0.64            | PushT minimal-lewm-short smoke (pusht-minimal-lewm-short-20260514T133423Z) |
-| 2026-05-14 17:xx    | train | 6a06ef5d3308d79117b9025b | a10g-large | 50m    | 1.25       | 1.89            | Full PushT training attempt v1 (aborted early) |
+| 2026-05-14 17:xx    | train | 6a06ef5d3308d79117b9025b | a10g-large | 50m    | 1.25       | 1.89            | PushT bounded-module training attempt v1 (aborted early) |
 | 2026-05-15 11:05    | train | 6a06fe17e48bea4538b9e1cb | a10g-large | 1m     | 0.03       | 1.92            | SO-100 v1 (failed: rustup path) |
 | 2026-05-15 11:06    | train | 6a0700da3308d79117b9029c | a10g-large | 2m     | 0.05       | 1.97            | SO-100 v2 (failed: cargo not found) |
 | 2026-05-15 11:06    | train | 6a0701143308d79117b9029e | a10g-large | 2m     | 0.05       | 2.02            | SO-100 v3 (failed: HDF5 path) |
@@ -22,7 +22,7 @@
 | 2026-05-15 12:05    | train | 6a0709973308d79117b902c2 | a10g-large | 14m    | 0.35       | 2.99            | SO-100 v10 COMPLETED (no upload step; artifacts lost) |
 | 2026-05-15 12:14    | train | 6a070e02e48bea4538b9e2a5 | a10g-large | 15m    | 0.38       | 3.37            | SO-100 v11a COMPLETED; artifacts at abdelstark/lewm-rs-so100/train/so100-full-20260515T122820Z/ |
 | 2026-05-15 12:19    | train | 6a070f393308d79117b902de | a10g-large | 15m    | 0.38       | 3.75            | SO-100 v11b COMPLETED; duplicate (same config as v11a) |
-| 2026-05-15 10:09    | train | 6a06f0c43308d79117b90276 | a10g-large | 318m   | 7.95       | 11.70           | PushT full 50k steps COMPLETED; artifacts at abdelstark/lewm-rs-pusht/train/pusht-full-lewm-20260515T100908Z/ |
+| 2026-05-15 10:09    | train | 6a06f0c43308d79117b90276 | a10g-large | 318m   | 7.95       | 11.70           | PushT bounded-module 50k steps COMPLETED; artifacts at abdelstark/lewm-rs-pusht/train/pusht-full-lewm-20260515T100908Z/ |
 
 > Pricing: HuggingFace Jobs a10g-large = $1.50/hr (per published rate sheet as of 2026-05).
 > Costs rounded up to the nearest minute, then to the nearest cent.

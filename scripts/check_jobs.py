@@ -18,6 +18,12 @@ REQUIRED_ENV = {
 EXPECTED_NAMESPACE = "abdelstark"
 EXPECTED_IMAGE = "ghcr.io/abdelstark/lewm-rs:latest"
 OPTIONAL_OTEL_ENDPOINT_VALUE = "${OTEL_ENDPOINT:-}"
+BOUNDED_PUSHT_JOBS = {"short_pusht.yaml", "train_pusht.yaml"}
+BOUNDED_PUSHT_FORBIDDEN_TOKENS = (
+    "TRACKIO_RUN: pusht-full",
+    "--path-prefix train/pusht-full",
+    "train/pusht-full-module-lewm",
+)
 
 JOB_SPECS = {
     "smoke_pusht.yaml": {
@@ -36,6 +42,9 @@ JOB_SPECS = {
     "short_pusht.yaml": {
         "hardware": "cpu-xl",
         "timeout": "45m",
+        "env_values": {
+            "TRACKIO_RUN": "pusht-bounded-module-lewm-short",
+        },
         "command_tokens": [
             "hf download quentinll/lewm-pusht pusht_expert_train.h5.zst",
             "zstd -f -d /tmp/data/pusht_expert_train.h5.zst -o /tmp/data/pusht_expert_train.h5",
@@ -46,12 +55,15 @@ JOB_SPECS = {
             "--data-dir /tmp/data",
             "--max-steps 10",
             "python python/upload_checkpoints.py",
-            "--path-prefix train/pusht-full-module-lewm-short-$(date -u +%Y%m%dT%H%M%SZ)",
+            "--path-prefix train/pusht-bounded-module-lewm-short-$(date -u +%Y%m%dT%H%M%SZ)",
         ],
     },
     "train_pusht.yaml": {
         "hardware": "a10g-large",
         "timeout": "12h",
+        "env_values": {
+            "TRACKIO_RUN": "pusht-bounded-module-lewm",
+        },
         "command_tokens": [
             "hf download quentinll/lewm-pusht pusht_expert_train.h5.zst",
             "zstd -f -d /tmp/data/pusht_expert_train.h5.zst -o /tmp/data/pusht_expert_train.h5",
@@ -63,7 +75,7 @@ JOB_SPECS = {
             "--resume-if-present",
             "--max-steps ${LEWM_MAX_STEPS:-1000}",
             "python python/upload_checkpoints.py",
-            "--path-prefix train/pusht-full-module-lewm-$(date -u +%Y%m%dT%H%M%SZ)",
+            "--path-prefix train/pusht-bounded-module-lewm-$(date -u +%Y%m%dT%H%M%SZ)",
         ],
     },
     "train_so100_warmstart.yaml": {
@@ -165,11 +177,19 @@ def main() -> int:
                 f"{path}: OTEL_EXPORTER_OTLP_ENDPOINT must be {OPTIONAL_OTEL_ENDPOINT_VALUE!r}"
             )
 
+        for env_key, env_value in expected.get("env_values", {}).items():
+            if env_values.get(env_key) != env_value:
+                failures.append(
+                    f"{path}: env {env_key} must be {env_value!r}, "
+                    f"got {env_values.get(env_key)!r}"
+                )
+
         for token in expected["command_tokens"]:
             if token not in command:
                 failures.append(f"{path}: command missing {token!r}")
         if "archive.tar.zst" in command:
             failures.append(f"{path}: command references removed PushT archive.tar.zst path")
+        validate_bounded_pusht_contract(name, path, text, command, failures)
 
         if expected.get("requires_upload", True):
             upload_pos = max(
@@ -303,6 +323,29 @@ def validate_shell_continuations(command: str, path: Path, failures: list[str]) 
         if line.startswith("--") and not (previous and previous.endswith("\\")):
             failures.append(f"{path}: shell flag line {line!r} must follow a backslash continuation")
         previous = line
+
+
+def validate_bounded_pusht_contract(
+    name: str,
+    path: Path,
+    text: str,
+    command: str,
+    failures: list[str],
+) -> None:
+    if name not in BOUNDED_PUSHT_JOBS:
+        return
+
+    combined = f"{text}\n{command}"
+    for token in BOUNDED_PUSHT_FORBIDDEN_TOKENS:
+        if token in combined:
+            failures.append(
+                f"{path}: bounded PushT job must not use full-checkpoint token {token!r}"
+            )
+
+    if "pusht-bounded-module-lewm" not in combined:
+        failures.append(
+            f"{path}: bounded PushT job must use a bounded PushT run/path label"
+        )
 
 
 def validate_intern_config(failures: list[str]) -> None:
