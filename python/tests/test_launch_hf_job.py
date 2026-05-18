@@ -9,6 +9,7 @@ unit coverage here.
 
 from __future__ import annotations
 
+import json
 import sys
 from decimal import Decimal
 from pathlib import Path
@@ -154,3 +155,23 @@ class TestParseCostCap:
 
         with pytest.raises(argparse.ArgumentTypeError):
             launch_hf_job.parse_cost_cap("-1.00")
+
+
+class TestValidateJob:
+    """Real job specs must stay behind the leash gates they claim."""
+
+    JOB_PATH = PROJECT_ROOT / "jobs" / "train_so100_warmstart.yaml"
+    LEASH_PATH = PROJECT_ROOT / ".ml-intern" / "cli_agent_config.json"
+
+    def _job(self) -> dict[str, object]:
+        return launch_hf_job.parse_job(self.JOB_PATH)
+
+    def _leash(self) -> dict[str, object]:
+        return json.loads(self.LEASH_PATH.read_text(encoding="utf-8"))
+
+    def test_warmstart_requires_explicit_approval_flag(self) -> None:
+        with pytest.raises(launch_hf_job.LaunchError, match="requires --allow"):
+            launch_hf_job.validate_job(self.JOB_PATH, self._job(), self._leash(), False)
+
+    def test_warmstart_passes_with_explicit_approval_flag(self) -> None:
+        launch_hf_job.validate_job(self.JOB_PATH, self._job(), self._leash(), True)

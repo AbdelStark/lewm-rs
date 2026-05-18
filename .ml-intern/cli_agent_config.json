@@ -19,7 +19,8 @@
   ],
   "jobs_human_approval_required": [
     "train_pusht.yaml",
-    "train_so100.yaml"
+    "train_so100.yaml",
+    "train_so100_warmstart.yaml"
   ],
   "files_readonly_glob": [
     "crates/lewm-core/src/losses/**",

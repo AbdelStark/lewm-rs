@@ -413,6 +413,8 @@ def validate_intern_config(failures: list[str]) -> None:
         failures.append(f"{path}: train_pusht.yaml must require human approval")
     if "train_pusht.yaml" in jobs_allowed:
         failures.append(f"{path}: train_pusht.yaml must not be pre-approved")
+    if "train_so100_warmstart.yaml" not in approval_required:
+        failures.append(f"{path}: train_so100_warmstart.yaml must require human approval")
     if "train_so100_warmstart.yaml" in jobs_allowed:
         failures.append(f"{path}: train_so100_warmstart.yaml must not be pre-approved")
 

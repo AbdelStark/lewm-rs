@@ -2,7 +2,7 @@
 
 **Date:** 2026-05-18
 **Issue:** F3 / #245
-**Status:** Trainer wiring and fail-closed job spec complete; launch still blocked
+**Status:** Trainer wiring, fail-closed job spec, and safety-leash gating complete; launch still blocked
 
 ## Objective
 
@@ -22,13 +22,22 @@ The referenced job file is now present in the checkout:
 jobs/train_so100_warmstart.yaml
 ```
 
-The agent safety leash does not list `train_so100_warmstart.yaml` in either
-`jobs_allowed` or `jobs_human_approval_required`. `scripts/launch_hf_job.py`
-therefore rejects the job name:
+The agent safety leash now lists `train_so100_warmstart.yaml` under
+`jobs_human_approval_required`, not `jobs_allowed`. `scripts/launch_hf_job.py`
+therefore rejects the job unless the operator passes the explicit
+approval-required flag:
 
 ```text
 python3 scripts/launch_hf_job.py jobs/train_so100_warmstart.yaml --dry-run
-launch_hf_job.py: train_so100_warmstart.yaml is not listed in the leash config
+launch_hf_job.py: train_so100_warmstart.yaml requires --allow-approval-required
+```
+
+With the explicit approval-required flag, the launcher dry-run renders the
+`hf jobs run` command for `a10g-large` and `6h` without submitting the job:
+
+```text
+python3 scripts/launch_hf_job.py jobs/train_so100_warmstart.yaml --dry-run --allow-approval-required
+hf jobs run --namespace abdelstark --flavor a10g-large --timeout 6h ...
 ```
 
 The job spec also fails closed inside the shell command unless
@@ -109,6 +118,12 @@ uv run --project python pytest python/tests/test_check_warmstart_source.py
 
 Result: 4 passed.
 
+```text
+uv run --project python --frozen pytest python/tests/test_launch_hf_job.py
+```
+
+Result: 20 passed, including the SO-100 warm-start approval-required gate.
+
 ## Required Resolution
 
 F3 can be launched only after all of the following are true:
@@ -121,6 +136,6 @@ F3 can be launched only after all of the following are true:
 3. `jobs/train_so100_warmstart.yaml` is added and validated against the real
    source checkpoint path. **Spec added locally; final source path still
    pending.**
-4. The safety leash is updated by a human to list the job under
-   `jobs_human_approval_required`.
+4. The safety leash lists the job under `jobs_human_approval_required`. **Done
+   locally.**
 5. A human explicitly approves the paid HF Job launch.

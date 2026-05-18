@@ -35,7 +35,7 @@ This document tracks all items needed before tagging a public release.
 | PushT CEM planning eval | 🚫 Blocked | F1 export failed because no trained full Burn/Jepa safetensors exists under `abdelstark/lewm-rs-pusht`; see `reports/pusht_onnx_export.md` and `reports/full_burn_jepa_training_gap.md` |
 | PushT model card with metrics | ⏳ Pending | Needs eval results |
 | SO-100 training artifacts on Hub | ⚠️ Bounded-core run complete | `abdelstark/lewm-rs-so100/train/so100-full-20260515T122820Z/`; see `reports/so100_training.md` for the current bounded trainer scope |
-| SO-100 warm-start ablation | 🚫 Launch blocked | `lewm-train` now consumes `training.warmstart_from` and `jobs/train_so100_warmstart.yaml` exists with a fail-closed source-checkpoint env gate for the bounded-core SO-100 path, but no compatible current bounded PushT source checkpoint exists and paid launch requires safety-leash update + human approval; see `reports/so100_warmstart.md` |
+| SO-100 warm-start ablation | 🚫 Launch blocked | `lewm-train` now consumes `training.warmstart_from`, `jobs/train_so100_warmstart.yaml` exists with a fail-closed source-checkpoint env gate, and the safety leash marks it approval-required; no compatible current bounded PushT source checkpoint exists and paid launch still requires human approval; see `reports/so100_warmstart.md` |
 | SO-100 model card | ⏳ Pending final metrics | Local card now labels the current upload as a bounded trainer artifact; F5 still needs the warm-start delta before final upload |
 | ONNX artifacts (onnxruntime) | ⚠️ Reference only | Root `encoder.onnx` + `.data` + `predictor.onnx` + `.data` exist, but not under the F1-required `onnx-full/` trained-checkpoint path |
 | ONNX artifacts (Tract-compat) | ⚠️ Reference only | `tract-compat/encoder.onnx` + `predictor.onnx` exist, but not under the F1-required `onnx-full/` trained-checkpoint path |
@@ -74,7 +74,7 @@ This document tracks all items needed before tagging a public release.
 | Soft cap | ✅ Set | $100 USD — triggers notification |
 | Per-job default timeout | ✅ Set | 30 min default |
 | A100/H100 hardware denied | ✅ Set | Only cpu/l4/a10g allowed |
-| High-cost jobs require human approval | ✅ Set | `train_pusht.yaml`, `train_so100.yaml` |
+| High-cost jobs require human approval | ✅ Set | `train_pusht.yaml`, `train_so100.yaml`, `train_so100_warmstart.yaml` |
 
 ## Required user actions before release
 
