@@ -207,6 +207,25 @@ class TestValidateJob:
         with pytest.raises(launch_hf_job.LaunchError, match="repo-relative Hub path"):
             launch_hf_job.validate_job(self.JOB_PATH, self._job(), self._leash(), True)
 
+    def test_warmstart_rejects_placeholder_source_env(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv(
+            "LEWM_PUSHT_WARMSTART_MPK",
+            "train/REPLACE_WITH_COMPATIBLE_BOUNDED_RUN/step_0050000.mpk",
+        )
+        with pytest.raises(launch_hf_job.LaunchError, match=r"real compatible Hub \.mpk path"):
+            launch_hf_job.validate_job(self.JOB_PATH, self._job(), self._leash(), True)
+
+    def test_warmstart_rejects_glob_source_env(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("LEWM_PUSHT_WARMSTART_MPK", "train/*/step_0050000.mpk")
+        with pytest.raises(launch_hf_job.LaunchError, match="literal Hub path"):
+            launch_hf_job.validate_job(self.JOB_PATH, self._job(), self._leash(), True)
+
     def test_warmstart_passes_with_explicit_approval_flag(
         self,
         monkeypatch: pytest.MonkeyPatch,

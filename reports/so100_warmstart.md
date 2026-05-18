@@ -47,9 +47,10 @@ hf jobs run --namespace abdelstark --flavor a10g-large --timeout 6h ...
 
 The job spec also fails closed inside the shell command unless
 `LEWM_PUSHT_WARMSTART_MPK` points at a compatible PushT `.mpk` path in the
-source model repo. The launcher now catches an empty, absolute, parent-traversal,
-or non-`.mpk` source path before even rendering the HF command. This prevents
-accidentally launching against the stale `configs/so100_warmstart.toml` default.
+source model repo. The launcher now catches an empty, absolute,
+parent-traversal, placeholder, globbed, or non-`.mpk` source path before even
+rendering the HF command. This prevents accidentally launching against the
+stale `configs/so100_warmstart.toml` default or a handoff placeholder.
 
 The job now runs a local source-check before training:
 

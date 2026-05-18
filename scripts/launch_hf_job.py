@@ -29,6 +29,7 @@ ROOT = Path(__file__).resolve().parents[1]
 LEASH_PATH = ROOT / ".ml-intern" / "cli_agent_config.json"
 ENV_EXPR_RE = re.compile(r"^\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-(.*))?\}$")
 IMAGE_TAG_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+PLACEHOLDER_RE = re.compile(r"(REPLACE_WITH_|<[^>]+>|\{[^}]+\})")
 
 DEFAULT_COST_CAP_USD = Decimal("20.00")  # per-session soft cap (CLAUDE.md)
 
@@ -311,6 +312,12 @@ def validate_job_env_contract(path: Path, job: dict[str, object]) -> None:
             "LEWM_PUSHT_WARMSTART_MPK must be a repo-relative Hub path, not an absolute "
             "path or parent traversal"
         )
+    if PLACEHOLDER_RE.search(source):
+        raise LaunchError(
+            "LEWM_PUSHT_WARMSTART_MPK must be replaced with a real compatible Hub .mpk path"
+        )
+    if any(char in source for char in "*?["):
+        raise LaunchError("LEWM_PUSHT_WARMSTART_MPK must be a literal Hub path, not a glob")
     if not source.endswith(".mpk"):
         raise LaunchError("LEWM_PUSHT_WARMSTART_MPK must end in .mpk")
 
