@@ -84,6 +84,24 @@ def validate_blocker(entry: Any, index: int) -> dict[str, Any]:
     return entry
 
 
+def validate_evidence_paths(blockers: list[dict[str, Any]], path: Path) -> None:
+    """Require each evidence entry to point at an existing repo-local file."""
+    root = repo_root()
+    for entry in blockers:
+        for evidence in entry["evidence"]:
+            evidence_path = Path(evidence)
+            context = f"{entry['id']}.evidence {evidence!r}"
+            if evidence_path.is_absolute():
+                raise BlockerError(f"{path}: {context} must be repo-relative")
+            candidate = (root / evidence_path).resolve()
+            try:
+                candidate.relative_to(root)
+            except ValueError as exc:
+                raise BlockerError(f"{path}: {context} must stay within the repo") from exc
+            if not candidate.exists():
+                raise BlockerError(f"{path}: {context} does not exist")
+
+
 def load_blockers(path: Path) -> list[dict[str, Any]]:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
@@ -104,6 +122,7 @@ def load_blockers(path: Path) -> list[dict[str, Any]]:
 
     blockers = [validate_blocker(entry, index) for index, entry in enumerate(raw_blockers)]
     validate_backlog_contract(blockers, path)
+    validate_evidence_paths(blockers, path)
     return blockers
 
 

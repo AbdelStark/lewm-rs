@@ -16,6 +16,10 @@ issues #243 through #255. The checker rejects missing, duplicate, unexpected,
 or mis-numbered blocker IDs so the release gate cannot pass by silently
 dropping a later backlog item.
 
+Every `evidence` entry must be a repo-relative path that exists in the
+checkout. Use `required_resolution` for future artifacts or live URLs that do
+not exist yet.
+
 Release blocker shape:
 
 ```json
