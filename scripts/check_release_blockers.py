@@ -76,6 +76,7 @@ REQUIRED_RESOLUTION_SUBSTRINGS_BY_ID: dict[str, tuple[str, ...]] = {
         "LEWM_SOURCE_REVISION",
         "255-tensor Burn/Jepa safetensors layout",
         "onnx-full/",
+        "--allow-hub-upload",
     ),
     "F2": (
         "50 scored PushT CEM evaluation episodes",

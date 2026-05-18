@@ -37,7 +37,7 @@
         "Produce and upload a PushT checkpoint with the exact 255-tensor Burn/Jepa safetensors layout expected by python/export_onnx.py, or formally change the release acceptance criteria.",
         "Export both onnxruntime and tract-compat variants under onnx-full/.",
         "Verify the exported graphs with python/verify_onnx.py.",
-        "Upload the verified variants to abdelstark/lewm-rs-pusht."
+        "Upload the verified variants to abdelstark/lewm-rs-pusht with --allow-hub-upload after release-owner approval."
       ]
     },
     {

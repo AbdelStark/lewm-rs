@@ -54,9 +54,11 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   criteria before final Hub upload approval. The final F1 `onnx-full/` Hub
   upload path now requires both `--upload` and the separate
   `--allow-hub-upload` approval flag, and the handoff validator enforces that
-  fail-closed command shape. The Phase A approval packet now also pins the F3
-  warm-start source verifier plus its smoke and public-Hub audit checker
-  evidence before the paid SO-100 warm-start launch can be approved.
+  fail-closed command shape. The release blocker gate now also requires F1
+  resolution text to retain that upload approval token. The Phase A approval
+  packet now also pins the F3 warm-start source verifier plus its smoke and
+  public-Hub audit checker evidence before the paid SO-100 warm-start launch
+  can be approved.
   Result, roadmap, status, paper, and cost docs now label the historical PushT
   spend as bounded-core training and record the F1/F3 worst-case approval
   envelopes instead of treating the missing full Burn/Jepa release checkpoint

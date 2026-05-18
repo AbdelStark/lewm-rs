@@ -58,6 +58,7 @@ REQUIRED_RESOLUTION_BY_ID = {
         "Verify the runtime image tag with scripts/verify_runtime_image.py before paid HF Job launch, or use the approval-gated source-build fallback with a concrete LEWM_SOURCE_REVISION.",
         "Produce and upload a PushT checkpoint with the exact 255-tensor Burn/Jepa safetensors layout expected by python/export_onnx.py.",
         "Export both onnxruntime and tract-compat variants under onnx-full/.",
+        "Upload the verified onnx-full variants with --allow-hub-upload after release-owner approval.",
     ],
     "F2": [
         "Run 50 scored PushT CEM evaluation episodes against the F1 full-training ONNX artifacts.",
