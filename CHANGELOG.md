@@ -53,6 +53,10 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   `scripts/check_release_blockers.py` keep `make check` schema-validating known
   blockers while making `make accept` fail until the F1 ONNX and F3 warm-start
   blockers are resolved.
+- **Model-card accuracy**: local PushT and SO-100 Hub cards now label the
+  current uploads as bounded trainer artifacts instead of full release
+  checkpoints, and `scripts/upload_model_cards.py --dry-run` no longer requires
+  `HF_TOKEN`.
 - **`lewm-train` eval adapter**: new `lewm_train::eval` module provides
   `JepaCemCostModel<B>`, a `lewm_plan::CemCostModel` adapter that
   tensorises CEM batches and forwards to the parity-verified

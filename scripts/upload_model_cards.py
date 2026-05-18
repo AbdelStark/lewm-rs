@@ -28,17 +28,19 @@ def main() -> int:
     args = parser.parse_args()
 
     token = os.environ.get("HF_TOKEN")
-    if not token:
+    if not args.dry_run and not token:
         print("HF_TOKEN environment variable required", file=sys.stderr)
         return 1
 
-    try:
-        from huggingface_hub import HfApi
-    except ImportError:
-        print("huggingface_hub required: pip install huggingface_hub", file=sys.stderr)
-        return 1
+    HfApi = None
+    if not args.dry_run:
+        try:
+            from huggingface_hub import HfApi
+        except ImportError:
+            print("huggingface_hub required: pip install huggingface_hub", file=sys.stderr)
+            return 1
 
-    api = HfApi(token=token)
+    api = HfApi(token=token) if HfApi is not None else None
     targets = list(REPOS.keys()) if args.target == "all" else [args.target]
     failures = 0
 
@@ -53,6 +55,10 @@ def main() -> int:
         if args.dry_run:
             print(f"[{target}] DRY RUN — skipping upload")
             continue
+
+        if api is None:
+            print("internal error: Hugging Face API client was not initialized", file=sys.stderr)
+            return 1
 
         try:
             api.create_repo(repo_id=repo_id, repo_type="model", exist_ok=True)

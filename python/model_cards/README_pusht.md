@@ -12,11 +12,24 @@ language:
 library_name: lewm-rs
 ---
 
-# lewm-rs — PushT Trained Checkpoint
+# lewm-rs — PushT Training Artifact
 
 A Rust/Burn implementation of **LeWorldModel** (Le-WM) trained on the [PushT expert dataset](https://huggingface.co/datasets/quentinll/lewm-pusht).
 
-This checkpoint achieves **numerical parity** with the reference PyTorch implementation from [lucas-maes/le-wm](https://github.com/lucas-maes/le-wm) (L∞ < 1e-4 on all activation-level parity tests).
+This repository currently publishes the 50k-step PushT training logs and a
+bounded-core training checkpoint. It does **not** yet publish the full
+303-tensor Burn/Jepa checkpoint required for trained-checkpoint ONNX export,
+CEM planning evaluation, or the final release model card.
+
+Current release status:
+
+| Item | Status |
+|------|--------|
+| 50k PushT training run | Complete |
+| Uploaded checkpoint | Bounded `PushtFullLewmCore` artifact, 14 tensors |
+| Full Burn/Jepa safetensors | Missing |
+| Release ONNX under `onnx-full/` | Blocked |
+| CEM planning success rate | Blocked |
 
 ## Training Results
 
@@ -39,7 +52,7 @@ This checkpoint achieves **numerical parity** with the reference PyTorch impleme
 | 25,000 | 1.92e-06 | 1.72e-06 | 1.93e-07 |
 | 50,000 | 3.17e-06 | 3.00e-06 | 1.69e-07 |
 
-## Architecture
+## Architecture Target and Current Artifact
 
 LeWorldModel is a JEPA-based world model combining:
 
@@ -49,6 +62,10 @@ LeWorldModel is a JEPA-based world model combining:
 - **Projector / Pred-proj MLPs** — 192 → 2048 → 192 with BatchNorm1d
 
 Total parameters: ~18M (303 tensors)
+
+The uploaded `train/pusht-full-lewm-20260515T100908Z/step_0050000.*`
+checkpoint is not that full 18M-parameter artifact. It is the bounded host-core
+training path used by the current trainer and contains 14 exported tensors.
 
 ```
 Encoder:   ViT-Tiny (192-d, 12L, 3H, patch=14, img=224)
@@ -75,11 +92,14 @@ Training:  SIGReg + prediction MSE loss (λ=1.0, knots=17, proj=1024)
 
 ## CEM Planning Evaluation
 
-CEM (Cross-Entropy Method) planning evaluation is pending. Target: ≥ 87% success rate on 50 test episodes (matching the reference paper).
+CEM (Cross-Entropy Method) planning evaluation is blocked until a full
+Burn/Jepa PushT checkpoint is available and exported to `onnx-full/`. Target:
+≥ 87% success rate on 50 test episodes (matching the reference paper).
 
 ## Parity Verification
 
-All 10 activation-level parity tests pass against the reference PyTorch checkpoint:
+The lewm-rs implementation has activation-level parity coverage against the
+reference PyTorch checkpoint:
 
 | Component | Tolerance | Status |
 |-----------|-----------|--------|
@@ -91,30 +111,40 @@ All 10 activation-level parity tests pass against the reference PyTorch checkpoi
 
 Reference checkpoint: [`quentinll/lewm-pusht@22b330c`](https://huggingface.co/quentinll/lewm-pusht)
 
+These parity tests validate the implementation surfaces. They are not evidence
+that the current 14-tensor PushT upload is the full release checkpoint.
+
 ## Artifacts
 
 | File | Description |
 |------|-------------|
-| `train/pusht-full-lewm-20260515T100908Z/step_0050000.safetensors` | Model weights |
-| `train/pusht-full-lewm-20260515T100908Z/step_0050000.mpk` | Full checkpoint |
+| `train/pusht-full-lewm-20260515T100908Z/step_0050000.safetensors` | Bounded-core parameter mirror (14 tensors, ~1.2 KB) |
+| `train/pusht-full-lewm-20260515T100908Z/step_0050000.mpk` | Bounded-core Burn checkpoint mirror |
 | `train/pusht-full-lewm-20260515T100908Z/train_report.json` | Training summary |
-| `encoder.onnx` + `predictor.onnx` | onnxruntime (opset 18) |
-| `tract-compat/encoder.onnx` + `tract-compat/predictor.onnx` | Tract CPU (opset 17) |
-| `onnx_export.json` | Export metadata (`action_dim: 10`) |
+| `encoder.onnx` + `predictor.onnx` | Reference ONNX export, not the final F1 trained-checkpoint export |
+| `tract-compat/encoder.onnx` + `tract-compat/predictor.onnx` | Reference Tract-compatible export, not the final F1 trained-checkpoint export |
+| `onnx-full/` | Missing; blocked until a full PushT checkpoint exists |
 
 ## CPU Inference (Tract)
 
-Tract benchmark: **4.08 s/episode** (p50, release build, Apple M3 ARM, 5 CEM iter × 1024 candidates).
+Tract benchmark from the reference export path: **4.08 s/episode** (p50,
+release build, Apple M3 ARM, 5 CEM iter × 1024 candidates).
+
+Do not run the release exporter against the current
+`step_0050000.safetensors`; it is the 14-tensor bounded-core artifact and will
+not satisfy the full PyTorch/Burn key mapping. The release path is:
 
 ```bash
-# Export ONNX from trained checkpoint
+# Export once the full 303-tensor PushT checkpoint is available.
 uv run --extra parity python python/export_onnx.py \
-  --safetensors train/pusht-full-lewm-20260515T100908Z/step_0050000.safetensors \
+  --safetensors <full-pusht-step_0050000.safetensors> \
   --meta tests/fixtures/reference_model.meta.json \
-  --output-dir /tmp/lewm-onnx
+  --output-dir /tmp/lewm-onnx-full \
+  --variant both \
+  --action-dim 10
 
-# CPU benchmark
-lewm-infer bench --checkpoint-dir /tmp/lewm-onnx --action-dim 10
+# Verify both ONNX layouts before upload.
+uv run --extra parity python python/verify_onnx.py --dir /tmp/lewm-onnx-full
 ```
 
 ## Repository

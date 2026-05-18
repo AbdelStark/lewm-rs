@@ -13,11 +13,20 @@ language:
 library_name: lewm-rs
 ---
 
-# lewm-rs — SO-100 Trained Checkpoint
+# lewm-rs — SO-100 Training Artifact
 
 A Rust/Burn implementation of **LeWorldModel** (Le-WM) trained on the SO-100 pick-and-place dataset.
 
-This checkpoint is trained on `abdelstark/so100-pickplace-lewm-ready` (1.9 GB HDF5, 6,559 timesteps, 50 episodes at 10 fps) for 6-DOF robotic manipulation.
+This checkpoint is trained on `abdelstark/so100-pickplace-lewm-ready` (1.9 GB HDF5, 6,559 timesteps, 50 episodes at 10 fps) for SO-100 robotic manipulation with the configured 6-DOF action stream.
+
+Current release status:
+
+| Item | Status |
+|------|--------|
+| SO-100 from-scratch training run | Complete |
+| Uploaded checkpoint | Bounded `PushtFullLewmCore` artifact |
+| SO-100 warm-start ablation | Blocked pending compatible PushT `.mpk` source and approval-gated HF Job |
+| Final SO-100 model card metrics | Pending warm-start delta |
 
 ## Training Results
 
@@ -39,16 +48,17 @@ This checkpoint is trained on `abdelstark/so100-pickplace-lewm-ready` (1.9 GB HD
 | 2,500 | 3.70e-04 | 3.69e-04 | 1.44e-06 |
 | 5,000 | 9.56e-05 | 9.50e-05 | 5.34e-07 |
 
-## Architecture
+## Architecture Target and Current Artifact
 
-Same ViT-Tiny JEPA architecture as the PushT model, adapted for 6-DOF robotic manipulation:
+Release target architecture, adapted for SO-100 manipulation:
 
 - **ViT-Tiny visual encoder** — 192-dim, 12 transformer layers, 3 attention heads, 14×14 patch tokens from 224×224 top-view images
-- **Action encoder** — 6-DOF joint actions (smoothed to 10-dim) → 192-dim embeddings
+- **Action encoder** — 6-DOF actions (smoothed to 10-dim) → 192-dim embeddings
 - **AdaLN-zero autoregressive predictor** — 6 transformer blocks, 16 heads, 2048 MLP
 - **Projector / Pred-proj MLPs** — 192 → 2048 → 192 with BatchNorm1d
 
-Total parameters: ~18M
+The uploaded SO-100 checkpoint is the current bounded trainer artifact, not a
+full ViT/Jepa release checkpoint.
 
 ```
 Encoder:   ViT-Tiny (192-d, 12L, 3H, patch=14, img=224, top-view camera)
@@ -71,6 +81,7 @@ Training:  SIGReg + prediction MSE loss (λ=1.0, knots=17, proj=1024)
 | History size | 3 frames |
 | Prediction horizon | 4 frames |
 | Camera | Top view (224×224) |
+| Action space | 6-DOF configured action stream |
 | Seed | 0 |
 
 ## Dataset
@@ -82,22 +93,23 @@ Training:  SIGReg + prediction MSE loss (λ=1.0, knots=17, proj=1024)
 | Timesteps | 6,559 |
 | Sampling rate | 10 fps |
 | Image resolution | 224×224 |
-| Action space | 6-DOF (joint angles) |
+| Action space | 6-DOF configured action stream |
 | HDF5 size | 1.9 GB |
 
 ## Artifacts
 
 | File | Description |
 |------|-------------|
-| `train/so100-full-20260515T122820Z/step_0005000.safetensors` | Model weights |
-| `train/so100-full-20260515T122820Z/step_0005000.mpk` | Full checkpoint |
+| `train/so100-full-20260515T122820Z/step_0005000.safetensors` | Bounded trainer parameter export |
+| `train/so100-full-20260515T122820Z/step_0005000.mpk` | Bounded trainer Burn checkpoint |
 | `train/so100-full-20260515T122820Z/train_report.json` | Training summary |
 | `train/so100-full-20260515T122820Z/train_losses.jsonl` | Per-step loss log |
 
 ## Warm-Start Evaluation
 
-Pending. The `.mpk` checkpoint is available for warm-start evaluation
-(initialising from this SO-100 checkpoint vs. from the PushT checkpoint).
+Pending. The release ablation compares SO-100 from-scratch training against
+SO-100 training warm-started from PushT. Launch is blocked until a compatible
+PushT `.mpk` source exists and the approval-gated HF Job is explicitly allowed.
 
 ## Repository
 
