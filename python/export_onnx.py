@@ -33,12 +33,24 @@ try:
     import torch
     import torch.nn as nn
     import torch.nn.functional as F
+
     _TORCH_OK = True
 except ImportError:
+    torch = None
+    F = None
+
+    class _MissingTorchModule:
+        pass
+
+    class _MissingTorchNN:
+        Module = _MissingTorchModule
+
+    nn = _MissingTorchNN()
     _TORCH_OK = False
 
 try:
     from safetensors.numpy import load_file as st_load
+
     _ST_OK = True
 except ImportError:
     _ST_OK = False
@@ -112,14 +124,10 @@ def invert_rule(rule: pnm.ParamRule, burn_dict: dict[str, np.ndarray]) -> dict[s
     raise ValueError(f"Unknown transform: {t}")
 
 
-def burn_safetensors_to_state_dict(
-    burn_path: Path,
-) -> dict[str, torch.Tensor]:
-    """Load a Burn safetensors file and invert it back to a PyTorch state dict."""
+def recover_pytorch_numpy_from_burn(burn_path: Path) -> dict[str, np.ndarray]:
+    """Load a Burn safetensors file and invert it back to PyTorch-keyed arrays."""
     if not _ST_OK:
         raise RuntimeError("safetensors not installed; run: pip install safetensors")
-    if not _TORCH_OK:
-        raise RuntimeError("torch not installed")
 
     burn_dict: dict[str, np.ndarray] = st_load(str(burn_path))
     rules = pnm.parameter_rules()
@@ -133,6 +141,17 @@ def burn_safetensors_to_state_dict(
     if contract_error is not None:
         raise CheckpointContractError(contract_error)
 
+    return {k: v.astype(np.float32) for k, v in pt_numpy.items()}
+
+
+def burn_safetensors_to_state_dict(
+    burn_path: Path,
+) -> dict[str, torch.Tensor]:
+    """Load a Burn safetensors file and invert it back to a PyTorch state dict."""
+    if not _TORCH_OK or torch is None:
+        raise RuntimeError("torch not installed")
+
+    pt_numpy = recover_pytorch_numpy_from_burn(burn_path)
     return {k: torch.from_numpy(v.astype(np.float32)) for k, v in pt_numpy.items()}
 
 
@@ -638,9 +657,6 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(sys.argv[1:] if argv is None else argv)
 
-    if not _TORCH_OK:
-        print("ERROR: 'torch' is not installed.", file=sys.stderr)
-        return 1
     if not _ST_OK:
         print("ERROR: 'safetensors' is not installed.", file=sys.stderr)
         return 1
@@ -661,10 +677,16 @@ def main(argv: list[str] | None = None) -> int:
 
     print(f"Loading Burn safetensors: {args.safetensors}", flush=True)
     try:
-        state = burn_safetensors_to_state_dict(args.safetensors)
+        recovered_numpy = recover_pytorch_numpy_from_burn(args.safetensors)
     except CheckpointContractError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
+
+    if not _TORCH_OK or torch is None:
+        print("ERROR: 'torch' is not installed.", file=sys.stderr)
+        return 1
+
+    state = {k: torch.from_numpy(v) for k, v in recovered_numpy.items()}
     print(f"Recovered {len(state)} PyTorch keys from Burn checkpoint.")
 
     arch = load_arch_from_meta(meta_path)

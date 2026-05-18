@@ -42,7 +42,8 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   50k PushT artifact is a 14-tensor bounded host-core checkpoint, not the
   303-tensor full Burn/Jepa checkpoint required for trained-checkpoint ONNX
   export. The exporter now fails that mismatch up front with a checkpoint
-  contract diagnostic instead of surfacing a raw missing-key error.
+  contract diagnostic instead of surfacing a raw missing-key error, and that
+  invalid-checkpoint preflight no longer requires `torch`.
 - **SO-100 warm-start wiring + preflight**: `lewm-train` now consumes
   `training.warmstart_from` for fresh SO-100 full-module training starts,
   transfers shared PushT modules through the RFC 0012 warm-start boundary,

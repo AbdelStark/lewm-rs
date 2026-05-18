@@ -3,6 +3,9 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import numpy as np
+import pytest
+
 PYTHON_DIR = Path(__file__).resolve().parents[1]
 if str(PYTHON_DIR) not in sys.path:
     sys.path.insert(0, str(PYTHON_DIR))
@@ -83,3 +86,37 @@ def test_checkpoint_contract_reports_bounded_core_artifact() -> None:
     assert "recovered 0 of" in message
     assert "bounded PushtFullLewmCore training artifact" in message
     assert "full 303-tensor lewm_core::Jepa checkpoint" in message
+
+
+def test_recover_pytorch_numpy_reports_bounded_core_before_torch(tmp_path: Path) -> None:
+    safetensors_numpy = pytest.importorskip("safetensors.numpy")
+    checkpoint = tmp_path / "step_0050000.safetensors"
+    safetensors_numpy.save_file(
+        {
+            key: np.array([0.0], dtype=np.float32)
+            for key in {
+                "action_encoder.bias",
+                "action_encoder.x.weight",
+                "action_encoder.y.weight",
+                "encoder.bias",
+                "encoder.energy.weight",
+                "encoder.pixel.weight",
+                "encoder.time.weight",
+                "pred_proj.bias",
+                "pred_proj.weight",
+                "predictor.action.weight",
+                "predictor.bias",
+                "predictor.latent.weight",
+                "projector.bias",
+                "projector.weight",
+            }
+        },
+        checkpoint,
+    )
+
+    with pytest.raises(export.CheckpointContractError) as exc_info:
+        export.recover_pytorch_numpy_from_burn(checkpoint)
+
+    message = str(exc_info.value)
+    assert "source safetensors tensor count: 14" in message
+    assert "bounded PushtFullLewmCore training artifact" in message

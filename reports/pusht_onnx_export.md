@@ -2,7 +2,7 @@
 
 **Date:** 2026-05-18
 **Issue:** F1 / #243
-**Status:** Blocked by artifact mismatch
+**Status:** Still blocked by artifact mismatch after live Hub re-check
 
 ## Objective
 
@@ -46,6 +46,15 @@ train/pusht-full-lewm-20260515T100908Z/step_0050000.safetensors 1264 bytes
 train/pusht-full-lewm-20260515T100908Z/step_0050000.mpk         1266 bytes
 ```
 
+Live unauthenticated Hub API re-check on 2026-05-18 confirmed the same state
+at repo commit `c59a9beb6fec79717719fb541220294001d67100`:
+
+```text
+train/pusht-full-lewm-20260515T100908Z/step_0050000.json        1009 bytes
+train/pusht-full-lewm-20260515T100908Z/step_0050000.mpk         1266 bytes
+train/pusht-full-lewm-20260515T100908Z/step_0050000.safetensors 1264 bytes
+```
+
 Safetensors inspection shows 14 bounded-core tensors, not the 303 tensors
 required by the locked PushT reference / `python/export_onnx.py` mapping:
 
@@ -73,6 +82,18 @@ current PushT 50k-step result was produced by the 14-parameter
 `PushtFullLewmCore` bounded host path. That path is not the full Burn/Jepa
 model expected by the ONNX exporter.
 
+The live `step_0050000.json` sidecar likewise reports:
+
+```json
+{
+  "run_id": "pusht-minimal-lewm-v1",
+  "step": 50000,
+  "metrics_last_step": {
+    "loss/train": 3.1696034906382155e-06
+  }
+}
+```
+
 The exporter now fails before graph generation with an explicit checkpoint
 contract diagnostic:
 
@@ -96,6 +117,19 @@ first missing keys:
 provide a full Burn/Jepa safetensors checkpoint or use a separate exporter for the bounded-core artifact
 ```
 
+This diagnostic can now be reproduced with only `safetensors` installed; a
+bad checkpoint no longer needs a full `torch` environment just to fail the
+contract preflight:
+
+```text
+uv run --project python --with safetensors python python/export_onnx.py \
+  --safetensors /tmp/pusht-full-live-check/train/pusht-full-lewm-20260515T100908Z/step_0050000.safetensors \
+  --meta tests/fixtures/reference_model.meta.json \
+  --output-dir /tmp/pusht-onnx-full-live-check \
+  --variant both \
+  --action-dim 10
+```
+
 No `onnx-full/` upload was performed because the source artifact does not
 satisfy the F1 acceptance contract.
 
@@ -115,6 +149,8 @@ The Python edge tooling is ready for a valid full PushT checkpoint:
 - `python/export_onnx.py` now validates the checkpoint contract up front and
   refuses bounded-core artifacts with an actionable F1 diagnostic instead of
   falling through to a raw missing-key error.
+- Invalid-checkpoint preflight is safetensors-only: `torch` is required only
+  after the source checkpoint has passed the full-layout contract.
 
 Focused validation:
 
