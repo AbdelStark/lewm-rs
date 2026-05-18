@@ -9,7 +9,7 @@ dependencies = [
     "h5py>=3.14,<4",
     "numpy>=2.2,<3",
     "pillow>=11,<13",
-    "pyarrow>=20,<23",
+    "pyarrow>=20,<25",
 ]
 
 [project.optional-dependencies]
