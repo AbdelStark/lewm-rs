@@ -27,14 +27,14 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Install Rust
         run: rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal
 
       - name: Cache mdBook binary
         id: cache-mdbook
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/.cargo/bin/mdbook
           key: mdbook-${{ runner.os }}-${{ env.MDBOOK_VERSION }}
