@@ -11,7 +11,7 @@
 # `latest` for development; `scripts/launch_hf_job.py --image-tag` can pin a
 # release tag at submission time without editing the YAML.
 
-FROM rust:1.95.0-bookworm AS builder
+FROM rust:1.97.1-bookworm AS builder
 
 WORKDIR /src
 
